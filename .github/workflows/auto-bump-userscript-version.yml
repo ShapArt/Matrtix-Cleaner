@@ -1,0 +1,41 @@
+name: Auto Bump Userscript Version
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - matrix-cleaner.user.js
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    if: ${{ !contains(github.event.head_commit.message, '[skip version bump]') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Bump userscript version
+        run: python scripts/bump_userscript_version.py
+
+      - name: Commit bumped version
+        run: |
+          if git diff --quiet -- matrix-cleaner.user.js; then
+            echo "No version change detected."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add matrix-cleaner.user.js
+          git commit -m "chore: bump userscript version [skip version bump]"
+          git push
