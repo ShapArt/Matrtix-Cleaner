@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenText Matrix Cleaner Compact Safe
 // @namespace    https://chat.openai.com/
-// @version      3.1.0
+// @version      2026.4.17.1
 // @description  Компактное и безопасное удаление контрагента на страницах матриц OpenText с dry-run и экспортом отчета
 // @match        *://*/otcs/cs.exe*
 // @homepageURL  https://github.com/ShapArt/Matrtix-Cleaner
