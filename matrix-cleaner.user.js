@@ -80,6 +80,21 @@
       popupPartnerCheckbox: 'input.partneritem',
       popupSelectBtn: '#selectpartners',
     },
+    operationLabels: {
+      remove_counterparty_from_rows: 'Удаление контрагента из строк',
+      delete_rows_if_single_counterparty: 'Удаление строки при единственном контрагенте',
+      replace_approver: 'Замена согласующего',
+      remove_approver: 'Снятие согласующего',
+      replace_signer: 'Замена подписанта',
+      add_signer_bundle: 'Добавление подписанта (4 строки)',
+      change_limits: 'Изменение лимитов',
+      expand_legal_entities: 'Расширение юрлиц',
+      expand_sites: 'Расширение площадок',
+      patch_doc_types: 'Правка типов документов (legacy)',
+      add_doc_type_to_matching_rows: 'Массово: добавить тип документа',
+      add_change_card_flag_to_matching_rows: 'Массово: признак карточки',
+      add_legal_entity_to_matching_rows: 'Массово: добавить юрлицо',
+    },
   };
 
   const state = {
@@ -491,6 +506,77 @@
   function resolvePartnerByName(name) {
     const key = normalize(name);
     return state.partnerCatalog.find(entry => entry.key === key) || null;
+  }
+
+  /** Первый контрагент из каталога, чьё имя встречается в тексте видимых строк (не «первый в списке»). */
+  function pickPartnerEntryVisibleInMatrix(catalog) {
+    if (!Array.isArray(catalog) || !catalog.length) return null;
+    const rows = visibleRows();
+    if (!rows.length) return null;
+    const blob = normalize(rows.map(r => String(r.textContent || '')).join('\n'));
+    for (let i = 0; i < catalog.length; i += 1) {
+      const name = String(catalog[i].name || '').trim();
+      if (!name) continue;
+      const key = normalize(name);
+      if (key && blob.indexOf(key) >= 0) return catalog[i];
+    }
+    return null;
+  }
+
+  function operationTypeLabel(type) {
+    return (CONFIG.operationLabels && CONFIG.operationLabels[type]) ? CONFIG.operationLabels[type] : String(type || '');
+  }
+
+  /** Черновик операций из свободного текста заявки (без JSON). */
+  function parseFreeformRequestText(rawText) {
+    const text = String(rawText || '').trim();
+    if (!text) {
+      return { confidence: 0, operations: [], reasons: ['Пустой текст.'] };
+    }
+    const lower = text.toLowerCase();
+    const operations = [];
+    const reasons = [];
+    const pickName = (re) => {
+      const m = text.match(re);
+      return m && m[1] ? m[1].replace(/\s+/g, ' ').trim() : '';
+    };
+    if (/замен[а-я]*\s+подписант|подписант[а-я]*\s+с|replace.*signer/i.test(text)) {
+      operations.push({
+        type: CONFIG.operationTypes.REPLACE_SIGNER,
+        matrixName: document.title,
+        scope: {},
+        filters: {},
+        payload: { currentSigner: pickName(/текущ[а-я]*\s*[:]?\s*([^\n,;]+)/i) || pickName(/с\s+([^\n,]+?)\s+на/i), newSigner: pickName(/на\s+([^\n,;]+?)(?:\s|$|\.)/i) || pickName(/нов[а-я]*\s*[:]?\s*([^\n,;]+)/i) },
+        options: { sourceRule: 'freeform_text' },
+      });
+      reasons.push('Найден сценарий замены подписанта.');
+    }
+    if (/добавить\s+тип|тип\s+документ|add\s+doc/i.test(text)) {
+      const doc = pickName(/тип[а-я]*\s*[:]?\s*([^\n,;]+)/i) || pickName(/«([^»]+)»/);
+      operations.push({
+        type: CONFIG.operationTypes.ADD_DOC_TYPE_TO_MATCHING_ROWS,
+        matrixName: document.title,
+        scope: {},
+        filters: { rowGroup: lower.indexOf('доп') >= 0 ? 'supplemental_rows' : 'all' },
+        payload: { newDocType: doc || 'Уточнить тип', rowGroup: lower.indexOf('доп') >= 0 ? 'supplemental_rows' : 'all', matchMode: 'any', requiredDocTypes: [], affiliation: CONFIG.requiredAffiliation },
+        options: { sourceRule: 'freeform_text' },
+      });
+      reasons.push('Найдено добавление типа документа (проверь поле вручную).');
+    }
+    if (/юр[а-я]*\s*лиц|legal\s*ent/i.test(text)) {
+      operations.push({
+        type: CONFIG.operationTypes.ADD_LEGAL_ENTITY_TO_MATCHING_ROWS,
+        matrixName: document.title,
+        scope: {},
+        filters: { rowGroup: 'all' },
+        payload: { legalEntity: pickName(/ооо[а-яa-z0-9«»\s-]{3,60}/i) || 'Уточнить юрлицо', matchMode: 'any', requiredDocTypes: [], affiliation: CONFIG.requiredAffiliation },
+        options: { sourceRule: 'freeform_text' },
+      });
+      reasons.push('Найдено упоминание юрлица (проверь название).');
+    }
+    const conf = operations.length ? 0.55 + Math.min(0.35, text.length / 2000) : 0.2;
+    if (!operations.length) reasons.push('Мало явных сигналов. Вставь тикет целиком или выбери сценарий вручную.');
+    return { confidence: conf, operations, reasons };
   }
 
   function applyPartnerFilter(partnerEntry) {
@@ -1822,13 +1908,26 @@
     log('Остановка запрошена. Скрипт остановится после текущего шага.', 'warn');
   }
 
-  async function runAllUiDiagnostics() {
+  async function runAllUiDiagnostics(options) {
+    const opts = options || {};
+    const humanTestMode = opts.humanTestMode === 'real_insert' ? 'real_insert' : 'preview_only';
     const checks = [];
     const push = (name, ok, details) => {
-      checks.push({ name, ok, details: details || '' });
-      log(`[Тест всего] ${name}: ${ok ? 'OK' : 'FAIL'}${details ? ` (${details})` : ''}`, ok ? 'ok' : 'error');
+      const det = details || '';
+      checks.push({ name, ok, details: det });
+      const tail = det ? ` (${det})` : '';
+      log(`[Тест всего] ${name}: ${ok ? 'OK' : 'FAIL'}${tail}`, ok ? 'ok' : 'error');
+    };
+    const pushInfo = (name, details) => {
+      checks.push({ name, ok: true, details: details || '' });
+      log(`[Тест всего] ${name}: ${details || ''}`, 'info');
+    };
+    const pushSkip = (name, details) => {
+      checks.push({ name, ok: true, details: `ПРОПУСК: ${details || ''}` });
+      log(`[Тест всего] ${name}: пропуск — ${details || ''}`, 'warn');
     };
     try {
+      log(`[Тест всего] Старт: synthetic-контур (${humanTestMode}) и проверка превью по матрице.`, 'ok');
       const ready = Boolean(document.querySelector(CONFIG.selectors.matrixRows));
       push('Матрица загружена', ready);
       await waitForReady(5000).then(() => push('waitForReady', true)).catch(err => push('waitForReady', false, err.message));
@@ -1843,25 +1942,69 @@
       const hasDraftGuard = collectSafetyOptions().requireDraft;
       push('Draft guard включен', hasDraftGuard, hasDraftGuard ? '' : 'Рекомендуется включить');
       const catalog = collectPartnerCatalog();
-      push('Каталог контрагентов', Array.isArray(catalog) && catalog.length > 0, `count=${catalog.length}`);
-      if (catalog.length > 0) {
-        const first = catalog[0];
-        const report = await previewOperations([normalizeOperation({
-          type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
-          matrixName: document.title,
-          payload: { partnerName: first.name, affiliation: CONFIG.requiredAffiliation },
-          options: { skipExclude: true, deleteIfSingle: false, sourceRule: 'test-all' },
-        })], {});
-        push('Preview операции', Array.isArray(report) && report.length > 0, `rows=${Array.isArray(report) ? report.length : 0}`);
+      push('Каталог контрагентов', Array.isArray(catalog) && catalog.length > 0, `count=${catalog ? catalog.length : 0}`);
+
+      const api = hostWindow().__OT_MATRIX_CLEANER__;
+      if (api && typeof api.runAllHumanTests === 'function') {
+        try {
+          const syn = await api.runAllHumanTests({ mode: humanTestMode });
+          const synOk = syn && Number(syn.fail) === 0;
+          push('Synthetic-контур (preview)', synOk, syn ? `OK=${syn.ok} FAIL=${syn.fail} всего=${syn.total}` : '');
+          if (api.getLastReport) {
+            const last = api.getLastReport() || [];
+            pushInfo('После synthetic отчёт', `записей в последнем preview=${Array.isArray(last) ? last.length : 0}`);
+          }
+        } catch (e) {
+          push('Synthetic-контур (preview)', false, e.message || String(e));
+        }
       } else {
-        push('Preview операции', false, 'Пустой каталог контрагентов');
+        pushSkip('Synthetic-контур', 'API runAllHumanTests недоступен (перезагрузите страницу или откройте панель позже).');
+      }
+
+      let hadPreviewRows = false;
+      if (catalog && catalog.length > 0) {
+        const picked = pickPartnerEntryVisibleInMatrix(catalog);
+        if (picked) {
+          const report = await previewOperations([normalizeOperation({
+            type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
+            matrixName: document.title,
+            payload: { partnerName: picked.name, affiliation: CONFIG.requiredAffiliation },
+            options: { skipExclude: true, deleteIfSingle: false, sourceRule: 'test-all' },
+          })], {});
+          const n = Array.isArray(report) ? report.length : 0;
+          hadPreviewRows = n > 0;
+          push('Preview: контрагент в видимых строках', hadPreviewRows, `rows=${n} «${String(picked.name).slice(0, 48)}»`);
+        } else {
+          pushSkip('Preview: контрагент', 'ни одно имя из каталога не найдено в видимых строках (фильтр/срез).');
+        }
+      } else {
+        pushSkip('Preview: контрагент', 'пустой каталог.');
+      }
+      if (!hadPreviewRows) {
+        const bundle = await previewOperations([normalizeOperation({
+          type: CONFIG.operationTypes.ADD_SIGNER_BUNDLE,
+          matrixName: document.title,
+          scope: {},
+          filters: {},
+          payload: { currentSigner: 'TEST_CURRENT', newSigner: 'TEST_NEW', limit: '1', amount: '1', affiliation: CONFIG.requiredAffiliation },
+          options: { sourceRule: 'test-all-bundle-fallback' },
+        })], {});
+        const bn = Array.isArray(bundle) ? bundle.length : 0;
+        hadPreviewRows = bn > 0;
+        push('Preview: резерв (4-строчный bundle)', hadPreviewRows, `rows=${bn}`);
+      }
+      if (!hadPreviewRows) {
+        log('[Тест всего] Превью по-прежнему 0 записей: проверьте фильтры матрицы и статус черновика.', 'warn');
+        push('Итог preview (не пусто)', false, 'rows=0 после контрагент+rescue bundle');
+      } else {
+        push('Итог preview (не пусто)', true, 'ok');
       }
     } catch (error) {
       push('Внутренняя ошибка тестов', false, error.message);
     }
     const failed = checks.filter(item => !item.ok).length;
     log(`[Тест всего] Завершено: ${checks.length - failed} OK / ${failed} FAIL.`, failed ? 'error' : 'ok');
-    return { checks, failed };
+    return { checks, failed, humanTestMode };
   }
 
   function buildMatrixCatalogSection(root) {
@@ -2006,26 +2149,41 @@
   function buildMainMatrixSection(root) {
     const section = document.createElement('section');
     section.setAttribute('data-module', 'core');
+    const opList = [
+      CONFIG.operationTypes.REMOVE_COUNTERPARTY,
+      CONFIG.operationTypes.DELETE_IF_SINGLE_COUNTERPARTY,
+      CONFIG.operationTypes.REPLACE_APPROVER,
+      CONFIG.operationTypes.REMOVE_APPROVER,
+      CONFIG.operationTypes.REPLACE_SIGNER,
+      CONFIG.operationTypes.ADD_SIGNER_BUNDLE,
+      CONFIG.operationTypes.CHANGE_LIMITS,
+      CONFIG.operationTypes.EXPAND_LEGAL_ENTITIES,
+      CONFIG.operationTypes.EXPAND_SITES,
+      CONFIG.operationTypes.PATCH_DOC_TYPES,
+      CONFIG.operationTypes.ADD_DOC_TYPE_TO_MATCHING_ROWS,
+      CONFIG.operationTypes.ADD_CHANGE_CARD_FLAG_TO_MATCHING_ROWS,
+      CONFIG.operationTypes.ADD_LEGAL_ENTITY_TO_MATCHING_ROWS,
+    ];
+    const opOptions = opList.map((t, idx) => {
+      const lab = operationTypeLabel(t);
+      return `<option value="${t}"${idx === 0 ? ' selected' : ''}>${lab}</option>`;
+    }).join('');
     section.innerHTML = `
-      <h4>Основные операции</h4>
-      <select class="mc-select" data-field="operation-type">
-        <option value="${CONFIG.operationTypes.REMOVE_COUNTERPARTY}" selected>remove_counterparty_from_rows</option>
-        <option value="${CONFIG.operationTypes.DELETE_IF_SINGLE_COUNTERPARTY}">delete_rows_if_single_counterparty</option>
-        <option value="${CONFIG.operationTypes.REPLACE_APPROVER}">replace_approver</option>
-        <option value="${CONFIG.operationTypes.REMOVE_APPROVER}">remove_approver</option>
-        <option value="${CONFIG.operationTypes.REPLACE_SIGNER}">replace_signer</option>
-        <option value="${CONFIG.operationTypes.ADD_SIGNER_BUNDLE}">add_signer_bundle</option>
-        <option value="${CONFIG.operationTypes.CHANGE_LIMITS}">change_limits</option>
-        <option value="${CONFIG.operationTypes.EXPAND_LEGAL_ENTITIES}">expand_legal_entities</option>
-        <option value="${CONFIG.operationTypes.EXPAND_SITES}">expand_sites</option>
-        <option value="${CONFIG.operationTypes.PATCH_DOC_TYPES}">patch_doc_types</option>
-        <option value="${CONFIG.operationTypes.ADD_DOC_TYPE_TO_MATCHING_ROWS}">add_doc_type_to_matching_rows</option>
-        <option value="${CONFIG.operationTypes.ADD_CHANGE_CARD_FLAG_TO_MATCHING_ROWS}">add_change_card_flag_to_matching_rows</option>
-        <option value="${CONFIG.operationTypes.ADD_LEGAL_ENTITY_TO_MATCHING_ROWS}">add_legal_entity_to_matching_rows</option>
-      </select>
-      <input class="mc-input" data-field="partner-name" placeholder="Контрагент / текущий подписант / текущий согласующий">
-      <textarea class="mc-input" data-field="operation-payload-json" rows="4" placeholder="Доп. payload JSON (опционально), напр. {&quot;rowGroup&quot;:&quot;supplemental_rows&quot;,&quot;newDocType&quot;:&quot;ДС&quot;,&quot;requiredDocTypes&quot;:[&quot;Соглашение&quot;],&quot;matchMode&quot;:&quot;all&quot;}"></textarea>
-      <input class="mc-input" data-field="source-rule" placeholder="sourceRule / ticket / request id">
+      <h4>Основные операции (полный ввод)</h4>
+      <p class="mc-core-hint">Повседневные сценарии — в блоке «Рабочий режим» выше. Здесь: все типы, экспорт, JSON и тесты.</p>
+      <label>Тип операции
+        <select class="mc-select" data-field="operation-type">
+          ${opOptions}
+        </select>
+      </label>
+      <input class="mc-input" data-field="partner-name" list="mc-partner-datalist" placeholder="Контрагент, подписант или согласующий (подсказки — после кнопки «Обновить»)">
+      <datalist id="mc-partner-datalist"></datalist>
+      <details class="mc-advanced-block">
+        <summary>Расширенно: JSON и номер заявки (необязательно)</summary>
+        <p class="mc-core-hint">JSON и поле «номер заявки» для отчёта. Обычный ввод — без этого блока.</p>
+      <textarea class="mc-input" data-field="operation-payload-json" rows="4" placeholder="Доп. поля в JSON, только если нужны (rowGroup, newDocType, …)"></textarea>
+      <input class="mc-input" data-field="source-rule" placeholder="Номер заявки / тикет (в отчёт)">
+      </details>
       <label class="mc-check"><input type="checkbox" data-field="delete-if-single"> Удалять строку, если контрагент единственный</label>
       <label class="mc-check"><input type="checkbox" data-field="skip-exclude" checked> Пропускать строки «Исключить»</label>
       <label class="mc-check"><input type="checkbox" data-field="require-draft" checked> Требовать статус «Черновик»</label>
@@ -2067,10 +2225,10 @@
     quickMode.innerHTML = `
       <label class="mc-check">Показывать только:
         <select class="mc-select" data-role="core-compact-mode">
-          <option value="action" selected>Нужную операцию</option>
+          <option value="all" selected>Все кнопки раздела</option>
+          <option value="action">Только превью / применить / тест</option>
           <option value="export">Экспорт и отчеты</option>
           <option value="triage">Triage и копирование</option>
-          <option value="all">Все кнопки раздела</option>
         </select>
       </label>
     `;
@@ -2103,14 +2261,27 @@
     };
     const compactSelectCore = quickMode.querySelector('[data-role="core-compact-mode"]');
     compactSelectCore.addEventListener('change', e => applyCompact(e.target.value));
-    applyCompact('action');
+    applyCompact('all');
+    const fillPartnerDatalist = () => {
+      const dl = section.querySelector('#mc-partner-datalist');
+      if (!dl) return;
+      dl.innerHTML = '';
+      (state.partnerCatalog || []).forEach(p => {
+        if (!p || !p.name) return;
+        const o = document.createElement('option');
+        o.value = p.name;
+        dl.appendChild(o);
+      });
+    };
     section.querySelector('[data-role="refresh"]').addEventListener('click', async () => {
       await waitForReady();
       ensureMatrixInit();
       collectPartnerCatalog();
+      fillPartnerDatalist();
       setStats(`Контрагентов в матрице: ${state.partnerCatalog.length}`);
       log('Список контрагентов обновлен.', 'ok');
     });
+    fillPartnerDatalist();
     section.querySelector('[data-role="preview"]').addEventListener('click', async () => {
       const op = buildDefaultOperationFromUi({});
       await previewOperations([op], {});
@@ -2176,7 +2347,11 @@
     panel.innerHTML = `
       <div class="mc-head">
         <div class="mc-head-left">
-          <div class="mc-title">Matrix Cleaner ${CONFIG.version}</div>
+          <div>
+            <div class="mc-title">Matrix Cleaner <span class="mc-ver">${CONFIG.version}</span></div>
+            <div class="mc-subtitle" title="Автор">Артём Шаповалов · ShapArt</div>
+            <a class="mc-subtitle" href="https://github.com/ShapArt/Matrtix-Cleaner" target="_blank" rel="noopener" style="display:block;font-size:9px">GitHub: Matrtix-Cleaner</a>
+          </div>
           <div class="mc-risk-wrap">
             <div id="mc-risk-badge" class="mc-risk-badge mc-risk-badge--ok" title="Click: toggle triage log">risk: ok</div>
             <button type="button" id="mc-risk-help" class="mc-risk-help" data-role="risk-help" aria-label="Risk badge shortcuts" title="Show shortcuts">?</button>
@@ -2224,12 +2399,14 @@
     compactSection.setAttribute('data-module', 'compact');
     compactSection.innerHTML = `
       <h4>Режим интерфейса</h4>
+      <p class="mc-core-hint" style="margin-top:0">Сценарии — в human-first блоке. Здесь можно открыть отдельный раздел.</p>
       <select class="mc-select" data-role="compact-module-select">
-        <option value="core" selected>Основные операции</option>
+        <option value="all" selected>Показать все разделы</option>
+        <option value="core">Основные операции (детально)</option>
         <option value="batch">Пакетный импорт</option>
         <option value="signer">Мастер подписантов</option>
         <option value="catalog">Каталог матриц</option>
-        <option value="all">Показать все разделы</option>
+        <option value="compact">Только «режим интерфейса»</option>
       </select>
     `;
     root.appendChild(compactSection);
@@ -2245,7 +2422,7 @@
     }
     const compactSelect = compactSection.querySelector('[data-role="compact-module-select"]');
     if (compactSelect) compactSelect.addEventListener('change', e => setCompactModule(e.target.value));
-    setCompactModule(isMatrixCatalogPage() && !isMatrixPage() ? 'catalog' : 'core');
+    setCompactModule(isMatrixCatalogPage() && !isMatrixPage() ? 'catalog' : 'all');
 
     openBtn.addEventListener('click', () => {
       panel.classList.add('mc-panel--open');
@@ -2324,7 +2501,8 @@
         right: 14px;
         bottom: 66px;
         z-index: 999999;
-        width: 380px;
+        width: min(420px, calc(100vw - 28px));
+        max-width: 100%;
         max-height: calc(100vh - 90px);
         background: #fff;
         color: #111;
@@ -2332,6 +2510,7 @@
         box-shadow: 8px 8px 0 #111;
         font: 12px/1.35 Arial, Helvetica, sans-serif;
         display: none;
+        overflow: hidden;
       }
       #mc-panel.mc-panel--open { display: block; }
       #mc-panel * { box-sizing: border-box; }
@@ -2397,7 +2576,11 @@
         font-weight: 700;
         cursor: pointer;
       }
-      .mc-title { font-size: 13px; font-weight: 700; text-transform: uppercase; }
+      .mc-title { font-size: 12px; font-weight: 700; text-transform: none; line-height: 1.2; }
+      .mc-subtitle { font-size: 10px; font-weight: 400; opacity: 0.9; max-width: 200px; }
+      .mc-core-hint { font-size: 11px; color: #444; margin: 0 0 8px; line-height: 1.35; }
+      .mc-advanced-block { margin: 0 0 8px; border: 1px dashed #999; padding: 6px; background: #fafafa; }
+      .mc-advanced-block summary { cursor: pointer; font-weight: 700; }
       .mc-risk-badge {
         border: 1px solid #fff;
         padding: 1px 6px;
@@ -2429,19 +2612,26 @@
       .mc-check { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
       .mc-check input[type="number"] { width: 100px; }
       .mc-actions {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
         margin-bottom: 8px;
+        align-items: stretch;
       }
-      .mc-actions--single { grid-template-columns: repeat(2, 1fr); }
+      .mc-actions--single { }
       .mc-actions button, section > button {
-        padding: 7px;
+        padding: 7px 6px;
+        min-width: 0;
+        flex: 1 1 calc(50% - 4px);
+        max-width: 100%;
         border: 1px solid #111;
         background: #fff;
         color: #111;
+        font-size: 11px;
         font-weight: 700;
         cursor: pointer;
+        word-wrap: break-word;
+        hyphens: auto;
       }
       .mc-actions button:hover:not(:disabled), section > button:hover:not(:disabled) { background: #111; color: #fff; }
       .mc-actions button:disabled, section > button:disabled { opacity: .45; cursor: not-allowed; }
@@ -2587,6 +2777,8 @@
       isPanelOpen: function () { return isMatrixPanelOpen(); },
       stopRun: stopRun,
       getConfig: function () { return JSON.parse(JSON.stringify(CONFIG)); },
+      getOperationLabels: function () { return Object.assign({}, CONFIG.operationLabels || {}); },
+      parseFreeformRequestText: function (raw) { return parseFreeformRequestText(raw); },
       getReleaseInfo: function () {
         return {
           version: '5.0.0',
@@ -2730,6 +2922,7 @@
           : Boolean(enabled);
         return hostWindow().__OT_MATRIX_PREVIEW_ENABLED__;
       },
+      runAllUiDiagnostics: function (opts) { return runAllUiDiagnostics(opts || {}); },
     };
     (function relinkPostExposeExtensions() {
       const w = hostWindow();
@@ -3516,15 +3709,21 @@
     const rows = getRows();
     const docTypes = [];
     const legalEntities = [];
+    const actors = [];
     rows.forEach(row => {
       const txt = String(row.textContent || '');
       const doc = txt.match(/(?:типы?\s*документов?|doc\s*types?)[:\s-]*([^\n]+)/i);
       const legal = txt.match(/(?:юр\.?\s*лиц[а]?|legal\s*entit(?:y|ies))[:\s-]*([^\n]+)/i);
       parseSemi(doc ? doc[1] : '').forEach(v => docTypes.push(v));
       parseSemi(legal ? legal[1] : '').forEach(v => legalEntities.push(v));
+      row.querySelectorAll('li.token-input-token, .token-input-token').forEach(node => {
+        const rawT = (node.getAttribute('title') || node.textContent || '').replace(/[\u00A0\u2007]/g, ' ').replace(/\s*x\s*$/i, '').trim();
+        if (rawT && rawT.length > 1 && !/^\d+$/.test(rawT)) actors.push(rawT);
+      });
     });
     return {
       counterparties: partners.map(item => (item && item.name) || '').filter(Boolean),
+      signersAndApprovers: unique(actors).sort((a, b) => a.localeCompare(b, 'ru')),
       docTypes: unique(docTypes).sort((a, b) => a.localeCompare(b, 'ru')),
       legalEntities: unique(legalEntities).sort((a, b) => a.localeCompare(b, 'ru')),
       rowGroups: ['all', 'main_contract_rows', 'supplemental_rows', 'custom'],
@@ -3610,8 +3809,9 @@
     style.textContent = `
       .mc-hf-root { border:1px solid #111; padding:8px; margin-bottom:10px; background:#fff; }
       .mc-hf-header { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
-      .mc-hf-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-bottom:8px; }
-      .mc-hf-tabs button { border:1px solid #111; background:#fff; padding:6px; font-size:11px; font-weight:700; cursor:pointer; }
+      .mc-hf-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-bottom:8px; }
+      @media (min-width: 400px) { .mc-hf-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+      .mc-hf-tabs button { border:1px solid #111; background:#fff; padding:5px 4px; font-size:10px; font-weight:700; cursor:pointer; word-wrap:break-word; }
       .mc-hf-tabs button.is-active { background:#111; color:#fff; }
       .mc-hf-panel label { display:block; margin-bottom:6px; }
       .mc-hf-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin:8px 0; }
@@ -3619,6 +3819,7 @@
       .mc-hf-result { border:1px solid #111; padding:6px; background:#fafafa; }
       .mc-hf-check-card { border:1px solid #ccc; padding:6px; margin-top:6px; }
       .mc-hf-pass { background:#efffef; } .mc-hf-warning { background:#fff8e8; } .mc-hf-fail { background:#ffecec; }
+      .mc-hf-guide { font-size:11px; line-height:1.35; color:#333; margin:0 0 8px; }
     `;
     document.head.appendChild(style);
   }
@@ -3661,6 +3862,15 @@
       option.value = item;
       legalList.appendChild(option);
     });
+    const actList = root.querySelector('#hf-actors-list');
+    if (actList) {
+      actList.innerHTML = '';
+      (dict.signersAndApprovers || []).forEach(item => {
+        const option = document.createElement('option');
+        option.value = item;
+        actList.appendChild(option);
+      });
+    }
   }
 
   function renderChecklist(container, result) {
@@ -3684,7 +3894,8 @@
       </div>
       <div class="mc-hf-tabs">
         <button type="button" data-tab="work" class="is-active">Рабочий</button>
-        <button type="button" data-tab="bulk">Массовые изменения</button>
+        <button type="button" data-tab="ticket">Текст заявки</button>
+        <button type="button" data-tab="bulk">Массовые</button>
         <button type="button" data-tab="search">Поиск</button>
         <button type="button" data-tab="signer">Подписанты</button>
         <button type="button" data-tab="checklist">Чек-лист</button>
@@ -3693,13 +3904,21 @@
         <button type="button" data-tab="advanced">Advanced</button>
       </div>
       <div class="mc-hf-panel" data-panel="work">
+        <p class="mc-hf-guide">Шаг 1: тип сценария. Шаг 2: выберите значения из списков (после «Обновить» внизу в разделе «Основные») или введите вручную. Шаг 3: «Показать превью».</p>
         <label>Сценарий <select class="mc-select" data-role="hf-scenario"></select></label>
-        <label>Контрагент <input class="mc-input" list="hf-counterparty-list" data-role="hf-counterparty"></label>
+        <label>Контрагент <input class="mc-input" list="hf-counterparty-list" data-role="hf-counterparty" title="Список из каталога матрицы"></label>
         <datalist id="hf-counterparty-list"></datalist>
-        <label>Текущий пользователь <input class="mc-input" data-role="hf-current-user"></label>
-        <label>Новый пользователь <input class="mc-input" data-role="hf-new-user"></label>
+        <label>Текущий пользователь <input class="mc-input" list="hf-actors-list" data-role="hf-current-user" title="Подсказки из токенов в строках"></label>
+        <label>Новый пользователь <input class="mc-input" list="hf-actors-list" data-role="hf-new-user" title="Кого поставить вместо текущего"></label>
+        <datalist id="hf-actors-list"></datalist>
         <label>Группа строк <select class="mc-select" data-role="hf-row-group"><option value="all">Все</option><option value="main_contract_rows">Основные</option><option value="supplemental_rows">Доп соглашения</option><option value="custom">Custom</option></select></label>
         <div class="mc-hf-actions"><button type="button" data-role="hf-preview">Показать превью</button><button type="button" data-role="hf-apply">Применить</button></div>
+      </div>
+      <div class="mc-hf-panel" data-panel="ticket" hidden>
+        <p class="mc-hf-guide">Вставьте текст письма или заявки. Скрипт предложит черновик операций (без JSON). Проверьте поля и нажмите «Превью черновика».</p>
+        <textarea class="mc-input" data-role="hf-ticket-text" rows="6" placeholder="Напр.: Просьба заменить подписанта Иванов на Петров; добавить тип документа ДС..."></textarea>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-ticket-parse">Разобрать текст</button><button type="button" data-role="hf-ticket-preview">Превью черновика</button></div>
+        <div class="mc-hf-result" data-role="hf-ticket-result">Сюда выведутся подсказки и уверенность.</div>
       </div>
       <div class="mc-hf-panel" data-panel="bulk" hidden>
         <label>Новый тип документа <input class="mc-input" list="hf-doc-list" data-role="hf-doc-type"></label>
@@ -3718,8 +3937,9 @@
         <div class="mc-hf-result" data-role="hf-search-result">Поиск ещё не запускался.</div>
       </div>
       <div class="mc-hf-panel" data-panel="signer" hidden>
-        <label>Лимит <input class="mc-input" data-role="hf-limit"></label>
-        <label>Сумма <input class="mc-input" data-role="hf-amount"></label>
+        <p class="mc-hf-guide">По правилу «4 строки»: 2 для основного договора (лимит) + 2 для ДС/доп. (сумма), с разбивкой по ЭДО. Введите лимит и сумму, если нужны обе ветки.</p>
+        <label>Лимит (основной договор) <input class="mc-input" data-role="hf-limit" title="Для main_contract_rows"></label>
+        <label>Сумма (доп. соглашения) <input class="mc-input" data-role="hf-amount" title="Для supplemental_rows"></label>
         <div class="mc-hf-actions"><button type="button" data-role="hf-signer-preview">Показать 4 строки</button><button type="button" data-role="hf-signer-apply">Применить 4 строки</button></div>
         <div class="mc-hf-result" data-role="hf-signer-result">Ожидание.</div>
       </div>
@@ -3728,7 +3948,8 @@
         <div data-role="hf-checklist-result"></div>
       </div>
       <div class="mc-hf-panel" data-panel="test" hidden>
-        <label>Режим synthetic <select class="mc-select" data-role="hf-test-mode"><option value="preview_only">preview-only</option><option value="real_insert">real-insert</option></select></label>
+        <p class="mc-hf-guide">Сначала прогоняется тестовый контур (превью операций), затем проверка превью по видимым строкам и резервный bundle. Результаты — в логе панели.</p>
+        <label>Режим контура <select class="mc-select" data-role="hf-test-mode"><option value="preview_only">Только превью (без записи в таблицу)</option><option value="real_insert">С проверками для реальной вставки</option></select></label>
         <div class="mc-hf-actions"><button type="button" data-role="hf-test-all">Тест всего</button></div>
         <div class="mc-hf-result" data-role="hf-test-result">Тест не запускался.</div>
       </div>
@@ -3805,10 +4026,54 @@
     shell.querySelector('[data-role="hf-signer-apply"]').addEventListener('click', () => api.runRuleBatch([buildOperation(shell, 'add_signer_bundle')], {}));
 
     shell.querySelector('[data-role="hf-checklist-run"]').addEventListener('click', () => renderChecklist(shell.querySelector('[data-role="hf-checklist-result"]'), api.runChecklistEngine({})));
+
+    let lastTicketParse = null;
+    shell.querySelector('[data-role="hf-ticket-parse"]').addEventListener('click', () => {
+      const text = shell.querySelector('[data-role="hf-ticket-text"]').value;
+      if (typeof api.parseFreeformRequestText !== 'function') {
+        shell.querySelector('[data-role="hf-ticket-result"]').textContent = 'API parseFreeformRequestText недоступен. Обновите userscript.';
+        return;
+      }
+      lastTicketParse = api.parseFreeformRequestText(text);
+      const r = lastTicketParse;
+      const pct = r && r.confidence != null ? (Number(r.confidence) * 100).toFixed(0) : '0';
+      shell.querySelector('[data-role="hf-ticket-result"]').textContent = `Уверенность: ${pct}%. ${(r.reasons || []).join(' ')} Операций: ${(r.operations || []).length}.`;
+    });
+    shell.querySelector('[data-role="hf-ticket-preview"]').addEventListener('click', async () => {
+      const text = shell.querySelector('[data-role="hf-ticket-text"]').value;
+      let parsed = lastTicketParse;
+      if (!parsed || !Array.isArray(parsed.operations) || !parsed.operations.length) {
+        parsed = api.parseFreeformRequestText ? api.parseFreeformRequestText(text) : { operations: [] };
+      }
+      if (!parsed.operations || !parsed.operations.length) {
+        shell.querySelector('[data-role="hf-ticket-result"]').textContent = 'Сначала нажмите «Разобрать текст» или вставьте явный сценарий (замена подписанта, тип документа, юрлицо).';
+        return;
+      }
+      const ops = parsed.operations.map(op => {
+        const base = op && typeof op === 'object' ? op : {};
+        return {
+          type: base.type,
+          matrixName: document.title,
+          scope: base.scope || {},
+          filters: base.filters || {},
+          payload: base.payload || {},
+          options: Object.assign({ sourceRule: 'freeform_ticket' }, base.options || {}),
+        };
+      });
+      await api.previewRuleBatch(ops, {});
+      const rep = (api.getLastReport && api.getLastReport()) || [];
+      shell.querySelector('[data-role="hf-ticket-result"]').textContent = `Превью: записей в отчёте ${Array.isArray(rep) ? rep.length : 0}. Проверьте подсветку строк.`;
+    });
+
     shell.querySelector('[data-role="hf-test-all"]').addEventListener('click', async () => {
       const mode = shell.querySelector('[data-role="hf-test-mode"]').value;
-      const result = await api.runAllHumanTests({ mode });
-      shell.querySelector('[data-role="hf-test-result"]').textContent = `Итог: OK=${result.ok}, FAIL=${result.fail}, всего=${result.total}.`;
+      if (typeof api.runAllUiDiagnostics !== 'function') {
+        const result = await api.runAllHumanTests({ mode });
+        shell.querySelector('[data-role="hf-test-result"]').textContent = `Итог контура: OK=${result.ok}, FAIL=${result.fail} из ${result.total} (старый API без runAllUiDiagnostics).`;
+        return;
+      }
+      const diag = await api.runAllUiDiagnostics({ humanTestMode: mode });
+      shell.querySelector('[data-role="hf-test-result"]').textContent = `Проверок: ${diag.checks.length}, сбоев: ${diag.failed}. Режим контура: ${diag.humanTestMode}. Подробности в логе.`;
     });
 
     shell.querySelector('[data-role="hf-report-json"]').addEventListener('click', () => {

@@ -38,7 +38,7 @@
 2. Нажмите **MC** → откроется **Рабочий режим Matrix Cleaner** (русский guided UI).
 3. Двигайтесь по шагам: **сценарий → данные из списков → превью → применение**.
 4. Для массовых патчей используйте вкладку **Массовые изменения** (ALL/ANY, anti-duplicate, preview/apply).
-5. Кнопка **Тест всего** запускает synthetic-контур (режимы `preview-only` и `real-insert`) и выдаёт диагноз OK/FAIL.
+5. Кнопка **Тест всего** (в «Рабочем» и в legacy) сначала прогоняет synthetic-контур в выбранном режиме, затем проверяет превью по видимым строкам и при необходимости резервный bundle; итог и детали — в логе панели.
 6. Вкладка **Подписанты** фиксирует обязательный 4-row preset (2 main + 2 supplemental, LIMIT/AMOUNT, EDO split).
 7. Вкладки **Поиск** / **Чек-лист** / **Отчёты** дают рабочий цикл анализа и выгрузки результатов.
 
@@ -194,7 +194,10 @@ JSON/DSL и legacy-технические секции оставлены в **A
 | `stopRun()` | Остановка |
 | `getConfig()` | Текущая конфигурация |
 | `getHumanDictionaries()` | Автособранные словари из матрицы (контрагенты, типы документов, юрлица и др.) |
-| `runAllHumanTests({ mode })` | Полный synthetic тест-контур (`preview_only` / `real_insert`) |
+| `runAllHumanTests({ mode })` | Synthetic тест-контур (`preview_only` / `real_insert`) |
+| `runAllUiDiagnostics({ humanTestMode })` | Полный «Тест всего»: synthetic + превью по матрице + fallback; `humanTestMode` как у `runAllHumanTests` |
+| `parseFreeformRequestText(text)` | Черновик операций из свободного текста заявки (без JSON) |
+| `getOperationLabels()` | Словарь русских подписей к внутренним типам операций |
 
 ---
 

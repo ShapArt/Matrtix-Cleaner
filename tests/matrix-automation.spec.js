@@ -847,6 +847,7 @@ test('46. human dictionaries API returns matrix-driven lists', async ({ page }) 
   expect(Array.isArray(dict.counterparties)).toBeTruthy();
   expect(Array.isArray(dict.docTypes)).toBeTruthy();
   expect(Array.isArray(dict.legalEntities)).toBeTruthy();
+  expect(Array.isArray(dict.signersAndApprovers)).toBeTruthy();
   expect(dict.requiredAffiliation).toBe('Группа Черкизово');
 });
 
@@ -902,4 +903,39 @@ test('49. human checklist panel renders pass/warn/fail cards', async ({ page }) 
   await page.click('[data-role="hf-checklist-run"]');
   const content = await page.textContent('[data-role="hf-checklist-result"]');
   expect(String(content)).toContain('pass=');
+});
+
+test('50. legacy operation type select uses Russian option labels', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  await openCleanerPanel(page);
+  const firstLabel = await page.evaluate(() => {
+    const opt = document.querySelector('[data-field="operation-type"] option');
+    return opt ? String(opt.textContent || '') : '';
+  });
+  expect(firstLabel.length).toBeGreaterThan(0);
+  expect(/\p{Script=Cyrillic}/u.test(firstLabel)).toBeTruthy();
+});
+
+test('51. runAllUiDiagnostics API chains synthetic and preview checks', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  await page.waitForFunction(
+    () => window.__OT_MATRIX_CLEANER__ && typeof window.__OT_MATRIX_CLEANER__.runAllUiDiagnostics === 'function',
+    null,
+    { timeout: 15000 }
+  );
+  const result = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.runAllUiDiagnostics({ humanTestMode: 'preview_only' }));
+  expect(result).toBeTruthy();
+  expect(Array.isArray(result.checks)).toBeTruthy();
+  expect(result.humanTestMode).toBe('preview_only');
+  expect(result.failed).toBe(0);
+});
+
+test('52. parseFreeformRequestText returns draft operations', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const r = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.parseFreeformRequestText('Заменить подписанта с Иванов на Петров'));
+  expect(r.operations.length).toBeGreaterThan(0);
+  expect(r.confidence).toBeGreaterThan(0.4);
 });
