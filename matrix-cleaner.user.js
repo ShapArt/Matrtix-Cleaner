@@ -2731,6 +2731,15 @@
         return hostWindow().__OT_MATRIX_PREVIEW_ENABLED__;
       },
     };
+    (function relinkPostExposeExtensions() {
+      const w = hostWindow();
+      if (typeof w.__otV5Reinstall === 'function') {
+        try { w.__otV5Reinstall(); } catch (e) { void 0; }
+      }
+      if (typeof w.__otHumanReinstall === 'function') {
+        try { w.__otHumanReinstall(); } catch (e) { void 0; }
+      }
+    }());
   }
 
   async function boot() {
@@ -3449,10 +3458,412 @@
     return true;
   }
 
+  const wgt = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  wgt.__otV5Reinstall = install;
+
   if (install()) return;
   const timer = setInterval(() => {
     if (!install()) return;
     clearInterval(timer);
   }, 250);
   setTimeout(() => clearInterval(timer), 25000);
+})();
+
+(() => {
+  'use strict';
+
+  const FLAG = '__OT_MATRIX_CLEANER_HUMAN_FIRST_UI__';
+  if (window[FLAG]) return;
+  window[FLAG] = true;
+
+  const state = {
+    dictionaries: null,
+    lastSearchResult: null,
+  };
+
+  const SCENARIOS = [
+    { key: 'replace_signer', label: 'Замена подписанта' },
+    { key: 'replace_approver', label: 'Замена согласующего' },
+    { key: 'remove_approver', label: 'Удаление согласующего' },
+    { key: 'remove_counterparty_from_rows', label: 'Удаление контрагента из строк' },
+    { key: 'delete_rows_if_single_counterparty', label: 'Удаление строки с единственным контрагентом' },
+    { key: 'add_signer_bundle', label: 'Подписант по 4-строчному preset' },
+    { key: 'add_doc_type_to_matching_rows', label: 'Добавить тип документа' },
+    { key: 'add_change_card_flag_to_matching_rows', label: 'Изменение карточки' },
+    { key: 'add_legal_entity_to_matching_rows', label: 'Добавить юрлицо' },
+  ];
+
+  function getApi() {
+    return window.__OT_MATRIX_CLEANER__;
+  }
+
+  function getRows() {
+    return Array.from(document.querySelectorAll('#sc_ApprovalMatrix tbody tr[itemid], #sc_ApprovalMatrix tbody tr[itemID]'));
+  }
+
+  function parseSemi(value) {
+    return String(value || '').split(/[;,]/).map(v => String(v || '').trim()).filter(Boolean);
+  }
+
+  function unique(values) {
+    return Array.from(new Set(values));
+  }
+
+  function collectDictionaries() {
+    const api = getApi();
+    const rawPartners = api && typeof api.getPartnerCatalog === 'function' ? api.getPartnerCatalog() : null;
+    const partners = Array.isArray(rawPartners) ? rawPartners : [];
+    const rows = getRows();
+    const docTypes = [];
+    const legalEntities = [];
+    rows.forEach(row => {
+      const txt = String(row.textContent || '');
+      const doc = txt.match(/(?:типы?\s*документов?|doc\s*types?)[:\s-]*([^\n]+)/i);
+      const legal = txt.match(/(?:юр\.?\s*лиц[а]?|legal\s*entit(?:y|ies))[:\s-]*([^\n]+)/i);
+      parseSemi(doc ? doc[1] : '').forEach(v => docTypes.push(v));
+      parseSemi(legal ? legal[1] : '').forEach(v => legalEntities.push(v));
+    });
+    return {
+      counterparties: partners.map(item => (item && item.name) || '').filter(Boolean),
+      docTypes: unique(docTypes).sort((a, b) => a.localeCompare(b, 'ru')),
+      legalEntities: unique(legalEntities).sort((a, b) => a.localeCompare(b, 'ru')),
+      rowGroups: ['all', 'main_contract_rows', 'supplemental_rows', 'custom'],
+      requiredAffiliation: 'Группа Черкизово',
+    };
+  }
+
+  function buildOperation(root, overrideType) {
+    const type = overrideType || root.querySelector('[data-role="hf-scenario"]').value;
+    const payload = {
+      partnerName: root.querySelector('[data-role="hf-counterparty"]').value || '',
+      currentApprover: root.querySelector('[data-role="hf-current-user"]').value || '',
+      currentSigner: root.querySelector('[data-role="hf-current-user"]').value || '',
+      newApprover: root.querySelector('[data-role="hf-new-user"]').value || '',
+      newSigner: root.querySelector('[data-role="hf-new-user"]').value || '',
+      rowGroup: root.querySelector('[data-role="hf-row-group"]').value || 'all',
+      newDocType: root.querySelector('[data-role="hf-doc-type"]').value || '',
+      legalEntity: root.querySelector('[data-role="hf-legal-entity"]').value || '',
+      requiredDocTypes: parseSemi(root.querySelector('[data-role="hf-required-doc-types"]').value || ''),
+      matchMode: root.querySelector('[data-role="hf-match-mode"]').value || 'all',
+      affiliation: 'Группа Черкизово',
+      limit: root.querySelector('[data-role="hf-limit"]').value || '',
+      amount: root.querySelector('[data-role="hf-amount"]').value || '',
+    };
+    return {
+      type,
+      matrixName: document.title,
+      scope: {},
+      filters: { rowGroup: payload.rowGroup, requiredDocTypes: payload.requiredDocTypes, matchMode: payload.matchMode },
+      payload,
+      options: { sourceRule: 'human_first_ui' },
+    };
+  }
+
+  async function runSyntheticContour(mode) {
+    const api = getApi();
+    const ops = [
+      { type: 'add_doc_type_to_matching_rows', payload: { rowGroup: 'supplemental_rows', requiredDocTypes: ['ДС'], matchMode: 'all', newDocType: 'Тестовый тип', affiliation: 'Группа Черкизово' } },
+      { type: 'add_legal_entity_to_matching_rows', payload: { rowGroup: 'main_contract_rows', requiredDocTypes: [], matchMode: 'any', legalEntity: 'ООО Тестовое ЮЛ', affiliation: 'Группа Черкизово' } },
+      { type: 'add_change_card_flag_to_matching_rows', payload: { rowGroup: 'all', requiredDocTypes: [], matchMode: 'any', changeCardFlag: 'Ранее не подписан', affiliation: 'Группа Черкизово' } },
+      { type: 'add_signer_bundle', payload: { currentSigner: 'Тестовый', newSigner: 'Новый', limit: '1000', amount: '500', affiliation: 'Группа Черкизово' } },
+    ].map(op => ({
+      type: op.type,
+      matrixName: document.title,
+      scope: {},
+      filters: {},
+      payload: op.payload,
+      options: { sourceRule: `synthetic_${mode}` },
+    }));
+
+    const checks = [];
+    const preview = await api.previewRuleBatch(ops, {});
+    checks.push({ name: 'Synthetic preview', ok: Array.isArray(preview) && preview.length > 0 });
+    const signer = await api.previewRuleBatch([ops[3]], {});
+    const signerRows = (signer || []).filter(item => item.actionType === 'add-row');
+    checks.push({ name: 'Signer 4 rows', ok: signerRows.length === 4, details: `rows=${signerRows.length}` });
+    const checklist = api.runChecklistEngine ? api.runChecklistEngine({ generatedRows: signerRows }) : null;
+    checks.push({ name: 'Checklist', ok: Boolean(checklist && checklist.summary && checklist.summary.total > 0) });
+    const search = api.searchAcrossMatrices ? await api.searchAcrossMatrices('договор', { mode: 'counterparty', matchMode: 'partial' }) : null;
+    checks.push({ name: 'Global search', ok: Boolean(search && typeof search.total === 'number') });
+    if (mode === 'real_insert') {
+      const tableRows = getRows();
+      checks.push({ name: 'Real insert guard', ok: tableRows.length > 0 });
+    }
+    const fail = checks.filter(item => !item.ok).length;
+    return { total: checks.length, ok: checks.length - fail, fail, checks, mode };
+  }
+
+  function installApi(api) {
+    if (!api || api.__humanFirstUiInstalled) return;
+    api.getHumanDictionaries = () => {
+      state.dictionaries = collectDictionaries();
+      return JSON.parse(JSON.stringify(state.dictionaries));
+    };
+    api.runAllHumanTests = options => runSyntheticContour(options && options.mode ? options.mode : 'preview_only');
+    api.__humanFirstUiInstalled = true;
+  }
+
+  function installStyles() {
+    if (document.querySelector('#mc-human-first-style')) return;
+    const style = document.createElement('style');
+    style.id = 'mc-human-first-style';
+    style.textContent = `
+      .mc-hf-root { border:1px solid #111; padding:8px; margin-bottom:10px; background:#fff; }
+      .mc-hf-header { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+      .mc-hf-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-bottom:8px; }
+      .mc-hf-tabs button { border:1px solid #111; background:#fff; padding:6px; font-size:11px; font-weight:700; cursor:pointer; }
+      .mc-hf-tabs button.is-active { background:#111; color:#fff; }
+      .mc-hf-panel label { display:block; margin-bottom:6px; }
+      .mc-hf-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin:8px 0; }
+      .mc-hf-actions button { border:1px solid #111; background:#fff; padding:6px; font-size:11px; font-weight:700; cursor:pointer; }
+      .mc-hf-result { border:1px solid #111; padding:6px; background:#fafafa; }
+      .mc-hf-check-card { border:1px solid #ccc; padding:6px; margin-top:6px; }
+      .mc-hf-pass { background:#efffef; } .mc-hf-warning { background:#fff8e8; } .mc-hf-fail { background:#ffecec; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function hideLegacySections(root) {
+    root.querySelectorAll('section').forEach(section => {
+      if (section.getAttribute('data-role') === 'hf-root') return;
+      section.hidden = true;
+      section.style.display = 'none';
+    });
+  }
+
+  function showLegacySections(root) {
+    root.querySelectorAll('section').forEach(section => {
+      if (section.getAttribute('data-role') === 'hf-root') return;
+      section.hidden = false;
+      section.style.display = '';
+    });
+  }
+
+  function fillDataLists(root, dict) {
+    const cpList = root.querySelector('#hf-counterparty-list');
+    cpList.innerHTML = '';
+    (dict.counterparties || []).forEach(item => {
+      const option = document.createElement('option');
+      option.value = item;
+      cpList.appendChild(option);
+    });
+    const docList = root.querySelector('#hf-doc-list');
+    docList.innerHTML = '';
+    (dict.docTypes || []).forEach(item => {
+      const option = document.createElement('option');
+      option.value = item;
+      docList.appendChild(option);
+    });
+    const legalList = root.querySelector('#hf-legal-list');
+    legalList.innerHTML = '';
+    (dict.legalEntities || []).forEach(item => {
+      const option = document.createElement('option');
+      option.value = item;
+      legalList.appendChild(option);
+    });
+  }
+
+  function renderChecklist(container, result) {
+    if (!result || !Array.isArray(result.checks)) {
+      container.textContent = 'Чек-лист недоступен.';
+      return;
+    }
+    const rows = result.checks.map(check => `<div class="mc-hf-check-card mc-hf-${check.status}"><b>${check.title}</b><div>Статус: ${check.status}</div><div>${check.recommendation || ''}</div></div>`).join('');
+    container.innerHTML = `<div class="mc-hf-result">pass=${result.summary.passed} fail=${result.summary.failed} warn=${result.summary.warnings}</div>${rows}`;
+  }
+
+  function buildUi(root) {
+    if (root.querySelector('[data-role="hf-root"]')) return;
+    const shell = document.createElement('section');
+    shell.setAttribute('data-role', 'hf-root');
+    shell.className = 'mc-hf-root';
+    shell.innerHTML = `
+      <div class="mc-hf-header">
+        <div><b>Рабочий режим Matrix Cleaner</b><div>1) Сценарий → 2) Данные → 3) Превью → 4) Применить</div></div>
+        <div>Автор: Артём Шаповалов (ShapArt)</div>
+      </div>
+      <div class="mc-hf-tabs">
+        <button type="button" data-tab="work" class="is-active">Рабочий</button>
+        <button type="button" data-tab="bulk">Массовые изменения</button>
+        <button type="button" data-tab="search">Поиск</button>
+        <button type="button" data-tab="signer">Подписанты</button>
+        <button type="button" data-tab="checklist">Чек-лист</button>
+        <button type="button" data-tab="test">Тест всего</button>
+        <button type="button" data-tab="reports">Отчеты</button>
+        <button type="button" data-tab="advanced">Advanced</button>
+      </div>
+      <div class="mc-hf-panel" data-panel="work">
+        <label>Сценарий <select class="mc-select" data-role="hf-scenario"></select></label>
+        <label>Контрагент <input class="mc-input" list="hf-counterparty-list" data-role="hf-counterparty"></label>
+        <datalist id="hf-counterparty-list"></datalist>
+        <label>Текущий пользователь <input class="mc-input" data-role="hf-current-user"></label>
+        <label>Новый пользователь <input class="mc-input" data-role="hf-new-user"></label>
+        <label>Группа строк <select class="mc-select" data-role="hf-row-group"><option value="all">Все</option><option value="main_contract_rows">Основные</option><option value="supplemental_rows">Доп соглашения</option><option value="custom">Custom</option></select></label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-preview">Показать превью</button><button type="button" data-role="hf-apply">Применить</button></div>
+      </div>
+      <div class="mc-hf-panel" data-panel="bulk" hidden>
+        <label>Новый тип документа <input class="mc-input" list="hf-doc-list" data-role="hf-doc-type"></label>
+        <datalist id="hf-doc-list"></datalist>
+        <label>Требуемые типы (через ;) <input class="mc-input" data-role="hf-required-doc-types"></label>
+        <label>Режим совпадения <select class="mc-select" data-role="hf-match-mode"><option value="all">ALL</option><option value="any">ANY</option></select></label>
+        <label>Юрлицо <input class="mc-input" list="hf-legal-list" data-role="hf-legal-entity"></label>
+        <datalist id="hf-legal-list"></datalist>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-preview-bulk">Превью patch</button><button type="button" data-role="hf-apply-bulk">Применить patch</button></div>
+      </div>
+      <div class="mc-hf-panel" data-panel="search" hidden>
+        <label>Тип поиска <select class="mc-select" data-role="hf-search-type"><option value="counterparty">Контрагент</option><option value="user">Пользователь</option><option value="signer">Подписант</option><option value="approver">Согласующий</option></select></label>
+        <label>Запрос <input class="mc-input" data-role="hf-search-query"></label>
+        <label>Режим <select class="mc-select" data-role="hf-search-mode"><option value="partial">Частичное</option><option value="exact">Точное</option></select></label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-search-run">Поиск</button><button type="button" data-role="hf-search-stop">Стоп</button><button type="button" data-role="hf-search-export">Экспорт HTML</button></div>
+        <div class="mc-hf-result" data-role="hf-search-result">Поиск ещё не запускался.</div>
+      </div>
+      <div class="mc-hf-panel" data-panel="signer" hidden>
+        <label>Лимит <input class="mc-input" data-role="hf-limit"></label>
+        <label>Сумма <input class="mc-input" data-role="hf-amount"></label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-signer-preview">Показать 4 строки</button><button type="button" data-role="hf-signer-apply">Применить 4 строки</button></div>
+        <div class="mc-hf-result" data-role="hf-signer-result">Ожидание.</div>
+      </div>
+      <div class="mc-hf-panel" data-panel="checklist" hidden>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-checklist-run">Запустить чек-лист</button></div>
+        <div data-role="hf-checklist-result"></div>
+      </div>
+      <div class="mc-hf-panel" data-panel="test" hidden>
+        <label>Режим synthetic <select class="mc-select" data-role="hf-test-mode"><option value="preview_only">preview-only</option><option value="real_insert">real-insert</option></select></label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-test-all">Тест всего</button></div>
+        <div class="mc-hf-result" data-role="hf-test-result">Тест не запускался.</div>
+      </div>
+      <div class="mc-hf-panel" data-panel="reports" hidden>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-report-json">JSON</button><button type="button" data-role="hf-report-csv">CSV</button><button type="button" data-role="hf-report-html">HTML</button></div>
+      </div>
+      <div class="mc-hf-panel" data-panel="advanced" hidden>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-show-legacy">Показать технические блоки</button></div>
+      </div>
+    `;
+    root.prepend(shell);
+
+    const tabs = Array.from(shell.querySelectorAll('[data-tab]'));
+    function switchTab(id) {
+      tabs.forEach(btn => btn.classList.toggle('is-active', btn.getAttribute('data-tab') === id));
+      shell.querySelectorAll('[data-panel]').forEach(panel => {
+        panel.hidden = panel.getAttribute('data-panel') !== id;
+      });
+    }
+    tabs.forEach(btn => btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab'))));
+
+    const scenarioSelect = shell.querySelector('[data-role="hf-scenario"]');
+    scenarioSelect.innerHTML = SCENARIOS.map(item => `<option value="${item.key}">${item.label}</option>`).join('');
+
+    const api = getApi();
+    const dict = api.getHumanDictionaries();
+    fillDataLists(shell, dict);
+    hideLegacySections(root);
+
+    shell.querySelector('[data-role="hf-show-legacy"]').addEventListener('click', () => showLegacySections(root));
+    shell.querySelector('[data-role="hf-preview"]').addEventListener('click', () => api.previewRuleBatch([buildOperation(shell)], {}));
+    shell.querySelector('[data-role="hf-apply"]').addEventListener('click', () => api.runRuleBatch([buildOperation(shell)], {}));
+    shell.querySelector('[data-role="hf-preview-bulk"]').addEventListener('click', () => api.previewRuleBatch([
+      buildOperation(shell, 'add_doc_type_to_matching_rows'),
+      buildOperation(shell, 'add_change_card_flag_to_matching_rows'),
+      buildOperation(shell, 'add_legal_entity_to_matching_rows'),
+    ], {}));
+    shell.querySelector('[data-role="hf-apply-bulk"]').addEventListener('click', () => api.runRuleBatch([
+      buildOperation(shell, 'add_doc_type_to_matching_rows'),
+      buildOperation(shell, 'add_change_card_flag_to_matching_rows'),
+      buildOperation(shell, 'add_legal_entity_to_matching_rows'),
+    ], {}));
+
+    let searchCancelled = false;
+    shell.querySelector('[data-role="hf-search-stop"]').addEventListener('click', () => {
+      searchCancelled = true;
+      shell.querySelector('[data-role="hf-search-result"]').textContent = 'Поиск остановлен пользователем.';
+    });
+    shell.querySelector('[data-role="hf-search-run"]').addEventListener('click', async () => {
+      searchCancelled = false;
+      const query = shell.querySelector('[data-role="hf-search-query"]').value;
+      const mode = shell.querySelector('[data-role="hf-search-mode"]').value;
+      const type = shell.querySelector('[data-role="hf-search-type"]').value;
+      if (searchCancelled) return;
+      state.lastSearchResult = await api.searchAcrossMatrices(query, { matchMode: mode, mode: type });
+      shell.querySelector('[data-role="hf-search-result"]').textContent = `Найдено: ${state.lastSearchResult.total}; dedupe: ${state.lastSearchResult.deduped.length}`;
+    });
+    shell.querySelector('[data-role="hf-search-export"]').addEventListener('click', () => {
+      const html = api.exportHtmlReport((state.lastSearchResult && state.lastSearchResult.deduped) || [], 'Результат поиска');
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `matrix-search-${Date.now()}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+
+    shell.querySelector('[data-role="hf-signer-preview"]').addEventListener('click', async () => {
+      const report = await api.previewRuleBatch([buildOperation(shell, 'add_signer_bundle')], {});
+      const rows = (report || []).filter(item => item.actionType === 'add-row');
+      shell.querySelector('[data-role="hf-signer-result"]').textContent = `Сгенерировано строк: ${rows.length} (ожидается 4).`;
+    });
+    shell.querySelector('[data-role="hf-signer-apply"]').addEventListener('click', () => api.runRuleBatch([buildOperation(shell, 'add_signer_bundle')], {}));
+
+    shell.querySelector('[data-role="hf-checklist-run"]').addEventListener('click', () => renderChecklist(shell.querySelector('[data-role="hf-checklist-result"]'), api.runChecklistEngine({})));
+    shell.querySelector('[data-role="hf-test-all"]').addEventListener('click', async () => {
+      const mode = shell.querySelector('[data-role="hf-test-mode"]').value;
+      const result = await api.runAllHumanTests({ mode });
+      shell.querySelector('[data-role="hf-test-result"]').textContent = `Итог: OK=${result.ok}, FAIL=${result.fail}, всего=${result.total}.`;
+    });
+
+    shell.querySelector('[data-role="hf-report-json"]').addEventListener('click', () => {
+      const report = api.getLastReport ? api.getLastReport() : [];
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `matrix-report-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+    shell.querySelector('[data-role="hf-report-csv"]').addEventListener('click', () => {
+      const report = api.getLastReport ? api.getLastReport() : [];
+      const headers = ['operationType', 'actionType', 'status', 'reason', 'itemid'];
+      const csv = [headers.join(',')].concat(report.map(row => headers.map(k => `"${String(row[k] || '').replace(/"/g, '""')}"`).join(','))).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `matrix-report-${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+    shell.querySelector('[data-role="hf-report-html"]').addEventListener('click', () => {
+      const report = api.getLastReport ? api.getLastReport() : [];
+      const htmlRows = report.map((item, idx) => ({ matrixName: document.title, rowNumber: idx + 1, column: item.operationType, matchedValue: item.reason || item.message || '' }));
+      const html = api.exportHtmlReport(htmlRows, 'Отчет Matrix Cleaner');
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `matrix-report-${Date.now()}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+  }
+
+  function install() {
+    const api = getApi();
+    const root = document.querySelector('#mc-root');
+    if (!api) return false;
+    installApi(api);
+    if (!root) return false;
+    installStyles();
+    buildUi(root);
+    return true;
+  }
+
+  const wHf = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  wHf.__otHumanReinstall = install;
+
+  if (install()) return;
+  const timer = setInterval(() => {
+    install();
+  }, 250);
+  setTimeout(() => clearInterval(timer), 30000);
 })();

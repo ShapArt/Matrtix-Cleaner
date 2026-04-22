@@ -18,6 +18,14 @@ async function openCleanerPanel(page) {
   await page.locator('#mc-open-btn').waitFor({ state: 'visible' });
   await page.locator('#mc-open-btn').click();
   await page.evaluate(() => {
+    const advancedTab = document.querySelector('[data-tab="advanced"]');
+    if (advancedTab) {
+      advancedTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
+    const showLegacy = document.querySelector('[data-role="hf-show-legacy"]');
+    if (showLegacy) {
+      showLegacy.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
     const moduleSelect = document.querySelector('[data-role="compact-module-select"]');
     if (moduleSelect) {
       moduleSelect.value = 'all';
@@ -772,27 +780,32 @@ test('42. end-to-end smoke flow', async ({ page }) => {
   expect(summary.checklistTotal).toBeGreaterThan(0);
 });
 
-test('43. compact mode shows only action buttons by default', async ({ page }) => {
+test('43. human-first shell is default and russian-first', async ({ page }) => {
   await page.goto(pathToFileURL(MATRIX_HTML).href);
   await loadUserscript(page);
   await page.click('#mc-open-btn');
-  const state = await page.evaluate(() => {
-    const mode = document.querySelector('[data-role="core-compact-mode"]');
-    if (mode) {
-      mode.value = 'action';
-      mode.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    const jsonBtn = document.querySelector('[data-role="export-json"]');
-    const runBtn = document.querySelector('[data-role="run"]');
+  const ui = await page.evaluate(() => {
+    const root = document.querySelector('[data-role="hf-root"]');
+    const workTab = document.querySelector('[data-tab="work"]');
+    const panel = document.querySelector('[data-panel="work"]');
+    const author = root ? root.textContent || '' : '';
+    const legacyVisible = Array.from(document.querySelectorAll('#mc-root section'))
+      .filter(section => section.getAttribute('data-role') !== 'hf-root')
+      .some(section => !section.hidden && section.style.display !== 'none');
     return {
-      modeValue: mode ? mode.value : '',
-      jsonHidden: jsonBtn ? jsonBtn.style.display === 'none' : false,
-      runVisible: runBtn ? runBtn.style.display !== 'none' : false,
+      hasRoot: Boolean(root),
+      workActive: Boolean(workTab && workTab.classList.contains('is-active')),
+      workPanelVisible: Boolean(panel && !panel.hidden),
+      hasRussianTitle: author.includes('Рабочий режим Matrix Cleaner'),
+      hasAuthor: author.includes('Артём Шаповалов'),
+      legacyVisible,
     };
   });
-  expect(state.modeValue).toBe('action');
-  expect(state.jsonHidden).toBeTruthy();
-  expect(state.runVisible).toBeTruthy();
+  expect(ui.hasRoot).toBeTruthy();
+  expect(ui.workActive).toBeTruthy();
+  expect(ui.workPanelVisible).toBeTruthy();
+  expect(ui.hasRussianTitle).toBeTruthy();
+  expect(ui.hasAuthor).toBeTruthy();
 });
 
 test('44. run all tests button writes diagnostic logs', async ({ page }) => {
@@ -819,4 +832,74 @@ test('45. counterparty operations enforce default affiliation', async ({ page })
   }], {}));
   expect(report.length).toBeGreaterThan(0);
   expect(String(report[0].affiliation)).toContain('Группа Черкизово');
+});
+
+test('46. human dictionaries API returns matrix-driven lists', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  await page.waitForFunction(
+    () => window.__OT_MATRIX_CLEANER__ && typeof window.__OT_MATRIX_CLEANER__.getHumanDictionaries === 'function',
+    null,
+    { timeout: 15000 }
+  );
+  const dict = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.getHumanDictionaries());
+  expect(dict).toBeTruthy();
+  expect(Array.isArray(dict.counterparties)).toBeTruthy();
+  expect(Array.isArray(dict.docTypes)).toBeTruthy();
+  expect(Array.isArray(dict.legalEntities)).toBeTruthy();
+  expect(dict.requiredAffiliation).toBe('Группа Черкизово');
+});
+
+test('47. human-first bulk module supports ALL and ANY', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const result = await page.evaluate(async () => {
+    const api = window.__OT_MATRIX_CLEANER__;
+    const allReport = await api.previewRuleBatch([{
+      type: 'add_doc_type_to_matching_rows',
+      matrixName: document.title,
+      filters: { rowGroup: 'all', requiredDocTypes: ['ДС', 'Договор'], matchMode: 'all' },
+      payload: { rowGroup: 'all', requiredDocTypes: ['ДС', 'Договор'], matchMode: 'all', newDocType: 'ALL_MODE_DOC', affiliation: 'Группа Черкизово' },
+      options: { sourceRule: 'test_all' },
+    }], {});
+    const anyReport = await api.previewRuleBatch([{
+      type: 'add_doc_type_to_matching_rows',
+      matrixName: document.title,
+      filters: { rowGroup: 'all', requiredDocTypes: ['ДС', 'Договор'], matchMode: 'any' },
+      payload: { rowGroup: 'all', requiredDocTypes: ['ДС', 'Договор'], matchMode: 'any', newDocType: 'ANY_MODE_DOC', affiliation: 'Группа Черкизово' },
+      options: { sourceRule: 'test_any' },
+    }], {});
+    return { allCount: allReport.length, anyCount: anyReport.length };
+  });
+  expect(result.allCount).toBeGreaterThan(0);
+  expect(result.anyCount).toBeGreaterThan(0);
+});
+
+test('48. run all human tests supports synthetic modes', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  await page.waitForFunction(
+    () => window.__OT_MATRIX_CLEANER__ && typeof window.__OT_MATRIX_CLEANER__.runAllHumanTests === 'function',
+    null,
+    { timeout: 15000 }
+  );
+  const previewMode = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.runAllHumanTests({ mode: 'preview_only' }));
+  expect(previewMode).toBeTruthy();
+  expect(previewMode.total).toBeGreaterThan(0);
+  expect(previewMode.mode).toBe('preview_only');
+
+  const realMode = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.runAllHumanTests({ mode: 'real_insert' }));
+  expect(realMode).toBeTruthy();
+  expect(realMode.total).toBeGreaterThan(0);
+  expect(realMode.mode).toBe('real_insert');
+});
+
+test('49. human checklist panel renders pass/warn/fail cards', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  await page.click('#mc-open-btn');
+  await page.click('[data-tab="checklist"]');
+  await page.click('[data-role="hf-checklist-run"]');
+  const content = await page.textContent('[data-role="hf-checklist-result"]');
+  expect(String(content)).toContain('pass=');
 });
