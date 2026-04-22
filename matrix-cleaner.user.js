@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenText Matrix Cleaner Compact Safe
 // @namespace    https://chat.openai.com/
-// @version      2026.4.22.3
+// @version      2026.4.22.4
 // @description  Эволюционная автоматизация матриц OpenText: catalog, dry-run, rule engine, batch import, signer wizard
 // @match        *://*/otcs/cs.exe*
 // @homepageURL  https://github.com/ShapArt/Matrtix-Cleaner
