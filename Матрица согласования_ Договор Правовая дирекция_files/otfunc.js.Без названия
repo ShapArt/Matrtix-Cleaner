@@ -1,0 +1,993 @@
+var OTfunc =  {
+	swapItems: function ( theVarName, executeMacros, DOMprefix ) {
+		/*
+			### swapItems ###
+			 takes the name of a javascript variable
+			 if it is an object, it will recurse into it
+			 for each varialble that is not an object, it 
+			 replaces the "."s in the varialbe's path with "_"
+			 and does substitution
+			
+			 theVarName		string, name of the javascript variable to evaluate
+			 executeMacros	boolean, defaults to false, must be set to true 
+								in order to execute functions
+			 DOMprefix		string, defaults to empty string, is added in front
+								of the selector string in order to limit the scope
+								of substitution
+			
+		*/
+		if ( executeMacros === undefined ){executeMacros = false; } 
+		if ( typeof(DOMprefix) == 'undefined' ){DOMprefix = '';} 
+							  
+		var theVar = eval( theVarName );
+		var replacementName = theVarName.replace(/\./g, "_");
+		
+		var selectorString = DOMprefix + " ot\\:"+ replacementName;
+		
+		if ( typeof(theVar) == 'object' ){
+			
+			// recurse in for each attribute of the object
+			for( subVar in theVar ){
+				
+				// for performance reasons we will not evaluate any with name "addProperty" 
+				// as otutilities adds a function by that name by default to everything
+				if ( subVar != "addProperty" ){	
+					OTfunc.swapItems( theVarName + "." + subVar, executeMacros, DOMprefix );
+				}
+			}
+		}
+		else if ( executeMacros && typeof(theVar) == 'function' ){
+			
+				// we have a function, so we will check if any corrisponding DOM elements exist
+				// and if so, we will execute the function once for each, passing in to the
+				// variable options the contents of the DOM element's options attribute
+	
+				$(selectorString).each( 
+					function(index, element){
+						
+						var options = $(this).attr('options');
+						
+						if ( typeof(options) != 'undefined' ){
+							
+							// wrapping the options in parens allows the string to be converted
+							// to a JSON object to be evaluated. the resulting object is being passed
+							// into the function	
+							
+							theVar( eval( "({" + options + "})" ), element );
+							
+						}else{
+							// no options found
+							options = {};
+							theVar( options, element );
+						}
+					}
+				);	
+		}
+		else
+		{
+			// append the value of the variable to all of the matching DOM elements
+			$(selectorString).before(theVar.toString());
+			
+		}
+	},
+	
+	loadNodes: function ( options ){
+		/*
+			### loadNodes ###
+			
+			 Options are passed in an object literal, and can appear in any order
+			 OTfunc.loadNodes({'type':0,'nameFilter':'New'}) 
+			
+			 Paremeters examined:
+			 nameFilter			string that will only match nodes that contain the same string 
+			 type				integer that represents a subtype (ie folder = 0 document = 144 )
+			 containersOnly		boolean	defaults to false, return only containers
+			 nodeDescriptions	boolean defaults to false, include node descriptions
+			 descriptionFilter	string, return only items with descriptions containing the matching string
+										empty string matches all items with descriptions
+			 max				integer defaults to 24, maximum number of items to return
+			 responseMethod		function, defaults to OTfunc.processLoadedNodes, function called after nodes are loaded
+			 allContents		boolean, defaults to false, return all nodes, not just the ones on this page
+			 parentID			integer, defaults to the current node, use this to fetch objects from another place
+			 sort				string (type,-type,name,-name,size,-size,date,-date) defaults to name, sort order
+			 ignoreErrors		boolean, defaults to false, display error if rendering custom tag failed
+		
+		*/
+		
+		// set up the defaults
+		if (options === undefined){options = {};}
+		if (options.parentID === undefined){options.parentID = OTvar.node.ID;}
+		if (options.max === undefined){options.max = 24;}
+		if (options.sort === undefined){options.sort = 'name';}
+		if (options.ignoreErrors === undefined){options.ignoreErrors = false;}
+		
+		// if there isn't a columnDefinitionArray defined (as happens with
+		//	non browse pages and empty browse pages, set up and use the
+		// default columnDefinitionArray, which is required 
+
+		if ( typeof(columnDefinitionArray) == 'undefined' ){setBrowseColumnDefinition( OTvar.defaultColumnsDef );}
+		
+		var url = OTvar.livelink.cgiPath + "?func=ll&objAction=page&noGUI=true&browseMode=targetBrowse";
+		url += "&objID=" + options.parentID ;
+		url += "&pageSize=" + options.max;
+		url += "&sort=" + options.sort;
+		
+		// add on the optional pieces
+		if ( options.nameFilter !== undefined ){
+			url += "&filterValue=" + encodeURIComponent( options.nameFilter );
+		}
+
+		if ( options.nodeDescriptions === true ){
+			url += "&nodeDescriptions=true";	
+		}
+		
+		if ( options.type !== undefined ){
+			url += "&objFilter=" + options.type;
+		}
+		
+		if ( options.containersOnly === 1 )	{	
+			url += "&containersOnly=1";
+		}	
+		
+		if ( options.allContents !== undefined ){	
+			url += "&_allContents";
+		}
+		
+		if ( options.descriptionFilter !== undefined )	{	
+			url += "&descriptionFilter=" + options.descriptionFilter;
+		}	
+		
+		url += "&emitter=JSON";
+		// now add the nextURL, just the relative path, not the absolute path
+		//url += "&nexturl=" + escape( location.pathname + location.search );
+		if ( options.parentID != '' || typeof( parseInt(options.parentID) ) !== 'number'  ){	
+			
+			$.ajax({
+					type: 'GET',
+					url:url,
+					success: function(responseText){if(undefined === options.responseMethod){OTfunc.processLoadedNodes(responseText, options);}else{options.responseMethod(responseText, options);}}
+			});
+		}
+	},	
+					
+	processLoadedNodes: function ( responseText, options ){	
+		/*
+			### processLoadedNodes ###
+			
+			This method processes the responses from Livelink, converting them into
+			a useable format and then continuing to the function found in options.continueTo
+			(passing in the options.continueToValue as the parameter);
+			
+		*/
+		var localCopy = null;
+		var nodeObjects = null;
+		var isError = false;
+		
+		if ( responseText != "" ){
+											
+			try{
+				// convert the string block into a json object.
+				var responseData = OTfunc.toJSON(responseText);
+				if( responseData.hasOwnProperty('errorMessage') ){
+					
+					isError = true;
+					
+					if( !options.ignoreErrors){
+						var errorData = {};
+						
+						if(undefined !== options.element){
+						
+							errorData.message = String.formatLoc( "Unable to display element",options.element[0].nodeName);
+							errorData.filterOptions = options;
+							errorData.serverError = responseData;
+
+							OTfunc.formatErrorMessage( errorData, options ).insertBefore(options.element);
+						
+						}
+					}
+				}
+				else{
+				
+					nodeObjects = responseData.myRows;
+					localCopy = OTfunc.processNodeObjects( nodeObjects);
+				}
+
+			}
+			catch(e){
+				killPopup();
+				exceptionAlert( e, String.formatLoc("ProcesLoadedNodes Error") );
+				localCopy = null;
+			}
+
+			if ( null !== localCopy ){
+						
+					options.returnedNodes = localCopy;
+			}
+		}
+		
+		if( !isError ){ //abort processing if server returned error
+			if ( typeof(options.continueTo) == 'function' ){
+				options.continueTo( options.continueToValue );
+			}
+		}
+	},
+			
+	formatNodeList: function ( nodeList, options ) {
+		/*
+			### formatNodeList ###
+			 options is an object literal with the following features
+			 being examined:
+			 
+			 links		boolean, defaults to true, make the name of the node clickable
+			 icons		boolean, defaults to true, include the icons
+			 largeIcons	boolean, defaults to false, if true use the large versions of icons
+			 functionMenus	boolean, defaults to true, include the function menus
+			 id			string, the id to add to the list
+			 classes		string, list of classes to add to the list
+			 size			boolean, defaults to false, include size info	 
+		*/
+		
+		// set the defaults
+		if (options === undefined ){ options = {}; }  
+		if (options.links === undefined ){ options.links = true; }
+		if (options.icons === undefined ){ options.icons = true; }
+		if (options.largeIcons === undefined ){ options.largeIcons = false; }
+		if (options.functionMenus === undefined ){ options.functionMenus = true; }
+		if (options.size === undefined ){ options.size = false; }
+		if (options.numbered === undefined ){options.numbered = false; }
+				
+		// only allow between 1 and 6 columns
+		if (!(typeof(options.columns) == 'number' 
+				&& (1 <= options.columns) 
+				&& (options.columns <= 6 )))
+		{
+			options.columns = 3;
+		}
+		
+		// this wrapper div will contain all of the columns, and is what
+		// will be eventually returned
+		var wrapperDiv = $("<div class='ot_nodelist'></div>");
+
+		// if the columns are not going to contain the exact number of items,
+		// we want the later columns to contain fewer which is why we add the
+		// extra items to the first columns
+		
+		var itemsPerColumn = Math.floor(nodeList.length / options.columns);
+		var extraItems = nodeList.length % options.columns
+						
+		// array offset for start of current column
+		var offset = 0; 
+		
+		// used along with the node id to create a unique id needed for function menus		
+		var callID = new Date().getTime();	
+		
+		// For each column we will create separate unordered lists
+		// that will each contain the items that belong in that column.
+		// This is needed in order to get multiple columns while maintaining
+		// proper item ordering (down then across).
+		for ( var i = 0; i <= (options.columns - 1); i++ ){
+		
+			// create an unordered list for this column
+			var formatNodeList = $("<ul start='"+(offset+1)+"'></ul>");	
+			
+			if ( options.id != undefined ){
+				formatNodeList.attr('id', options.id );	
+			}
+			
+			if ( options.classes != undefined ){
+				formatNodeList.addClass(options.classes);
+			}
+			
+			// we have uneven number of items per column and we still have
+			// at least one unassigned extra item, we will add it to this column
+			if (extraItems > 0 ){
+			
+				itemsPerColumn++;
+			}
+			
+			// create a list of items to appear in this column
+			var tempNodeList = nodeList.slice( offset, offset + itemsPerColumn);
+			
+			// for each item to appear in the column create a list item
+			$.each( tempNodeList, function ( itemNum , node ){
+					
+				var nodeItem;
+
+				nodeItem = $("<li>" + node.name +"</li>");
+				
+				if (options.icons){
+					if( options.largeIcons ){
+						nodeItem.prepend("<img src='" + node.imgLargeStr + "' alt='" + node.typeName +"' title='" + node.typeName + "' height='32' border='0' width='32'/>&nbsp;");
+					}
+					if(node.imgMapClassSmall){
+
+						nodeItem.prepend("<div class='imgCursor " + node.imgMapClassSmall + "'></div>")
+					}
+					else{
+						nodeItem.prepend("<img src='" + node.imgStr + "' alt='" + node.typeName +"' title='" + node.typeName + "'  height='16' border='0' width='16'/>&nbsp;");
+					}
+				}
+				if (options.links && node.link != ""){nodeItem.wrapInner("<a href='" + node.link + "'></a>");}
+				if (options.functionMenus){nodeItem.append("&nbsp;"+fn_MenuStr( "ot" + callID, '', node.dataId, '', OTvar.livelink.supportPath, LocString( 'Functions' ), '' ));}
+				if (options.size && node.size != ""){nodeItem.append("&nbsp;<span class='size'>(" + node.size + ")</span>");}
+
+				// add the list item to the column list					
+				nodeItem.appendTo(formatNodeList);
+			});		
+			
+			// add the column to the wrapper
+			formatNodeList.appendTo(wrapperDiv);
+			
+			offset = offset + itemsPerColumn;
+			
+			// if we had any extra items, we have added one to this column
+			// so we will remove that extra item from the count and reduce the
+			// number of itemsPerColumn back to the norm.
+			if (extraItems > 0 ){
+				extraItems--;
+				itemsPerColumn--;
+			}
+		}
+		
+		// adding a div to clear the floating columns
+		$('<div class="ot_clear"/>').appendTo(wrapperDiv);
+		
+		return wrapperDiv
+	},
+
+	formatErrorMessage: function(errorData, options){
+		/*
+			### formatErrorMessage ###
+			 errorData is an object with the following features	 being examined:
+				message 		string, javascript error message
+				serverError 	object, server error returned in JSON format
+										errorPrefix - string
+										errorMessage - string
+										errorList - collection of objects:
+											code - string
+											message - string
+			 options 			object, filter options;
+		*/
+		
+		//this should never happen, but...
+		if( errorData == undefined )
+			return;
+		
+		// this wrapper div will contain error details and is what will be eventually returned
+		var wrapperDiv = $( "<div class='ot_nodelist'></div>" );
+		
+		var errorBoxHtml = "<P>"+errorData.message +"</P>";
+		var showDetailsMessage = String.formatLoc( "Show Details" );
+		var hideDetailsMessage = String.formatLoc( "Hide Details" );
+		var divID = createRandomID( "OTmacro_errorDetails-" ); 
+		errorBoxHtml += "<a href='#' onclick='toggleShowHide(this,\"" + divID + "\",\"" + showDetailsMessage + "\", \"" + hideDetailsMessage + "\");return false;'>show details</a>";
+				
+		//error details
+		errorBoxHtml += "<DIV id='" + divID + "' style='display:none;'>";
+		errorBoxHtml += "<DL>"
+		if( errorData.hasOwnProperty( 'serverError' )){
+			
+			errorBoxHtml += "<DT><strong>"+String.formatLoc( "Server Error")+"</strong></DT>";
+			errorBoxHtml += "<DD>"+decodeURI(errorData.serverError.errorPrefix) + "&nbsp;" + decodeURI(errorData.serverError.errorMessage); +"</DD>";
+
+			if( errorData.serverError.hasOwnProperty('errorList') ){
+				
+				var code;
+				var mesg;
+				var detail;
+				var index = 0;
+				
+				for( index=0; index < errorData.serverError.errorList.length; index++){
+				
+					detail = errorData.serverError.errorList[index];
+					if( detail.hasOwnProperty('code') )
+						code = decodeURI(detail.code);
+					else
+						code = "";
+						
+					if( detail.hasOwnProperty('message') )
+						message = decodeURI(detail.message);
+					else
+						message = "";
+
+					errorBoxHtml += "<DD><em>"+code + "</em>&nbsp;"+message + "</DD>"; 
+				}
+			}
+		}
+		
+		if( options != null && options != undefined){
+			
+			var propType;
+			errorBoxHtml += "<DT><strong>"+String.formatLoc("Filtering Options")+"</strong></DT>";
+			
+			for (var name in options) {
+				if (options.hasOwnProperty(name)) {
+					propType = typeof(options[name]);	
+					if( propType != 'object' && propType != 'function')
+						errorBoxHtml += "<DD>"+name + ":"+options[name] +"</DD>";
+				}
+			}
+		}
+		errorBoxHtml += "</DL>";
+		errorBoxHtml += "</DIV>"; 
+		
+		// add errorBox to the wrapper
+		var errorNodeItem = $(errorBoxHtml);
+		errorNodeItem.appendTo(wrapperDiv);
+	
+		return wrapperDiv;
+	},
+	
+	listItems: function( options, element ){
+			
+		// wrap element with jquery 
+		var element = $(element);
+		
+		// set up the defaults
+		if ( typeof(options) == 'undefined' ){ options = {} };  
+		if ( typeof(options.max) != 'number'){options.max = 24};
+		if ( typeof(options.type) != 'number'){options.type = undefined};
+		if ( typeof(options.parentID) != 'number'){options.parentID = OTvar.node.ID};
+		if ( typeof(options.functionMenus) != 'boolean'){options.functionMenus = true};
+		if ( typeof(options.icons) != 'boolean'){options.icons = true};
+		if ( !(typeof(options.columns) == 'number' && (1 <= options.columns <= 6 )) ){options.columns = 3};
+		if ( typeof(options.classes) != 'string'){options.classes = undefined};
+		if ( typeof(options.nameFilter) != 'string'){options.nameFilter = undefined};
+		if ( typeof(options.containersOnly) != 'number'){options.containersOnly = 0};
+		if ( typeof(options.ignoreErrors) != 'boolean'){options.ignoreErrors = false};
+		
+		/// add the element to the options object so that it will be 
+		// available after the load
+		options.element = element;
+		
+		// set the callback function and parameter
+		options.continueTo = OTfunc._continueListItems;
+		options.continueToValue = options;
+
+		OTfunc.loadNodes(options);	
+	},
+
+	_continueListItems: function ( options ){
+		/*
+			### _continueListItems ###	
+			Called after loadNodes has returned with the nodes from the server.
+			It calls to formatNodeList to do the formating of the returned nodes,
+			and then adds it before the replacement variable tag. We are adding 
+			the result before instead of after or within in order to allow the
+			replacement variable to use empty tags
+		*/
+		
+		OTfunc.formatNodeList(options.returnedNodes, options).insertBefore(options.element);
+	},
+	
+	toDate: function( dateString ){
+		/*
+			### OTfunc.toDate ###
+			 - *purpose*:		To convert a date string as is returned by Livelink into a javascript date object
+			 - *input*:
+			  - `dateString`: 	the string to be converted
+			 - *output*:		a javascript date object set to the date represented by the string
+		*/
+		// Set a default for the date object
+        var dateObject;
+		
+		try{
+		
+			dateObject = new Date();
+			dateString = Date.parse(dateString.replace(/-/g, '/'));
+			dateObject.setTime(dateString);
+		}
+		catch (err){
+			//If bad data was passed in then return an empty string
+            dateObject = String.formatLoc( "Undefined dateString");
+		}
+		return dateObject
+	},
+	
+	substituteAttributeVariable: function( attributeName, variableName, variableValue ){
+		/*
+			### OTfunc.substituteAttributeVariable ###
+			 - *purpose*:	To swap all occurances of a given variable found within a given attribute with the given value.
+			 - *input*:
+			  - `attributeName`:	the attribute we will be searching within
+			  - `variableName`:		the name of the variable we will be searching for
+			  - `variableValue`:	the value that will be substitiuted in
+			 - *output*:			none
+			 
+		*/
+		
+		// var selector;
+		var collection;
+		try{
+			//
+			// We need to handle the src attributeName differently due to some weird JQuery/IE interaction. This is a side effect since IE doesn't support document.querySelectorAll in quirks mode
+			// and executes a different search than Firefox when using the selector below.
+			//
+			if ( navigator.appName === "Microsoft Internet Explorer" && attributeName === 'src'){
+				
+				if ( SRCcollection == '' )
+				{
+					SRCcollection = $("[src]");
+				}
+
+				collection = SRCcollection;
+			}
+			else if ( attributeName === 'href'){
+				
+				selector = "a[" + attributeName + "*='" + variableName + "']";
+				collection = $(selector);
+			}
+			else{
+
+				selector = "[" + attributeName + "*='" + variableName + "']";
+				collection = $(selector);
+			}
+			
+			if ('undefined' !== typeof(collection) ){
+			
+				collection.each(function(){
+					var element = $(this);
+					var currentSrc = element.attr(attributeName);
+					var swapper = new RegExp(variableName, "g");
+					var newSrc = currentSrc.replace(swapper, variableValue);
+					
+					// replace only if you need to
+					if( currentSrc !== newSrc ){
+					
+						element.attr(attributeName, newSrc);
+					}
+				});
+			}
+		}
+		catch(err){
+				// silent failure. IE complains if the first line of the try
+				// block is not inside a try block, but it doesn't seem to 
+				// throw the error once it is.
+		}
+	},
+	
+	processNodeObjects:function( processedNodeObjects )	{
+		if ( null !== processedNodeObjects )
+		{
+			try{
+				
+				var numRows = processedNodeObjects.length;
+				
+				for (i=0; i< numRows; i++){
+					var obj = processedNodeObjects[i];
+	
+					obj.checked = false;
+					obj.savedClass = "";
+					obj.editable = setBooleanValue( obj.editable );
+					obj.container = setBooleanValue( obj.container );
+	
+					// Need to unescape all of the string based values
+					obj.typeName = decodeURI( obj.typeName );
+					obj.name = refactorVariable( obj.name );
+					obj.link = refactorVariable( obj.link );
+					obj.size = refactorVariable( obj.size );
+					obj.date = refactorVariable( obj.date );
+					obj.dateReal = refactorVariable( obj.dateReal );
+					obj.imgStr = refactorVariable( obj.imgStr );
+					obj.imgLargeStr = refactorVariable( obj.imgLargeStr );
+					obj.imgStatus = refactorVariable( obj.imgStatus );
+					obj.promotedCmds = refactorVariable( obj.promotedCmds );
+					obj.modifiedImgs = refactorVariable( obj.modifiedImgs );
+					obj.imgRealLargeStr = refactorVariable( obj.imgRealLargeStr );
+					obj.dcomment = refactorVariable( obj.dcomment );
+					obj.mimeType = refactorVariable( obj.mimeType );
+					obj.imgMapClassSmall = refactorVariable( obj.imgMapClassSmall);
+	
+					// Make the sort strings based on the data of the object
+					var lowerName = obj.name.toLowerCase();
+	
+					obj.typesort = obj.type.zp(5) + "_" + obj.mimeType.toLowerCase().zpa(50) + "_" + lowerName;
+					obj.sizesort = obj.type.zp(5) + "_" + obj.size.zpa(12) + "_" + lowerName;
+					obj.namesort = lowerName;
+					obj.datesort = obj.dateReal + "_" + lowerName;
+	
+					// Call out to the registered js object to deal with thier own defined data
+					if( typeof(columnDefinitionArray) != 'undefined' ){
+						for ( j = 0; j < columnDefinitionArray.length; j++ )
+						{
+							columnDefinitionArray[j].DataConversion( obj );
+						}
+					}
+				}
+			}
+			catch(e){
+				killPopup();
+				exceptionAlert( e, String.formatLoc("ProcesNodeObjects Error") );
+			}
+		}
+		return processedNodeObjects
+	},
+	
+	toJSON:function( JSONString ){
+		/*
+		### OTfunc.toJSON ###
+		 - *purpose*:	converts a string to a JSON object, and handles legacy eval json strings.
+		 - *input*:
+		  - `JSONString`:	the JSON string to convert to a JSON Object.
+		 - *output*:		the JSON Object converted from the input string.
+		 
+		 */
+		var JSONObject = null;
+		if (null !== JSONString)
+		{	
+			try
+			{
+				var trimmedJSON = JSONString.trim();
+				
+				if(trimmedJSON.slice(0,1)=="(")
+				{
+					trimmedJSON = trimmedJSON.slice(1);
+				}
+				if(trimmedJSON.slice(-1)==")")
+				{
+					trimmedJSON = trimmedJSON.slice(0,-1);
+				}
+				
+				JSONObject = jQuery.parseJSON(trimmedJSON);
+			}
+			catch(e){
+				killPopup();
+				exceptionAlert( e, String.formatLoc("toJSON error.") );
+			}
+		}
+		
+		return JSONObject
+	}
+};
+
+var OTmacro = {
+	listItems: function( options, element ){
+		/*
+			### OTmacro_listItems ###
+		
+		 - *purpose*:	creates a list of items that are children of the specified node (defaults to current node)
+		 - *class*: 	`OTmacro_listContainers`
+		 - *options*:
+		  - `max`:			an integer indicating the maximum number of folders to include in the list
+							defaults to 24
+		  - `type`:			an integer indicating the only type of item to show, defaults to show all
+		  - `parentID`:		an integer indicating the ID of the parent container from which
+							to get children, defaults to current node
+		  - `functionMenus`:	a boolean that indicates if function menus should be made
+								available with each item in the list, defaults to true
+		  - `icons`:		a boolean that indicates if icons indicating the item's type
+							should be included in the list, defaults to true.
+		  - `columns`:			an integer between 1 and 4 that indicates the number of columns to
+								display the results in, defaults to 3
+		  - `classes`:			a string containing a space separated list of CSS classes to apply to the resulting list
+		  - `nameFilter`:		a string that must be present in the name of the item in order for it to be included in the list
+		 - *examples*:
+		  - `<ot:OTmacro_listItems />`
+		  - `<ot:OTmacro_listItems options="max:30"/>`
+		  - `<ot:OTmacro_listItems options="max:30, parentID:2000"/>`
+		  - `<ot:OTmacro_listItems options="max:30, parentID:2000, type:202"/>`
+		
+		*/
+		
+		OTfunc.listItems( options, element );
+	},
+	listContainers: function( options, element){
+		/*
+		### OTmacro_listContainers ###
+		
+		 - *purpose*:	creates a list of containers that are children of the specified node (defaults to current node)
+		 - *class*: 	`OTmacro_listContainers`
+		 - *options*:
+		  - `max`:			an integer indicating the maximum number of folders to include in the list
+							defaults to 24
+		  - `parentID`:		an integer indicating the ID of the parent container from which
+							to get children, defaults to current node
+		  - `functionMenus`:	a boolean that indicates if function menus should be made
+								available with each item in the list, defaults to true
+		  - `icons`:		a boolean that indicates if icons indicating the item's type
+							should be included in the list, defaults to true.
+		  - `columns`:			an integer between 1 and 4 that indicates the number of columns to
+								display the results in, defaults to 3
+		  - `classes`:			a string containing a space separated list of CSS classes to apply to the resulting list
+		  - `nameFilter`:		a string that must be present in the name of the item in order for it to be included in the list
+		 - *examples*:
+		  - `<ot:OTmacro_listContainers />`
+		  - `<ot:OTmacro_listContainers options="max:30"/>`
+		  - `<ot:OTmacro_listContainers options="max:30, parentID:2000"/>`
+		*/
+		
+		options.containersOnly = 1;
+		
+		OTfunc.listItems( options, element );
+	},
+	listFolders: function(options, element){
+		/*
+		### OTmacro_listFolders ###
+		
+		- *purpose*:	creates a list of folders that are children of the specified node (defaults to current node)
+		- *class*: 	`OTmacro_listFolders`
+		- *options*:
+		- `max`:			an integer indicating the maximum number of folders to include in the list
+						defaults to 24
+		- `parentID`:		an integer indicating the ID of the parent container from which
+						to get children, defaults to current node
+		- `functionMenus`:	a boolean that indicates if function menus should be made
+							available with each item in the list, defaults to true
+		- `icons`:		a boolean that indicates if icons indicating the item's type
+						should be included in the list, defaults to true.
+		- `columns`:			an integer between 1 and 4 that indicates the number of columns to
+							display the results in, defaults to 3
+		- `classes`:			a string containing a space separated list of CSS classes to apply to the resulting list
+		- `nameFilter`:		a string that must be present in the name of the item in order for it to be included in the list
+		- *examples*:
+		- `<ot:OTmacro_listFolders />`
+		- `<ot:OTmacro_listFolders options="max:30"/>`
+		- `<ot:OTmacro_listFolders options="max:30, parentID:2000"/>`
+		*/
+		
+		options.type = 0;
+		
+		OTfunc.listItems( options, element );
+	},
+	recentlyUpdatedItems: function(options, element){
+		/*
+		### OTmacro_recentlyUpdatedItems ###
+
+		 - *purpose*:	creates a list of item that are children of the specified node (defaults to current node)
+						which are the most recently updated
+		 - *class*: 	`OTmacro_recentlyUpdatedItems`
+		 - *options*:
+		 - `max`:			an integer indicating the maximum number of items to include in the list
+							defaults to 24
+		  - `type`:			an integer indicating the only type of item to show, defaults to show all
+		  - `parentID`:		an integer indicating the ID of the parent container from which
+							to get children, defaults to current node.
+		  - `functionMenus`:	a boolean that indicates if function menus should be made
+								available with each item in the list, defaults to true
+		  - `icons`:		a boolean that indicates if icons indicating the item's type
+							should be included in the list, defaults to true.
+		  - `columns`:			an integer between 1 and 4 that indicates the number of columns to
+								display the results in, defaults to 3
+		  - `classes`:			a string containing a space separated list of CSS classes to apply to the resulting list
+		  - `nameFilter`:		a string that must be present in the name of the item in order for it to be included in the list
+		 - *examples*:
+		  - `<ot:OTmacro_recentlyUpdatedDocuments />`
+		  - `<ot:OTmacro_recentlyUpdatedDocuments options="max:30"/>`
+		  - `<ot:OTmacro_recentlyUpdatedDocuments options="max:30, type:202"/>`
+
+		*/
+		
+		options.sort = '-date';
+		
+		OTfunc.listItems( options, element );
+	},
+	recentlyUpdatedDocuments: function(options, element){
+		/*
+		### OTmacro_recentlyUpdatedDocuments ###
+		
+		 - *purpose*:	creates a list of documents that are children of the specified node (defaults to current node)
+						which are the most recently updated
+		 - *class*: 	`OTmacro_recentlyUpdatedDocuments`
+		 - *options*:
+		  - `max`:			an integer indicating the maximum number of documents to include in the list
+							defaults to 24
+		  - `parentID`:		an integer indicating the ID of the parent container from which
+							to get children, defaults to current node.
+		  - `functionMenus`:	a boolean that indicates if function menus should be made
+								available with each item in the list, defaults to true
+		  - `icons`:		a boolean that indicates if icons indicating the item's type
+							should be included in the list, defaults to true.
+		  - `columns`:			an integer between 1 and 4 that indicates the number of columns to
+								display the results in, defaults to 3
+		  - `classes`:			a string containing a space separated list of CSS classes to apply to the resulting list
+		  - `nameFilter`:		a string that must be present in the name of the item in order for it to be included in the list
+		 - *examples*:
+		  - `<ot:OTmacro_recentlyUpdatedDocuments />`
+		  - `<ot:OTmacro_recentlyUpdatedDocuments options="max:30"/>`
+		*/
+		
+		options.sort = '-date';
+		
+		options.type = 144;
+		
+		OTfunc.listItems( options, element );
+	},
+	itemsWithDescriptions: function(options, element){
+		/*
+		### OTmacro_itemsWithDescriptions ###
+		
+		 - *purpose*:	creates a list of items that are children of the current node
+						which contain descriptions (optionally filtering on the content of the description)
+		 - *class*: 	`OTmacro_itemsWithDescriptions`
+		 - *options*:
+		  - `contains`:		a string that must be present in the item description
+							in order for it to be included in this list
+		  - `max`:			an integer indicating the maximum number of items to include in the list
+							defaults to 24
+		  - `type`:			an integer indicating the only type of item to show, defaults to show all	
+		  - `parentID`:		an integer indicating the ID of the parent container from which
+								to get children, defaults to current node.
+		  - `functionMenus`:	a boolean that indicates if function menus should be made
+								available with each item in the list, defaults to true
+		  - `icons`:		a boolean that indicates if icons indicating the item's type
+							should be included in the list, defaults to true.
+		  - `columns`:			an integer between 1 and 4 that indicates the number of columns to
+								display the results in, defaults to 3
+		  - `classes`:			a string containing a space separated list of CSS classes to apply to the resulting list
+		  - `nameFilter`:		a string that must be present in the name of the item in order for it to be included in the list					
+		 - *examples*:
+		  - `<ot:OTmacro_itemsWithDescriptions />`
+		  - `<ot:OTmacro_itemsWithDescriptions options="contains:'showme'"/>`
+		  - `<ot:OTmacro_itemsWithDescriptions options="contains:'showme', max:10"/>`
+		  - `<ot:OTmacro_itemsWithDescriptions options="contains:'showme', max:10, type:202"/>` 
+		*/
+		
+		if(options.contains === undefined){
+			options.descriptionFilter = '';
+		}else{
+			options.descriptionFilter = options.contains;
+		}
+		
+		OTfunc.listItems( options, element );
+	},
+	foldersWithDescriptions: function(options, element){
+		/*
+		### OTmacro_foldersWithDescriptions ###
+
+		 - *purpose*:	creates a list of folders that are children of the specified node (defaults to current node)
+						which contain descriptions (optionally filtering on the content of the description)
+		 - *class*: 	`OTmacro_foldersWithDescriptions`
+		 - *options*:
+		  - `contains`:			a string that must be present in the folder description
+								in order for it to be included in this list
+		  - `max`:				an integer indicating the maximum number of items to include in the list
+								defaults to 24
+		  - `parentID`:			an integer indicating the ID of the parent container from which
+								to get children, defaults to current node
+		  - `functionMenus`:	a boolean that indicates if function menus should be made
+								available with each item in the list, defaults to true
+		  - `icons`:			a boolean that indicates if icons indicating the item's type
+								should be included in the list, defaults to true.
+		  - `columns`:			an integer between 1 and 4 that indicates the number of columns to
+								display the results in, defaults to 3
+		  - `classes`:			a string containing a space separated list of CSS classes to apply to the resulting list
+		  - `nameFilter`:		a string that must be present in the name of the item in order for it to be included in the list
+		 - *examples*:
+		  - `<ot:OTmacro_foldersWithDescriptions />`
+		  - `<ot:OTmacro_foldersWithDescriptions options="contains:'showme'"/>`
+		  - `<ot:OTmacro_foldersWithDescriptions options="contains:'showme', max:10"/>` 
+		*/
+		
+		if(options.contains === undefined){
+			options.descriptionFilter = '';
+		}else{
+			options.descriptionFilter = options.contains;
+		}
+		
+		options.type = 0;
+		
+		OTfunc.listItems( options, element );
+	},
+	search: function(options, element){
+		/* 
+		### OTmacro_search ###
+
+		 - *purpose*:	displays the Simple Search form for a given Saved Query
+		 - *class*: 	`OTmacro_search`
+		 - *options*:
+		  - `id`:			an integer indicating the ID of the Saved Query whose Simple Search form should be displayed
+		 - *examples*:
+		  - `<ot:OTmacro_search options="id:123456"/>`
+		*/
+		// only process if id is present and is a number
+		if ( typeof( options.id ) === 'number' ){ 
+			
+			var left = (($(window).width() - 200) / 2) + $(window).scrollLeft() + "px";
+			var imgSrc = OTvar.livelink.supportPath + 'circleecm_progmeter40x40.gif';
+
+			// Get the content for the "Search form loading..." popup with spinner
+			var content = getPopupContent( OTvar.customView.searchMessage, "#ffffff", imgSrc );
+			
+			// Create outer box so we can position the message relative to the top of the browse area (where the custom view will show up)
+			content = '<DIV id="customViewSearchLoading" style="position:relative">\
+					<DIV style="position:absolute; z-index:1000; left:'+left+'; top:-45px;">' + content + '</DIV>\
+				</DIV>';
+			
+			// Place the loading box in the screen in .5 seconds (very fast search forms won't see this)
+			customViewSearchLoaded = false;
+			setTimeout( function() {
+					if( !customViewSearchLoaded ) {
+						$( element ).before( content );
+					}
+				}, 500 )
+			
+			var url = OTvar.livelink.cgiPath + "?func=ll&objaction=simplesearch&objType=258&dataId=" + options.id + "&loadLibs=search";
+
+			$.ajax({
+				type: 'GET',
+				dataType: 'text',
+				url:url,
+				success: function( responseText ) {
+					
+					customViewSearchLoaded = true;
+					$('#customViewSearchLoading').remove();
+					$( element ).before( responseText );
+				}
+			});
+			
+		}
+	}
+};
+
+// When the DOM is ready, the following function runs 	
+$(window).load( function(){
+
+	setTimeout( function () {
+		// replace all instances of this attribute variable in href and src tags
+		// for performance reasons we will only do this with select variables
+		OTfunc.substituteAttributeVariable( 'src', '{ot:OTvar_livelink_supportPath}', OTvar.livelink.supportPath );		
+		OTfunc.substituteAttributeVariable( 'href', '{ot:OTvar_livelink_supportPath}', OTvar.livelink.supportPath );
+			
+		OTfunc.substituteAttributeVariable( 'src', '{ot:OTvar_livelink_cgiPath}', OTvar.livelink.cgiPath );		
+		OTfunc.substituteAttributeVariable( 'href', '{ot:OTvar_livelink_cgiPath}', OTvar.livelink.cgiPath );
+		
+		// swap in the replacement variable and macro values
+		OTfunc.swapItems("OTvar");
+		OTfunc.swapItems("CUSTOMvar");
+		OTfunc.swapItems("CUSTOMmacro",  true);
+		OTfunc.swapItems("OTmacro", true);
+	}, 250 );
+});	
+
+//these are deprecated and will be removed. Please use the new OTvar references
+var OBJECT_DATAID = OTvar.node.ID; 
+var OBJECT_NAME = OTvar.node.name;  
+var OBJECT_CREATEDATE = OTvar.node.createDate; 
+var OBJECT_MODIFYDATE = OTvar.node.modifyDate; 
+var OBJECT_COMMENTS = OTvar.node.comments;
+var OBJECT_CREATOR = OTvar.node.creator;
+
+// variables with names CUSTOM* are reserved for customer customization
+var CUSTOMvar = {};	
+var CUSTOMfunc = {};
+var CUSTOMmacro = {};
+var SRCcollection = '';
+
+// need to know the default columns for non browse pages
+OTvar.defaultColumnsDef =  '({"columns":[{"columnID":"checkboxColumn","isDefault":true},{"columnID":"typeColumn","isDefault":true},{"columnID":"nameWthPrmtdCmdsColumn","isDefault":true},{"columnID":"sizeColumn","isDefault":true},{"columnID":"dateColumn","isDefault":true},{"columnID":"dataidColumn","isDefault":true}],"ok":true})' ;
+
+function toggleShowHide(objToggleGenerator, toggleElementId, toggleOnText, toggleOffText) { 
+	/*
+		### toggleShowHide ###
+		Toggles visibility of an element ( <DIV> ) on or off
+		objToggleGenerator - reference of the control that generated the toggle event. 
+		toogleElementId - id of the element to be toggled on or off
+		toggleOnText    - text on the control when ready to turn the toggle on
+		toggleOffText   - text on the cotnrol when ready to turn toggle off   
+	*/	
+	
+	var e = document.getElementById(toggleElementId);
+	if(e.style.display == 'block') {
+		e.style.display = 'none';
+		if( toggleOnText != undefined && toggleOnText != null )
+			objToggleGenerator.innerHTML = toggleOnText;
+	}
+    else{ 
+		e.style.display = 'block';
+		if( toggleOffText != undefined && toggleOffText != null )
+			objToggleGenerator.innerHTML = toggleOffText;
+	}
+}
+
+function createRandomID( prefix ) {
+	/*
+		### random_id ###
+		Creates random unique ID by appending the random number to the prefix. If prefix is not supplied, it returns the random number as string
+		prefix - string, optional
+	*/
+     var randID = parseInt( Math.random()*10000 );
+	 if( prefix == undefined || prefix == null )
+		prefix = ''
+		
+	return prefix + randID;	
+}

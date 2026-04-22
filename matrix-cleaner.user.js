@@ -18,6 +18,7 @@
 
   const CONFIG = {
     version: '4.0.0',
+    requiredAffiliation: 'Группа Черкизово',
     partnerAliases: ['partner_id', 'partners_internal_id'],
     operationTypes: {
       REPLACE_APPROVER: 'replace_approver',
@@ -464,7 +465,7 @@
         const name = matrix.partnerCacheObject && matrix.partnerCacheObject[absId] ? matrix.partnerCacheObject[absId] : String(absId);
         if (!absId || !name) return;
         const key = normalize(name);
-        if (!bucket[key]) bucket[key] = { key, name: String(name).trim(), ids: [] };
+        if (!bucket[key]) bucket[key] = { key, name: String(name).trim(), ids: [], affiliation: CONFIG.requiredAffiliation };
         bucket[key].ids.push(absId);
       });
     });
@@ -474,7 +475,7 @@
         const name = String(item.name || item.title || '').trim();
         if (!absId || !name) return;
         const key = normalize(name);
-        if (!bucket[key]) bucket[key] = { key, name, ids: [] };
+        if (!bucket[key]) bucket[key] = { key, name, ids: [], affiliation: CONFIG.requiredAffiliation };
         bucket[key].ids.push(absId);
       });
     }
@@ -482,6 +483,7 @@
       key: bucket[key].key,
       name: bucket[key].name,
       ids: unique(bucket[key].ids).sort((a, b) => a - b),
+      affiliation: bucket[key].affiliation || CONFIG.requiredAffiliation,
     })).sort((l, r) => l.name.localeCompare(r.name, 'ru'));
     return state.partnerCatalog;
   }
@@ -635,6 +637,16 @@
 
   function planCounterpartyMutation(op, context) {
     const partnerName = op.payload.partnerName || op.payload.currentPartner || '';
+    const requiredAffiliation = CONFIG.requiredAffiliation;
+    const providedAffiliation = String(op.payload.affiliation || '').trim();
+    if (providedAffiliation && normalize(providedAffiliation) !== normalize(requiredAffiliation)) {
+      return [{
+        operationType: op.type,
+        actionType: CONFIG.actionTypes.MANUAL_REVIEW,
+        status: CONFIG.status.MANUAL_REVIEW,
+        reason: `Аффилированность контрагента должна быть "${requiredAffiliation}". Передано: "${providedAffiliation}".`,
+      }];
+    }
     const entry = resolvePartnerByName(partnerName);
     if (!entry) {
       return [{ actionType: CONFIG.actionTypes.MANUAL_REVIEW, status: CONFIG.status.MANUAL_REVIEW, reason: `Контрагент «${partnerName}» не найден в каталоге матрицы.` }];
@@ -653,6 +665,7 @@
       const condition = getConditionBySignedIds(signedIds);
       const base = {
         operationType: op.type,
+        affiliation: requiredAffiliation,
         itemId,
         recId,
         rowNo,
@@ -1170,6 +1183,7 @@
       actionType: entry.actionType,
       status: result && result.status ? result.status : entry.status || CONFIG.status.SKIPPED,
       reason: entry.reason || '',
+      affiliation: entry.affiliation || CONFIG.requiredAffiliation,
       sourceRule: entry.sourceRule || '',
       skippedReason: (result && result.status === CONFIG.status.SKIPPED) ? (result.message || entry.reason || '') : '',
       ambiguousReason: ((result && String(result.status || '').indexOf('manual') >= 0) || String(entry.status || '').indexOf('manual') >= 0) ? (entry.reason || result.message || '') : '',
@@ -1185,7 +1199,7 @@
   }
 
   function reportToCsv(report) {
-    const headers = ['operationType', 'itemid', 'recId', 'rowNo', 'actionType', 'status', 'reason', 'sourceRule', 'skippedReason', 'ambiguousReason', 'message', 'condition', 'matchedPartnerName', 'before', 'after'];
+    const headers = ['operationType', 'itemid', 'recId', 'rowNo', 'actionType', 'status', 'reason', 'affiliation', 'sourceRule', 'skippedReason', 'ambiguousReason', 'message', 'condition', 'matchedPartnerName', 'before', 'after'];
     const escape = value => `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
     const lines = [headers.join(',')];
     report.forEach(row => {
@@ -1197,6 +1211,7 @@
         row.actionType,
         row.status,
         row.reason,
+        row.affiliation,
         row.sourceRule,
         row.skippedReason,
         row.ambiguousReason,
@@ -1241,7 +1256,7 @@
       }
     }
     const sourceRule = opts.sourceRule || (sourceRuleInput ? sourceRuleInput.value : '');
-    return normalizeOperation({
+    const op = normalizeOperation({
       type,
       matrixName: document.title,
       scope: { pageMode: state.mode },
@@ -1255,6 +1270,9 @@
         sourceRule: sourceRule || (payloadJson && payloadJson.sourceRule) || '',
       },
     });
+    const requiredAff = CONFIG.requiredAffiliation;
+    if (!op.payload.affiliation) op.payload.affiliation = requiredAff;
+    return op;
   }
 
   function collectSafetyOptions() {
@@ -1804,10 +1822,53 @@
     log('Остановка запрошена. Скрипт остановится после текущего шага.', 'warn');
   }
 
+  async function runAllUiDiagnostics() {
+    const checks = [];
+    const push = (name, ok, details) => {
+      checks.push({ name, ok, details: details || '' });
+      log(`[Тест всего] ${name}: ${ok ? 'OK' : 'FAIL'}${details ? ` (${details})` : ''}`, ok ? 'ok' : 'error');
+    };
+    try {
+      const ready = Boolean(document.querySelector(CONFIG.selectors.matrixRows));
+      push('Матрица загружена', ready);
+      await waitForReady(5000).then(() => push('waitForReady', true)).catch(err => push('waitForReady', false, err.message));
+      try {
+        ensureMatrixInit();
+        push('sc_ApprovalMatrix доступен', true);
+      } catch (error) {
+        push('sc_ApprovalMatrix доступен', false, error.message);
+      }
+      const diag = collectDiagnostics();
+      push('jQuery доступен', Boolean(diag.env && diag.env.hasJquery));
+      const hasDraftGuard = collectSafetyOptions().requireDraft;
+      push('Draft guard включен', hasDraftGuard, hasDraftGuard ? '' : 'Рекомендуется включить');
+      const catalog = collectPartnerCatalog();
+      push('Каталог контрагентов', Array.isArray(catalog) && catalog.length > 0, `count=${catalog.length}`);
+      if (catalog.length > 0) {
+        const first = catalog[0];
+        const report = await previewOperations([normalizeOperation({
+          type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
+          matrixName: document.title,
+          payload: { partnerName: first.name, affiliation: CONFIG.requiredAffiliation },
+          options: { skipExclude: true, deleteIfSingle: false, sourceRule: 'test-all' },
+        })], {});
+        push('Preview операции', Array.isArray(report) && report.length > 0, `rows=${Array.isArray(report) ? report.length : 0}`);
+      } else {
+        push('Preview операции', false, 'Пустой каталог контрагентов');
+      }
+    } catch (error) {
+      push('Внутренняя ошибка тестов', false, error.message);
+    }
+    const failed = checks.filter(item => !item.ok).length;
+    log(`[Тест всего] Завершено: ${checks.length - failed} OK / ${failed} FAIL.`, failed ? 'error' : 'ok');
+    return { checks, failed };
+  }
+
   function buildMatrixCatalogSection(root) {
     const section = document.createElement('section');
+    section.setAttribute('data-module', 'catalog');
     section.innerHTML = `
-      <h4>Matrix Catalog</h4>
+      <h4>Каталог матриц</h4>
       <input class="mc-input" data-field="matrix-search" placeholder="Поиск матрицы по названию">
       <select class="mc-select" data-field="matrix-select"></select>
       <button data-role="open-matrix" type="button">Открыть матрицу</button>
@@ -1845,8 +1906,9 @@
 
   function buildSignerWizardSection(root) {
     const section = document.createElement('section');
+    section.setAttribute('data-module', 'signer');
     section.innerHTML = `
-      <h4>Signer Wizard</h4>
+      <h4>Мастер подписантов</h4>
       <input class="mc-input" data-signer="currentSigner" placeholder="Текущий подписант">
       <input class="mc-input" data-signer="newSigner" placeholder="Новый подписант">
       <input class="mc-input" data-signer="direction" placeholder="Дирекция">
@@ -1863,8 +1925,8 @@
       </select>
       <input class="mc-input" data-signer="limits" placeholder="Лимиты">
       <input class="mc-input" data-signer="amounts" placeholder="Суммы">
-      <input class="mc-input" data-signer="label" placeholder="Комментарий/label">
-      <button type="button" data-role="signer-preview">Preview signer bundle</button>
+      <input class="mc-input" data-signer="label" placeholder="Комментарий/метка">
+      <button type="button" data-role="signer-preview">Показать bundle (4 строки)</button>
     `;
     root.appendChild(section);
     section.querySelector('[data-role="signer-preview"]').addEventListener('click', async () => {
@@ -1882,14 +1944,15 @@
 
   function buildBatchSection(root) {
     const section = document.createElement('section');
+    section.setAttribute('data-module', 'batch');
     section.innerHTML = `
-      <h4>Batch Import</h4>
+      <h4>Пакетный импорт</h4>
       <textarea class="mc-input" data-field="batch-text" rows="6" placeholder="Вставь TSV/CSV из Excel"></textarea>
       <input type="file" data-field="batch-xlsx" accept=".xlsx,.xls" />
       <div class="mc-actions mc-actions--single">
-        <button type="button" data-role="batch-paste">Paste from clipboard</button>
-        <button type="button" data-role="batch-preview">Preview batch</button>
-        <button type="button" data-role="batch-run">Run batch</button>
+        <button type="button" data-role="batch-paste">Вставить из буфера</button>
+        <button type="button" data-role="batch-preview">Показать превью пакета</button>
+        <button type="button" data-role="batch-run">Применить пакет</button>
       </div>
     `;
     root.appendChild(section);
@@ -1942,8 +2005,9 @@
 
   function buildMainMatrixSection(root) {
     const section = document.createElement('section');
+    section.setAttribute('data-module', 'core');
     section.innerHTML = `
-      <h4>Rule Engine</h4>
+      <h4>Основные операции</h4>
       <select class="mc-select" data-field="operation-type">
         <option value="${CONFIG.operationTypes.REMOVE_COUNTERPARTY}" selected>remove_counterparty_from_rows</option>
         <option value="${CONFIG.operationTypes.DELETE_IF_SINGLE_COUNTERPARTY}">delete_rows_if_single_counterparty</option>
@@ -1966,36 +2030,80 @@
       <label class="mc-check"><input type="checkbox" data-field="skip-exclude" checked> Пропускать строки «Исключить»</label>
       <label class="mc-check"><input type="checkbox" data-field="require-draft" checked> Требовать статус «Черновик»</label>
       <label class="mc-check"><input type="checkbox" data-field="allow-unknown-running"> Разрешить apply, если статус запущенных листов неизвестен</label>
+      <label class="mc-check"><input type="checkbox" data-field="enforce-affiliation" checked disabled> Аффилированность: ${CONFIG.requiredAffiliation}</label>
       <label class="mc-check">Лимит строк: <input type="number" data-field="max-rows" value="${CONFIG.safety.defaultMaxAffectedRows}" min="1"></label>
       <div class="mc-actions">
         <button data-role="refresh" type="button">Обновить</button>
-        <button data-role="preview" type="button">Dry-run</button>
-        <button data-role="run" type="button">Run</button>
-        <button data-role="stop" type="button" disabled>Stop</button>
-        <button data-role="diag" type="button">Diag</button>
+        <button data-role="preview" type="button">Превью (без сохранения)</button>
+        <button data-role="run" type="button">Применить</button>
+        <button data-role="stop" type="button" disabled>Стоп</button>
+        <button data-role="diag" type="button">Диагностика</button>
         <button data-role="export-json" type="button">JSON</button>
         <button data-role="export-csv" type="button">CSV</button>
-        <button data-role="export-logs" type="button">Logs</button>
-        <button data-role="export-ambiguous" type="button">Ambiguous CSV</button>
-        <button data-role="copy-ambiguous" type="button">Copy ambiguous</button>
-        <button data-role="copy-skipped" type="button">Copy skipped</button>
-        <button data-role="copy-errors" type="button">Copy errors</button>
+        <button data-role="export-logs" type="button">Логи</button>
+        <button data-role="export-ambiguous" type="button">CSV неоднозначных</button>
+        <button data-role="copy-ambiguous" type="button">Копировать неоднозначные</button>
+        <button data-role="copy-skipped" type="button">Копировать пропуски</button>
+        <button data-role="copy-errors" type="button">Копировать ошибки</button>
+        <button data-role="run-all-tests" type="button">Тест всего</button>
       </div>
       <div class="mc-actions mc-actions--single">
-        <button data-role="partner-driver-dry" type="button">Partner driver dry-run</button>
-        <button data-role="partner-driver-run" type="button">Partner driver run</button>
+        <button data-role="partner-driver-dry" type="button">Драйвер поиска (превью)</button>
+        <button data-role="partner-driver-run" type="button">Драйвер поиска (применить)</button>
       </div>
       <div class="mc-triage" data-role="triage-tools">
-        <div class="mc-triage__title">Triage quick actions</div>
+        <div class="mc-triage__title">Быстрые triage-действия</div>
         <div class="mc-triage__counts" data-role="triage-counts">ambiguous: 0 · skipped: 0 · errors: 0</div>
         <div class="mc-actions mc-actions--single">
-          <button data-role="triage-copy-ambiguous" type="button">Copy ambiguous</button>
-          <button data-role="triage-copy-skipped" type="button">Copy skipped</button>
-          <button data-role="triage-copy-errors" type="button">Copy errors</button>
+          <button data-role="triage-copy-ambiguous" type="button">Копировать неоднозначные</button>
+          <button data-role="triage-copy-skipped" type="button">Копировать пропуски</button>
+          <button data-role="triage-copy-errors" type="button">Копировать ошибки</button>
         </div>
       </div>
     `;
     root.appendChild(section);
+    const quickMode = document.createElement('div');
+    quickMode.className = 'mc-compact-mode';
+    quickMode.innerHTML = `
+      <label class="mc-check">Показывать только:
+        <select class="mc-select" data-role="core-compact-mode">
+          <option value="action" selected>Нужную операцию</option>
+          <option value="export">Экспорт и отчеты</option>
+          <option value="triage">Triage и копирование</option>
+          <option value="all">Все кнопки раздела</option>
+        </select>
+      </label>
+    `;
+    section.insertBefore(quickMode, section.querySelector('.mc-actions'));
+    const allButtons = Array.from(section.querySelectorAll('.mc-actions button'));
+    const actionRoles = new Set(['refresh', 'preview', 'run', 'stop', 'partner-driver-dry', 'partner-driver-run', 'run-all-tests']);
+    const exportRoles = new Set(['diag', 'export-json', 'export-csv', 'export-logs', 'export-ambiguous']);
+    const triageRoles = new Set(['copy-ambiguous', 'copy-skipped', 'copy-errors', 'triage-copy-ambiguous', 'triage-copy-skipped', 'triage-copy-errors']);
+    const applyCompact = mode => {
+      allButtons.forEach(btn => {
+        const role = btn.getAttribute('data-role');
+        if (mode === 'all') {
+          btn.style.display = '';
+          return;
+        }
+        if (mode === 'action') {
+          btn.style.display = actionRoles.has(role) ? '' : 'none';
+          return;
+        }
+        if (mode === 'export') {
+          btn.style.display = exportRoles.has(role) ? '' : 'none';
+          return;
+        }
+        if (mode === 'triage') {
+          btn.style.display = triageRoles.has(role) ? '' : 'none';
+          return;
+        }
+        btn.style.display = '';
+      });
+    };
+    const compactSelectCore = quickMode.querySelector('[data-role="core-compact-mode"]');
+    compactSelectCore.addEventListener('change', e => applyCompact(e.target.value));
+    applyCompact('action');
     section.querySelector('[data-role="refresh"]').addEventListener('click', async () => {
       await waitForReady();
       ensureMatrixInit();
@@ -2037,6 +2145,9 @@
     section.querySelector('[data-role="partner-driver-run"]').addEventListener('click', async () => {
       const name = section.querySelector('[data-field="partner-name"]').value;
       await runPartnerSearchDriver(name, { dryRun: false });
+    });
+    section.querySelector('[data-role="run-all-tests"]').addEventListener('click', async () => {
+      await runAllUiDiagnostics();
     });
     state.triageEl = section.querySelector('[data-role="triage-tools"]');
     section.querySelector('[data-role="triage-copy-ambiguous"]').addEventListener('click', async () => {
@@ -2101,6 +2212,28 @@
     state.riskBadgeEl = panel.querySelector('#mc-risk-badge');
     const root = panel.querySelector('#mc-root');
 
+    const setCompactModule = moduleId => {
+      const selected = String(moduleId || 'core');
+      root.querySelectorAll('section[data-module]').forEach(section => {
+        section.style.display = (selected === 'all' || section.getAttribute('data-module') === selected) ? '' : 'none';
+      });
+      log(`Активный интерфейс: ${selected === 'all' ? 'все функции' : selected}.`, 'info');
+    };
+
+    const compactSection = document.createElement('section');
+    compactSection.setAttribute('data-module', 'compact');
+    compactSection.innerHTML = `
+      <h4>Режим интерфейса</h4>
+      <select class="mc-select" data-role="compact-module-select">
+        <option value="core" selected>Основные операции</option>
+        <option value="batch">Пакетный импорт</option>
+        <option value="signer">Мастер подписантов</option>
+        <option value="catalog">Каталог матриц</option>
+        <option value="all">Показать все разделы</option>
+      </select>
+    `;
+    root.appendChild(compactSection);
+
     if (isMatrixCatalogPage() && !isMatrixPage()) {
       state.mode = 'catalog';
       buildMatrixCatalogSection(root);
@@ -2110,6 +2243,9 @@
       buildSignerWizardSection(root);
       buildBatchSection(root);
     }
+    const compactSelect = compactSection.querySelector('[data-role="compact-module-select"]');
+    if (compactSelect) compactSelect.addEventListener('change', e => setCompactModule(e.target.value));
+    setCompactModule(isMatrixCatalogPage() && !isMatrixPage() ? 'catalog' : 'core');
 
     openBtn.addEventListener('click', () => {
       panel.classList.add('mc-panel--open');
@@ -2616,10 +2752,10 @@
     exposeApi();
     if (isMatrixCatalogPage() && !isMatrixPage()) {
       setStats(`Matrix catalog: ${state.matrixCatalog.length}`);
-      log('Режим Matrix Catalog активирован.', 'ok');
+      log('Режим каталога матриц активирован.', 'ok');
     } else {
       setStats(`Контрагентов: ${state.partnerCatalog.length}`);
-      log('Скрипт активирован. Используй Dry-run перед Run.', 'ok');
+      log('Скрипт активирован. Сначала запускай превью, затем применение.', 'ok');
     }
   }
 
@@ -2666,7 +2802,7 @@
     const section = document.createElement('section');
     section.setAttribute('data-role', 'v5-preview-diff');
     section.innerHTML = `
-      <h4>Preview Diff v5</h4>
+      <h4>Визуальный diff v5</h4>
       <label class="mc-check"><input type="checkbox" data-role="v5-preview-only" checked> Preview only (без сохранения)</label>
       <div class="mc-actions mc-actions--single">
         <button type="button" data-role="v5-preview-toggle">Toggle preview</button>
@@ -2781,7 +2917,7 @@
     const counters = countBuckets(report);
     extState.countersEl.textContent = `created: ${counters.created} · updated: ${counters.updated} · deleted: ${counters.deleted} · skipped: ${counters.skipped} · ambiguous: ${counters.ambiguous}`;
     if (!report.length) {
-      extState.diffPanel.innerHTML = '<div class="mc-v5-empty">Preview пуст. Запусти Dry-run/preview.</div>';
+      extState.diffPanel.innerHTML = '<div class="mc-v5-empty">Превью пусто. Запусти превью операции.</div>';
       return;
     }
     const lines = report.slice(0, 120).map((entry, idx) => {
@@ -3184,7 +3320,7 @@
 
     const searchSection = document.createElement('section');
     searchSection.innerHTML = `
-      <h4>Search everywhere</h4>
+      <h4>Поиск по матрицам</h4>
       <select class="mc-select" data-role="v5-search-mode">
         <option value="counterparty">counterparty</option>
         <option value="user">user</option>
@@ -3197,8 +3333,8 @@
         <option value="exact">exact</option>
       </select>
       <div class="mc-actions mc-actions--single">
-        <button type="button" data-role="v5-search-run">Scan</button>
-        <button type="button" data-role="v5-search-export">Export HTML</button>
+        <button type="button" data-role="v5-search-run">Запустить поиск</button>
+        <button type="button" data-role="v5-search-export">Экспорт HTML</button>
       </div>
       <div data-role="v5-search-result" class="mc-v5-search-result">Еще не запускали.</div>
     `;
@@ -3206,23 +3342,23 @@
 
     const checklistSection = document.createElement('section');
     checklistSection.innerHTML = `
-      <h4>Checklist</h4>
+      <h4>Чеклист</h4>
       <div class="mc-actions mc-actions--single">
-        <button type="button" data-role="v5-checklist-run">Run checklist</button>
+        <button type="button" data-role="v5-checklist-run">Запустить чеклист</button>
         <button type="button" data-role="v5-checklist-export">Export JSON</button>
       </div>
-      <div data-role="v5-checklist-result" class="mc-v5-search-result">Checklist не запускался.</div>
+      <div data-role="v5-checklist-result" class="mc-v5-search-result">Чеклист ещё не запускался.</div>
     `;
     root.appendChild(checklistSection);
 
     const requestSection = document.createElement('section');
     requestSection.setAttribute('data-role', 'v5-request-template');
     requestSection.innerHTML = `
-      <h4>Request template</h4>
+      <h4>Шаблон заявки</h4>
       <textarea class="mc-input" data-role="v5-request-text" rows="5" placeholder="Вставь JSON/TSV/текст заявки"></textarea>
       <div class="mc-actions mc-actions--single">
-        <button type="button" data-role="v5-request-parse">Parse request</button>
-        <button type="button" data-role="v5-request-preview">Preview parsed</button>
+        <button type="button" data-role="v5-request-parse">Разобрать заявку</button>
+        <button type="button" data-role="v5-request-preview">Показать превью заявки</button>
       </div>
       <div data-role="v5-request-result" class="mc-v5-search-result">Ожидается ввод.</div>
     `;

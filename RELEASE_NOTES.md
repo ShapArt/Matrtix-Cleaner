@@ -1,54 +1,58 @@
-# Release Notes v5.0.0
+# Примечания к релизу v5.0.0
 
 ## Что вошло в релиз
 
 - Введен модульный каркас `src/*` и сборка userscript в `dist/matrix-cleaner.user.js`.
-- Добавлен Visual Unsaved Preview Layer:
-  - ghost/draft rows (`create`);
-  - подсветка патчей (`update`);
-  - подсветка удалений (`delete`);
-  - `clearPreview()` и `togglePreviewMode()`;
-  - diff-панель и счетчики `created/updated/deleted/skipped/ambiguous`.
-- Расширен Rule Engine 2.0 и добавлены operation types:
+- Добавлен визуальный несохраняемый слой превью:
+  - черновые строки для создания;
+  - подсветка изменяемых строк;
+  - подсветка удаляемых строк;
+  - методы `clearPreview()` и `togglePreviewMode()`;
+  - панель различий и счетчики `created/updated/deleted/skipped/ambiguous`.
+- Расширен движок правил 2.0 и добавлены типы операций:
   - `add_doc_type_to_matching_rows`
   - `add_change_card_flag_to_matching_rows`
   - `add_legal_entity_to_matching_rows`
-  - расширенные check/search/audit operation ids в DSL.
-- `add_signer_bundle` переведен на проектный preset "4 строки" (2 main + 2 supplemental).
-- Добавлены V5 UI-блоки:
-  - `Search everywhere`
-  - `Checklist`
-  - `Request template`
-  - `Preview Diff v5`
-- Добавлена JSON DSL v2 схема:
+  - расширенные идентификаторы поиска, чеклистов и аудита в DSL.
+- Операция `add_signer_bundle` переведена на проектный пресет «4 строки» (2 для основных договоров и 2 для допсоглашений).
+- Добавлены блоки интерфейса v5:
+  - «Поиск по матрицам»
+  - «Чеклист»
+  - «Шаблон заявки»
+  - «Визуальный diff v5»
+- Включен компактный режим интерфейса: отображается только выбранный рабочий блок/тип действий.
+- Добавлена кнопка «Тест всего» для запуска встроенной диагностики на текущей матрице с логированием ошибок.
+- Добавлена схема JSON DSL v2:
   - `CONFIG_SCHEMA.json`
   - примеры в `examples/*.json`
-  - runtime-валидация (`validateDslConfig`) и parse pipeline (`parseRequestTemplate`).
-- Добавлены экспорты HTML-отчета для search mode.
+  - валидация на стороне runtime (`validateDslConfig`) и разбор заявок (`parseRequestTemplate`).
+- Добавлен экспорт HTML-отчета для сценариев поиска.
 - Расширен тестовый контур:
-  - unit tests (`tests/unit/*`);
-  - E2E сценарии v5 (`tests/matrix-automation.spec.js` #34-42);
-  - smoke command.
+  - модульные тесты (`tests/unit/*`);
+  - E2E-сценарии v5 (`tests/matrix-automation.spec.js`, тесты #34-42);
+  - единая smoke-команда.
 
 ## Новые команды
 
 - `npm run build` — сборка userscript в `dist/`
-- `npm run test:unit` — unit tests
-- `npm run test` — Playwright e2e
-- `npm run test:all` — unit + e2e
-- `npm run smoke` — build + unit + smoke subset e2e
+- `npm run test:unit` — модульные тесты
+- `npm run test` — E2E-тесты Playwright
+- `npm run test:all` — модульные + E2E
+- `npm run smoke` — быстрая проверка: сборка + модульные + smoke E2E
 
-## Safety и поведение
+## Безопасность и поведение
 
-- По умолчанию сохранены guardrails:
-  - draft-only;
-  - max affected rows;
-  - explicit confirm на delete-row;
-  - skip exclude;
-  - fail loudly + explain.
-- Массовые patch операции добавляют `skipped reason` и `sourceRule`.
+- По умолчанию включены защитные ограничения:
+  - применение только в режиме черновика;
+  - ограничение по числу затрагиваемых строк;
+  - отдельное подтверждение удаления строк;
+  - пропуск строк «Исключить»;
+  - явные ошибки без «тихих» мутаций.
+- Для массовых операций в отчет добавлены поля `skippedReason` и `sourceRule`.
+- Для операций с контрагентами закреплена обязательная аффилированность: `Группа Черкизово`.
+- Репозиторий дополнен GitHub community-файлами: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, шаблоны issue/PR.
 
-## Known limitations (кратко)
+## Известные ограничения (кратко)
 
-- Global search "по всем матрицам" в этой версии работает надежно для открытой матрицы и локальных snapshot-режимов; cross-matrix deep scan для live среды зависит от доступности каталога/URL/прав.
-- Некоторые OT DOM mapping поля на разных инстансах могут отличаться и требовать тонкой адаптации selectors/mappings.
+- Поиск «по всем матрицам» в этой версии надежен для открытой матрицы и локальных снимков; глубокий обход боевой среды зависит от доступности каталога, URL и прав.
+- На разных инстансах OpenText DOM-поля могут отличаться, поэтому может понадобиться точная адаптация селекторов и маппинга.

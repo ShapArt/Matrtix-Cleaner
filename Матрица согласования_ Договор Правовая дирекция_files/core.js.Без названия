@@ -1,0 +1,898 @@
+var sc = {
+	urlPrefix: undefined,
+	supportPrefix: undefined,
+	emptyFieldDecorator: undefined,
+	report: {
+		setSort: function (field, isAsc){
+			var node = $('thead a', '.sc_rResult').filter('[onclick*="' + field + '"]');
+			if (!node){
+				return false;
+			}
+			node.append($('<img src="' + sc.supportPrefix + 'sort-' + (isAsc == 'true' ? 'up' : 'down') + '.gif" border="0" style="margin-left:5px">'));
+		},
+		initDependFields: function (depFields){
+			for (var i = 0; i < depFields.length; i++){
+				var field = depFields[i].field;
+				field.depends = depFields[i].depends;
+				$(field).change(function (event){
+
+					if (!this.value){
+						$(this.depends).val('');
+					}
+				})
+			}
+		}
+	},
+	partner: {
+		w: undefined,
+		simpleSearchID: "",
+		getBySearchMulti : function(callback, urlparams){
+			var changeInterval;
+			var windowOpts = "height=640,width=800,left=" + ((screen.width / 2) - (400)) + ",top=" + ((screen.height / 2) - (320)) + ",resizable=yes,menubar=no,scrollbars=yes";
+			this.w = window.open(sc.urlPrefix + "?func=zdoc.searchpartners" + urlparams, "SimpleSearch", windowOpts);
+
+			var win = this.w;
+			var modFunc = this.setGetResultByIDs;
+
+			function changeResultAction(){
+				if (win.SelectItem && !win.sc_partnerHook){
+					win.SelectItem = function (nodeID){
+						modFunc(nodeID, callback);
+						win.close();
+					};
+					win.sc_partnerHook = true;
+				}
+				if (win.closed){
+					clearInterval(changeInterval);
+				}
+			}
+
+			changeInterval = setInterval(changeResultAction, 100);
+		},
+		getBySearchMultiAttorney : function(callback, urlparams){
+			var changeInterval;
+			var windowOpts = "height=640,width=800,left=" + ((screen.width / 2) - (400)) + ",top=" + ((screen.height / 2) - (320)) + ",resizable=yes,menubar=no,scrollbars=yes";
+			this.w = window.open(sc.urlPrefix + "?func=zdoc.searchpartnersattorney" + urlparams, "SimpleSearch", windowOpts);
+
+			var win = this.w;
+			var modFunc = this.setGetResultByIDs;
+
+			function changeResultAction(){
+				if (win.SelectItem && !win.sc_partnerHook){
+					win.SelectItem = function (nodeID){
+						modFunc(nodeID, callback);
+						win.close();
+					};
+					win.sc_partnerHook = true;
+				}
+				if (win.closed){
+					clearInterval(changeInterval);
+				}
+			}
+
+			changeInterval = setInterval(changeResultAction, 100);
+		},
+		getBySearch: function (callback){
+			var changeInterval;
+			var windowOpts = "height=640,width=800,left=" + ((screen.width / 2) - (400)) + ",top=" + ((screen.height / 2) - (320)) + ",resizable=yes,menubar=no,scrollbars=yes";
+			this.w = window.open(sc.urlPrefix + "?func=zdoc.searchpartners", "SimpleSearch", windowOpts);
+
+			var win = this.w;
+			var modFunc = this.setGetResultByID;
+
+			function changeResultAction(){
+				if (win.SelectItem && !win.sc_partnerHook){
+					win.SelectItem = function (nodeID){
+						modFunc(nodeID, callback);
+						win.close();
+					};
+					win.sc_partnerHook = true;
+				}
+				if (win.closed){
+					clearInterval(changeInterval);
+				}
+			}
+
+			changeInterval = setInterval(changeResultAction, 100);
+		},
+		setGetResultByID: function (nodeID, callback){
+			$.getJSON(sc.urlPrefix, {'func': 'zdoc.GetPartnerData', 'objID': nodeID}, function (data){
+				if (data.status != 'success' || data.partner.length == 0){
+					return alert('Error while getting partner data');
+				}
+
+				var partner = {};
+				partner = data.partner;
+				partner.id = data.partner.DataID;
+				partner.num = data.partner.id;
+				partner.name = data.partner.name;
+				partner.affiliation = data.partner.affiliation;
+				partner.inn = data.partner.partner_inn;
+				partner.opf = data.partner.opf;
+				partner.resident = data.partner.resident;
+				partner.status = data.partner.partner_status;
+				partner.status_date = data.partner.status_dateFmt;
+
+				if (callback){
+					return callback(partner);
+				}else{
+					return partner;
+				}
+			})
+		},
+		setGetResultByIDs: function (nodes, callback){
+			$.getJSON(sc.urlPrefix, {'func': 'zdoc.GetPartnersData', 'objIDs': nodes}, function (data){
+				if (data.status != 'success' || data.partners.length == 0){
+					return alert('Error while getting partner data');
+				}
+
+				/*var partners = [];
+				var partnerdata = {};
+				var i;
+
+				for (i = 0; i < data.partners.length; i++){
+
+					partnerdata = data.partners[i];
+					partnerdata.id = data.partners[i].DataID;
+					partnerdata.num = data.partners[i].id;
+					partnerdata.name = data.partners[i].name;
+					partnerdata.affiliation = data.partners[i].affiliation;
+					partnerdata.inn = data.partners[i].partner_inn;
+					partnerdata.opf = data.partners[i].opf;
+					partnerdata.resident = data.partners[i].resident;
+					partnerdata.status = data.partners[i].partner_status;
+					partnerdata.status_date = data.partners[i].status_dateFmt;
+
+					partners.push(partnerdata);
+				}*/
+
+				if (callback){
+					return callback(data.partners);
+				}else{
+					return data.partners;
+				}
+			})
+		},
+		selectOP: function(rowIdx, catId, partnerId, fieldName, docID) {
+			var invalidValues = [];
+			$(".partner_" + partnerId).not("#bopview_" + rowIdx).find("div").each (function() {
+				if ($(this).html() != "") {
+					invalidValues.push($(this).html());
+				}
+			});
+			var request = {
+				"func": "zdoc.GetTableLookupDialog",
+				"catID": catId,
+				"attrAlias": "partner_op",
+				"partnerID": partnerId
+			}
+			if (docID > 0) {
+				request.docID = docID;
+			}
+			$.getJSON(sc.urlPrefix, request, function (data){
+				if (data.status == "success") {
+					var $list = $("#op_list").html("");
+					var chosen = [];
+					$(".ophid_" + rowIdx).each(function(){
+							chosen.push($(this).val());
+					});
+					
+					for (var i = 0; i < data.validList.length; i++) {
+						$list.append('<li><label><input class="chosen" type="checkbox" value="' + data.validList[i] + '"' +
+							(chosen.indexOf(data.validList[i]) >= 0 ? ' checked="checked"' : '') +
+							(data.docValues && data.docValues.indexOf(data.validList[i]) < 0 || invalidValues.indexOf(data.validList[i]) >= 0 ? ' disabled="disabled"' : '') +
+							'>' + data.validList[i] + '</label></li>');
+					}
+					$("#select_op").dialog({
+						modal: true,
+						title: "Выберите значения (Обособленное подразделение)",
+						buttons: {
+							"Выбрать": function() {
+								var checked = [];
+								$("#op_list").find('input:checked:enabled').each(function(){
+									checked.push($(this).val());
+								})
+								for (var i = 1; i <= chosen.length; i++) {
+									$("#opview_" + rowIdx + "_" + i).remove();
+									$("#ophid_" + rowIdx + "_" + i).remove();
+								}
+								for (var i = 1; i <= checked.length; i++) {
+									$("#bopview_" + rowIdx).append('<div id="opview_' + rowIdx + '_' + i + '">' + checked[i-1] + '</div>');
+									$("#bophid_" + rowIdx).append('<input class="ophid_' + rowIdx + '" id="ophid_' + rowIdx + '_' + i + '" type="hidden" value="' + checked[i-1] + '" />');
+								}
+								if ($(".ophid_" + rowIdx).length == 0) {
+									$("#bopview_" + rowIdx).append('<div id="opview_' + rowIdx + '_1"></div>');
+									$("#bophid_" + rowIdx).append('<input class="ophid_' + rowIdx + '" id="ophid_' + rowIdx + '_1" type="hidden" value="" />');
+								}
+								
+								var i = 1;
+								$(".ophid_" + rowIdx).each(function(){
+									$(this).attr("name", fieldName + i);
+									$(this).attr("id", "ophid_" + rowIdx + "_" + i);
+									i += 1;
+								});
+								i = 1;
+								$("bopview_" + rowIdx).find("div").each(function(){
+									$(this).attr("id", "opview_" + rowIdx + "_" + i);
+									i += 1
+								});
+								$(this).dialog("close");
+							}
+						}
+					})
+				} else {
+					alert(data.ErrMsg);
+				}
+			});
+		}
+		
+	},
+	dfc: {
+		w: undefined,
+		simpleSearchID: "",
+
+		getBySearch: function (callback, source){
+			var changeInterval;
+			var windowOpts = "height=640,width=800,left=" + ((screen.width / 2) - (400)) + ",top=" + ((screen.height / 2) - (320)) + ",resizable=yes,menubar=no,scrollbars=yes";
+			this.w = window.open(sc.urlPrefix + "?func=zdoc.searchDFC&source=" + source , "SimpleSearch", windowOpts);
+
+			var win = this.w;
+			var modFunc = this.setGetResultByID;
+
+			function changeResultAction(){
+				if (win.SelectItem && !win.sc_partnerHook){
+					win.SelectItem = function (nodeID){
+						modFunc(nodeID, callback);
+						win.close();
+					};
+					win.sc_partnerHook = true;
+				}
+				if (win.closed){
+					clearInterval(changeInterval);
+				}
+			}
+
+			changeInterval = setInterval(changeResultAction, 100);
+		}
+	},	
+	dfcall: {
+		w: undefined,
+		simpleSearchID: "",
+
+		getBySearch: function (callback){
+			var changeInterval;
+			var windowOpts = "height=640,width=800,left=" + ((screen.width / 2) - (400)) + ",top=" + ((screen.height / 2) - (320)) + ",resizable=yes,menubar=no,scrollbars=yes";
+			this.w = window.open(sc.urlPrefix + "?func=zdoc.searchDFCAll", "SimpleSearch", windowOpts);
+
+			var win = this.w;
+			var modFunc = this.setGetResultByID;
+
+			function changeResultAction(){
+				if (win.SelectItem && !win.sc_partnerHook){
+					win.SelectItem = function (nodeID){
+						modFunc(nodeID, callback);
+						win.close();
+					};
+					win.sc_partnerHook = true;
+				}
+				if (win.closed){
+					clearInterval(changeInterval);
+				}
+			}
+
+			changeInterval = setInterval(changeResultAction, 100);
+		}
+	},
+	attKindAll: {
+		w: undefined,
+		simpleSearchID: "",
+
+		getBySearch: function (callback){
+			var changeInterval;
+			var windowOpts = "height=640,width=800,left=" + ((screen.width / 2) - (400)) + ",top=" + ((screen.height / 2) - (320)) + ",resizable=yes,menubar=no,scrollbars=yes";
+			this.w = window.open(sc.urlPrefix + "?func=zdoc.searchAttKindAll", "SimpleSearch", windowOpts);
+
+			var win = this.w;
+			var modFunc = this.setGetResultByID;
+
+			function changeResultAction(){
+				if (win.SelectItem && !win.sc_partnerHook){
+					win.SelectItem = function (nodeID){
+						modFunc(nodeID, callback);
+						win.close();
+					};
+					win.sc_partnerHook = true;
+				}
+				if (win.closed){
+					clearInterval(changeInterval);
+				}
+			}
+
+			changeInterval = setInterval(changeResultAction, 100);
+		}
+	},	
+	
+	zdoc: {
+		approval:undefined,
+		curDoc: undefined,
+		curContainer: undefined,
+		checkApprovalFields: function (mainContractID, callback){
+			$.ajax({
+				url: sc.urlPrefix,
+				dataType: 'json',
+				data: {
+					'func': 'zdoc.CheckNotActing',
+					'DataID': mainContractID
+				}
+			})
+			.done(function(){
+				$.getJSON(sc.urlPrefix, {
+					'func': 'zdoc.CheckRequiredFields',
+					'DataID': mainContractID
+				}, function (data){
+					if (data.status != 'success'){
+						if (callback){
+							callback(data.ErrMsg, false);
+						}
+						return;
+					}
+					$(".sc_invalid").removeClass('sc_invalid');
+					$(".sc_invalid_filed").removeClass('.sc_invalid_filed');
+					var question = false
+					var retMsg = '';
+					if (data.Errors && data.Errors.length){
+						for (var i = 0; i < data.Errors.length; i++){
+							var obj = data.Errors[i];
+							retMsg += obj.error + '\r';
+							if(data.Errors[i].id){
+								var id = data.Errors[i].id.split('.');
+								if($("[name*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td')[0]){
+									$("[name*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').prev().addClass("sc_invalid_filed");
+									$("[name*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').addClass("sc_invalid_filed");
+								}
+								//if($("[class*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td')[0]){
+								//	$("[class*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').prev().addClass("sc_invalid_filed");
+								//}
+								//$("[name*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').addClass("sc_invalid_filed");
+								//$("[class*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].separate_division){
+								$('.sc_partnerSetRowID[value=' + data.Errors[i].separate_division + ']').parent('td').siblings('.sc_partnerSetRowOP').first().addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].check_status){
+								$('.sc_partnerSetRowID[value=' + data.Errors[i].check_status + ']').parent('td').siblings('.sc_partnerSetRowStatus').first().addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].few_partners){
+								if($('#sc_partnerInternalSet thead tr').first()[0]){
+									$('#sc_partnerInternalSet thead tr').first().find('td').addClass("sc_invalid_filed");
+								} else{
+									$('#sc_partnerSet thead tr').first().find('td').addClass("sc_invalid_filed");
+								}
+							}
+							if (data.Errors[i].empty_org_set) {
+								$('#sc_partnerSet thead tr').first().find('td').addClass("sc_invalid_filed");
+							}
+							if (data.Errors[i].empty_att_set) {
+								$('#sc_attSet thead tr').first().find('td').addClass("sc_invalid_filed");
+							}
+							if (data.Errors[i].fill_passport_data) {
+								$('.zcontract-tab-url:contains("Паспортные данные")').parent().addClass("sc_invalid_filed")
+							}
+							if (data.Errors[i].fill_attcategories_data) {
+								$('.zcontract-tab-url:contains("Категории доверенностей")').parent().addClass("sc_invalid_filed")
+							}
+							if(data.Errors[i].deal_type){
+								$('#sc_partnerSet .sc_partnerSetRowDealType').addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].internal_partner){
+								$('#sc_partnerSet .sc_partnerSetRowAffiliation').addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].type_cost){
+								if($('#type_of_cost_attr').parent('td')[0]){
+									$('#type_of_cost_attr').parent('td').prev().addClass("sc_invalid_filed");
+									$('#type_of_cost_attr').parent('td').addClass("sc_invalid_filed");
+								}
+							}
+							if(data.Errors[i].not_affil_partner){
+								$('.sc_partnerSetRowID[value=' + data.Errors[i].not_affil_partner + ']').parent('td').addClass("sc_invalid_filed");
+							}
+						}
+					}
+					if (data.InvalidAttrs && data.InvalidAttrs.length){
+						retMsg += 'Измените значения, подсвеченные красным\r';
+						for (var i = 0; i < data.InvalidAttrs.length; i++) {
+							var attr = data.InvalidAttrs[i];
+							for (var j = 0; j < attr.invalid.length; j++) {
+								$("[name=scAttr" + attr.CatID + "_1_" + attr.SetID + "_" + attr.AttrID + '_' + attr.invalid[j] + ']').addClass("sc_invalid");
+							}
+						}
+					}
+					if (data.question && data.questionMessage.length)
+					{
+						question = retMsg.length == 0;
+						retMsg += data.questionMessage;
+					}
+					if (callback){
+						callback(retMsg, question);
+					}
+				})
+				.fail(function (error){
+					callback("Server error: zdoc.CheckRequiredFields", false);
+				});
+			})
+			.fail(function (error){
+				callback("Server error: zdoc.CheckNotActing", false);
+			});
+		},
+		checkApprovalFieldsWithoutFiles: function (mainContractID, callback){
+			$.ajax({
+				url: sc.urlPrefix,
+				dataType: 'json',
+				data: {
+					'func': 'zdoc.CheckNotActing',
+					'DataID': mainContractID
+				}
+			})
+			.done(function(){
+				$.getJSON(sc.urlPrefix, {
+					'func': 'zdoc.CheckRequiredFieldsWithoutFiles',
+					'DataID': mainContractID
+				}, function (data){
+					if (data.status != 'success'){
+						if (callback){
+							callback(data.ErrMsg, false);
+						}
+						return;
+					}
+					$(".sc_invalid").removeClass('sc_invalid');
+					$(".sc_invalid_filed").removeClass('.sc_invalid_filed');
+					var question = false
+					var retMsg = '';
+					if (data.Errors && data.Errors.length){
+						for (var i = 0; i < data.Errors.length; i++){
+							var obj = data.Errors[i];
+							retMsg += obj.error + '\r';
+							if(data.Errors[i].id){
+								var id = data.Errors[i].id.split('.');
+								if($("[name*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td')[0]){
+									$("[name*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').prev().addClass("sc_invalid_filed");
+									$("[name*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').addClass("sc_invalid_filed");
+								}
+								//if($("[class*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td')[0]){
+								//	$("[class*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').prev().addClass("sc_invalid_filed");
+								//}
+								//$("[name*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').addClass("sc_invalid_filed");
+								//$("[class*=scAttr" + id[0] + "_1_" + id[1] + "_" + id[2] + ']').parent('td').addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].separate_division){
+								$('.sc_partnerSetRowID[value=' + data.Errors[i].separate_division + ']').parent('td').siblings('.sc_partnerSetRowOP').first().addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].check_status){
+								$('.sc_partnerSetRowID[value=' + data.Errors[i].check_status + ']').parent('td').siblings('.sc_partnerSetRowStatus').first().addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].few_partners){
+								if($('#sc_partnerInternalSet thead tr').first()[0]){
+									$('#sc_partnerInternalSet thead tr').first().find('td').addClass("sc_invalid_filed");
+								} else{
+									$('#sc_partnerSet thead tr').first().find('td').addClass("sc_invalid_filed");
+								}
+							}
+							if (data.Errors[i].empty_org_set) {
+								$('#sc_partnerSet thead tr').first().find('td').addClass("sc_invalid_filed");
+							}
+							if (data.Errors[i].empty_att_set) {
+								$('#sc_attSet thead tr').first().find('td').addClass("sc_invalid_filed");
+							}
+							if (data.Errors[i].fill_passport_data) {
+								$('.zcontract-tab-url:contains("Паспортные данные")').parent().addClass("sc_invalid_filed")
+							}
+							if (data.Errors[i].fill_attcategories_data) {
+								$('.zcontract-tab-url:contains("Категории доверенностей")').parent().addClass("sc_invalid_filed")
+							}
+							if(data.Errors[i].deal_type){
+								$('#sc_partnerSet .sc_partnerSetRowDealType').addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].internal_partner){
+								$('#sc_partnerSet .sc_partnerSetRowAffiliation').addClass("sc_invalid_filed");
+							}
+							if(data.Errors[i].type_cost){
+								if($('#type_of_cost_attr').parent('td')[0]){
+									$('#type_of_cost_attr').parent('td').prev().addClass("sc_invalid_filed");
+									$('#type_of_cost_attr').parent('td').addClass("sc_invalid_filed");
+								}
+							}
+							if(data.Errors[i].not_affil_partner){
+								$('.sc_partnerSetRowID[value=' + data.Errors[i].not_affil_partner + ']').parent('td').addClass("sc_invalid_filed");
+							}
+						}
+					}
+					if (data.InvalidAttrs && data.InvalidAttrs.length){
+						retMsg += 'Измените значения, подсвеченные красным\r';
+						for (var i = 0; i < data.InvalidAttrs.length; i++) {
+							var attr = data.InvalidAttrs[i];
+							for (var j = 0; j < attr.invalid.length; j++) {
+								$("[name=scAttr" + attr.CatID + "_1_" + attr.SetID + "_" + attr.AttrID + '_' + attr.invalid[j] + ']').addClass("sc_invalid");
+							}
+						}
+					}
+					if (data.question && data.questionMessage.length)
+					{
+						question = retMsg.length == 0;
+						retMsg += data.questionMessage;
+					}
+					if (callback){
+						callback(retMsg, question);
+					}
+				})
+				.fail(function (error){
+					callback("Server error: zdoc.CheckRequiredFieldsWithoutFiles", false);
+				});
+			})
+			.fail(function (error){
+				callback("Server error: zdoc.CheckNotActing", false);
+			});
+		},
+		getPartners: function (nodeID, callback){
+			$.getJSON(sc.urlPrefix, {'func': 'zdoc.GetContractPartners', 'objID': nodeID}, function (data){
+				if (data.status != 'success' || data.partners == undefined){
+					return alert('Error while getting partners data');
+				}
+				var partners = [];
+
+				for (var i = 0; i < data.partners.length; i++){
+
+					var partner = {};
+					partner.id = data.partners[i].DataID || '';
+					partner.num = data.partners[i].id || '';
+					partner.name = data.partners[i].name || '';
+					partner.affiliation = data.partners[i].affiliation || '';
+					partner.inn = data.partners[i].partner_inn || '';
+					partner.opf = data.partners[i].opf || '';
+					partner.resident = data.partners[i].resident || '';
+					partner.status = data.partners[i].partner_status || '';
+					partner.status_date = data.partners[i].status_date || '';
+					partner.op = data.partners[i].partner_op || '';
+					partner.dealType = data.partners[i].partner_deal_type || '';
+
+					partners.push(partner);
+				}
+
+				if (callback){
+					return callback(partners);
+				}else{
+					return partners;
+				}
+			})
+		},
+		getAttornies: function (nodeID, callback){
+			$.getJSON(sc.urlPrefix, {'func': 'zdoc.GetAttorneyAttornies', 'docID': nodeID}, function (data){
+				if (data.status != 'success' || data.attornies == undefined){
+					return alert('Error while getting attornies data');
+				}
+				var attornies = [];
+
+				for (var i = 0; i < data.attornies.length; i++){
+
+					var attorney = {};
+					attorney.att_type = data.attornies[i].att_type;
+					attorney.att_id = data.attornies[i].att_id;
+					attorney.att_last_name = data.attornies[i].att_last_name || '';
+					attorney.att_first_name = data.attornies[i].att_first_name || '';
+					attorney.att_middle_name = data.attornies[i].att_middle_name || '';
+					attorney.att_job_title = data.attornies[i].att_job_title || '';
+					attorney.att_org_name = data.attornies[i].att_org_name || '';
+					attorney.att_org_oco = data.attornies[i].att_org_oco;
+
+					attornies.push(attorney);
+				}
+
+				if (callback){
+					return callback(attornies);
+				}else{
+					return attornies;
+				}
+			})
+		}		
+	},
+	pvp: {
+		getPartners: function (nodeID, callback){
+			$.getJSON(sc.urlPrefix, {'func': 'zdoc.GetPVPPartners', 'objID': nodeID}, function (data){
+				if (!data.ok) {
+					return alert(data.errMsg);					
+				}
+				if (callback){
+					return callback(data.members, data.internals);
+				}else{
+					return data;
+				}
+			})
+		}
+	},
+	card: {
+		checkRequiredFields: function (element, msg){
+			var emptyFields = [];
+			//Validate partnerSet if exist
+			if (sc_partnerSet.validate){
+				emptyFields = sc_partnerSet.validate();
+			}
+
+			$('.sc_requiredField:visible', $(element)).each(function (idx, label){
+				var $el = $(label);
+				var $elTitle = $el.attr('title');
+				if ($elTitle){
+					$el.find('input').each(function (idx, field){
+						if (!field.value || field.value == sc.emptyFieldDecorator){
+							emptyFields.push($elTitle);
+						}
+					});
+				}else{
+					$el.parent().next().find('input').each(function (idx, field){
+						if (!field.value || field.value == sc.emptyFieldDecorator){
+							emptyFields.push($.trim($el.parent().text()));
+						}
+					});
+				}
+			});
+
+			if (emptyFields.length == 0){
+				return true;
+			}else{
+				alert(msg + "\r\n" + emptyFields.join("\r"));
+				return false;
+			}
+		},
+		tabReload: function (tabIdx){
+			var $tabs = $('#ztabs');
+
+			if (!tabIdx){
+				tabIdx = $tabs.tabs('option', 'active');
+			}
+
+			//$($tabs.data('uiTabs').tabs[tabIdx]).removeData("cache.tabs");
+			$('[aria-labelledby="ui-id-'+tabIdx+'"]').removeData("cache.tabs");
+			$($tabs.data('uiTabs').panels[tabIdx]).empty();
+			$tabs.tabs('load', tabIdx);
+		},
+		tabChangeUrl: function(tabIdx, newUrl){
+			var $tabs = $('#ztabs');
+
+			if (!tabIdx){
+				tabIdx = $tabs.tabs('option', 'active');
+			}
+
+			//$($tabs.data('uiTabs').tabs[tabIdx]).find('a:first').attr('href', newUrl);
+			$('[aria-selected="true"]').find('a:first').attr('href', newUrl);
+			this.tabMarkAsLoading(tabIdx);
+			this.tabReload(tabIdx);
+		},
+		tabGetUrl: function(tabIdx){
+			var $tabs = $('#ztabs');
+
+			if (!tabIdx){
+				tabIdx = $tabs.tabs('option', 'active');
+			}
+
+			//return $($tabs.data('uiTabs').tabs[tabIdx]).find('a:first').attr('href');
+			return $('[aria-selected="true"]').find('a:first').attr('href');
+		},
+		tabMarkAsLoading: function (tab){
+			var $tabs = $('#ztabs');
+
+			if(!$tabs.length){
+				return false;
+			}
+			if (!tab){
+				tab = $tabs.tabs('option', 'active');
+			}
+			tab--;
+			$($tabs.data('uiTabs').panels[tab])
+				.html('<p style="text-align: center"><img src="' + sc.supportPrefix + 'circleecm_progmeter40x40.gif" border="0" /></p>');
+			return true;
+		}
+	},
+	users: {
+		showUserInfoWindow: function (userID){
+			var w = window.open(sc.urlPrefix + '?func=zsabrisutils.userheader&userID=' + userID, 'UserDialog', 'width=600,height=450,resizable=yes,scrollbars=yes,menubar=no');
+			if (w.focus){
+				w.focus();
+			}
+
+		}
+	},
+	//Depricated
+	patch: {
+		attrTable: {
+			doSelect: function (id){
+				var item = document.getElementById(id);
+				var itemValue = "";
+
+				// The html content within the span tag is escaped string. We need to unescape before pass back.
+				if (item != undefined){
+					itemValue = unescape(item.innerHTML);
+				}
+
+				alert(itemValue);
+			},
+			doPatch: function (fieldName){
+				if (window['stringSelect' + fieldName]){
+					var originalCall = window['stringSelect' + fieldName];
+					window['stringSelect' + fieldName] = function (){
+						originalCall();
+					}
+				}
+			}
+		}
+	},
+	init: function (){
+		try{
+			this.urlPrefix = OTvar.livelink.cgiPath;
+			this.supportPrefix = OTvar.livelink.supportPath;
+		}catch(e){}
+	},
+	comments: {
+		showDialog: function (approvalID, docID, callback){
+
+			var el = $('#sc_commentForm');
+			if (!el.length){
+				el = $('<div></div>');
+				var form = $('<form id="sc_commentForm" name="sc_commentForm" style="height: 100%; overflow: visible;"></form>');
+				var textarea = $('<textarea style="width: 575px; overflow: visible;" maxlength="1000" id="sc_commentInput"></textarea>');
+				
+				form.append(textarea);
+				form.append($('<input type="hidden" id="approvalID">').val(approvalID));
+				form.appendTo(el);
+				el.appendTo(document.body);
+				new nicEditor({buttonList : ['strike','bold','italic','underline','strikethrough','forecolor'], iconsPath : sc.supportPrefix + 'zdocs/nicEditorIcons.gif'}).panelInstance('sc_commentInput');
+				if (new nicEditors.findEditor('sc_commentInput').getContent() == "br") {
+					nicEditors.findEditor('sc_commentInput').elm.innerText = "";
+				}
+				$(".nicEdit-main").width("99%").height("95%");
+				$(".nicEdit-main").parent().width("99%").height("86%");
+				$(".nicEdit-panelContain").parent().width("99%");
+				$(".nicEdit-main").css("overflow", "visible");
+			}
+			if (el.hasClass('ui-dialog-content')){
+				el.dialog('open');
+			}else{
+				el.dialog({
+					modal: true,
+					width: 610,
+					height: 300,
+					title: 'Добавить комментарий',
+					buttons: [{
+						text: 'Отправить',
+						click: function (e){
+							var form = $(this).find('form');
+							var comment = new nicEditors.findEditor('sc_commentInput').getContent();
+							var maxlen = $("#sc_commentInput").prop("maxlength");
+							if (maxlen) {
+								var len = new nicEditors.findEditor('sc_commentInput').elm.innerText.trim().length;
+								if (len > maxlen) {
+									alert("Длина вашего комментария (" + len + ") превысила лимит (" + maxlen + ")");
+									return;
+								}
+								if (!len) {
+									return;
+								}
+							}
+							var button = $(e.target).closest('button');
+
+							button.prop('disabled', true);
+							$(e.target).text('Загрузка...');
+							if(sc.card.tabMarkAsLoading()){
+								$(this).dialog("close");
+							}
+							
+							$.post(OTvar.livelink.cgiPath, 
+								{
+									'func': 'zdoc.SendComment',
+									'comment': comment,
+									'approvalID': approvalID,
+									'docID': docID
+								},
+								function (data){
+									if(callback){
+										callback();
+									}else{
+										sc.card.tabReload();
+									}
+								}
+							);							
+						}
+					},{
+						text: 'Отменить',
+						click: function (e){
+							$(this).dialog("close");
+						}
+					}]
+				});
+			}
+		},
+		showDialogMatrix: function (dataid, verid, callback){
+
+			var el = $(document.getElementById('sc_commentDialog'));
+			if (!el.length){
+				el = $('<div></div>');
+				var form = $('<form name="sc_commentForm"></form>');
+				var textarea = $('<textarea maxlength="1000" id="sc_commentInput"></textarea>');
+				
+				var checkLength = function() { 
+					var len = parseInt(this.getAttribute("maxlength"), 10); 
+
+					if(this.value.length > len) { 
+					  this.value = this.value.substr(0, len); 
+					  return false; 
+					} 
+				}
+
+				textarea.get(0).onkeyup = checkLength;
+				textarea.get(0).onblur = checkLength;
+	  
+				form.append(textarea);
+				form.append($('<input type="hidden" id="comDataID">').val(dataid));
+				form.append($('<input type="hidden" id="comVerID">').val(verid));
+				form.appendTo(el);
+				el.appendTo(document.body);
+			}
+			if (el.hasClass('ui-dialog-content')){
+				el.dialog('open');
+			}else{
+				el.dialog({
+					modal: true,
+					width: 610,
+					title: 'Добавить комментарий',
+					buttons: [{
+						text: 'Отправить',
+						click: function (e){
+							var form = $(this).find('form');
+							var comment = form.find('#sc_commentInput').val();
+							var button = $(e.target).closest('button');
+
+							button.prop('disabled', true);
+							$(e.target).text('Загрузка...');
+							if(sc.card.tabMarkAsLoading()){
+								$(this).dialog("close");
+							}
+							
+							$.post(OTvar.livelink.cgiPath, 
+								{
+									'func': 'zdoc.SendMatrixComment',
+									'comment': comment,
+									'dataid': form.find('#comDataID').val(),
+									'verid': form.find('#comVerID').val()
+								},
+								function (data){
+									if(callback){
+										callback();
+									}else{
+										sc.card.tabReload();
+									}
+								}
+							);							
+						}
+					}]
+				});
+			}
+		}
+	},
+	utils: {
+		pushIfNotExist: function (array, val){
+			if (array.indexOf(val) === -1){
+				array.push(val);
+			}
+		},
+		arrayToInt: function (array){
+			for (var i = 0; i < array.length; i++){
+				array[i] = parseInt(array[i]);
+			}
+		},
+		replaceQueryParam: function (search, param, newval) {
+			var regex = new RegExp("([?;&])" + param + "[^&;]*[;&]?");
+			var query = search.replace(regex, "$1").replace(/&$/, '');
+
+			return (query.length > 2 ? query + "&" : "?") + (newval ? param + "=" + newval : '');
+		}
+	}
+};
+
+sc.init();

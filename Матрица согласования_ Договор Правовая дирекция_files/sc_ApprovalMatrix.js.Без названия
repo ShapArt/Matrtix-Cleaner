@@ -1,0 +1,3156 @@
+/**
+ * Created by Vladimir V. on 10.06.2015.
+
+ Порядок функций из карточки, порядок уровней из глобальной таблицы
+ статусы поставить
+ и пользователей из домена
+ oscript
+ ie8 test
+ */
+if (!Array.prototype.indexOf){
+    Array.prototype.indexOf = function (val){
+        return jQuery.inArray(val, this);
+    };
+}
+
+var sc_ModelUser = {
+	items: [],
+
+	getUserByID: function (id, returnIdx){
+		for (var i = 0; i < this.items.length; i++){
+			if (this.items[i].id == id){
+				return (returnIdx) ? i : this.items[i];
+			}
+
+		}
+
+		//If doest find anyting
+		return {id: -1, title: '!Error, user not found'}
+	},
+
+	populateFromArray: function (userIdArray){
+		var result = [];
+
+		for (var i = 0; i < userIdArray.length; i++){
+			result.push(this.getUserByID(userIdArray[i]));
+		}
+		return result;
+	},
+
+	getBySearch: function (searchString, matchCase, returnIdx){
+		if (!matchCase){
+			searchString = searchString.toLowerCase();
+		}
+
+		for (var i = 0; i < this.items.length; i++){
+			if (this.items[i].title.indexOf(searchString))
+				return (returnIdx) ? i : this.items[i];
+			}
+
+		//If doest find anyting
+		return {id: -1, title: '!Error, user not found'}
+	}
+};
+
+var sc_ModelUser2 = {
+	items: [],
+
+	getUserByID: function (id, returnIdx){
+		for (var i = 0; i < this.items.length; i++){
+			if (this.items[i].id == id){
+				return (returnIdx) ? i : this.items[i];
+			}
+
+		}
+
+		//If doest find anyting
+		return {id: -1, title: '!Error, user not found'}
+	},
+
+	populateFromArray: function (userIdArray){
+		var result = [];
+
+		for (var i = 0; i < userIdArray.length; i++){
+			result.push(this.getUserByID(userIdArray[i]));
+		}
+		return result;
+	},
+
+	getBySearch: function (searchString, matchCase, returnIdx){
+		if (!matchCase){
+			searchString = searchString.toLowerCase();
+		}
+
+		for (var i = 0; i < this.items.length; i++){
+			if (this.items[i].title.indexOf(searchString))
+				return (returnIdx) ? i : this.items[i];
+			}
+
+		//If doest find anyting
+		return {id: -1, title: '!Error, user not found'}
+	}
+};
+/*
+ classification, oscript integration, check ie8-9-10-11 e.g. indexOf
+ */
+var sc_ApprovalMatrix = {
+
+	isEditable: false,
+
+	isDataCopied: false,
+
+	copiedData: [],
+
+	copiedDataColumnName: '',
+
+	lang: {
+		keyFieldsTitle: 'Key fields',
+		levelAndFunctionsTitle: 'Levels and functions',
+		from: 'from',
+		to: 'to',
+		modelHintText: 'Start typing',
+		modelNoResult: 'Nothing found',
+		modelSearching: 'Searching...',
+		filterTitle: 'Show only...',
+		apply: 'Apply',
+		clear: 'Cancel all',
+		selectAll: '(Select all)',
+		confirmResetFilter: 'Are you sure you whant to cancel all filters?',
+		save: 'Save',
+		edit: 'Edit',
+		copy: 'Copy',
+		new: 'Add new record',
+		delete: 'Delete record',
+		select: 'Select records',
+		checkBetweenFields: 'Field with types between must be integer or float',
+		inColumneNo: 'Column "#" has invalid value: ',
+		youCantSelectOpForFewPartners: 'You can\'t select op for few partners',
+		yes: 'Yes',
+		no: 'No',
+		edsTitle: 'EDS',
+		copyColumnData: 'Copy data',
+		insertColumnData: 'Insert data'
+	},
+
+	edsNoValue: 'no',
+	edsDocTypeCodes: [],
+	edsEnabled: false,
+
+	attributes: [],
+	dfc: {},
+	base_direction: "",
+
+	docTypes: [],
+
+	urlPrefix: undefined,
+
+	attributeTypes: {
+		int: []
+	},
+
+	levels: [],
+
+	items: [],
+	filterValuesAssoc: {},
+	oldValues: {},
+	lastChangesAdd: [],
+	lastChangesDel: [],
+
+
+	//Settings
+	element: undefined,
+	visibleItems: [],
+	userFilter: [],
+	isUserFiter: false,
+	cols: [],
+	multipleAttributesDelimiter: ';',
+	//This flag is defined that some item was changed but not save
+	isChangedItemsWasSave: true,
+	supportPrefix: '',
+	nullValue: 'пустое значение',
+	dfcID: undefined,
+	itemsDel: [], //NEW
+	itemsEdit: [], //NEW
+	conditions: ["Использовать", "Исключить"],
+
+	userModel: sc_ModelUser,
+	userModel2: sc_ModelUser2,
+
+	filter: {el: undefined, lastItemCol: {}, colsFilterArray: [], valuesList: [], ul: undefined},
+	hoverActions: {
+		el: undefined,
+		actions: {editEl: undefined, saveEl: undefined, rollback: undefined},
+		targetEl: undefined
+	},
+	
+	// Полный фильтр
+	filtrCol: new Map(),
+	isLoadDFC: false,
+	elementsFiltr: new Map(),
+
+	//Render functions
+	renderTable: function (element){
+
+		this.element = $(element);
+
+		//Count how many cells contains attributes, need only for view, maybe its not so important, and can be deleted;
+		var attributeCells = 0;
+		//See line up, but for levels and functions
+		var stepsCells = 0;
+		//index of property in items of currentCol
+		var itemColIdx = 0;
+
+		//Ofcourse init if didt do it before
+		if (!this.initiated)
+			this.init();
+
+		//HoverActions  its actions when user hover on item view(TR), e.g. save, edit
+		this.hoverActions.el = $('<div class="sc_hoverActions" style="display: none;"></div>');
+
+		//Hover actions
+		var hoverActionEditSaveAction = function (event){
+			//Dont save new state
+			event.data.context.toggleItemRenderState(event.data.context.hoverActions.targetEl, event.data.rollback);
+			event.preventDefault();
+		};
+		var hoverActionNewAction = function (event){
+			event.data.context.addRecord(event.data.context.hoverActions.targetEl);
+			event.preventDefault();
+		};
+		var hoverActionDeleteAction = function (event){
+			event.data.context.deleteRecord(event.data.context.hoverActions.targetEl);
+			event.preventDefault();
+		};
+		var hoverActionCopyAction = function (event){
+			event.data.context.copyRecord(event.data.context.hoverActions.targetEl);
+			event.preventDefault();
+		};
+
+		this.hoverActions.actions.editEl =
+			$('<a class="sc_hoverAction edit" href="#" title="' + this.lang.edit + '">'
+				+ '<img border="0" src="' + this.supportPrefix + 'casebasic/edit.gif" /></a>')
+					.click({context: this}, hoverActionEditSaveAction);
+		this.hoverActions.actions.saveEl =
+			$('<a class="sc_hoverAction save" href="#" title="' + this.lang.save + '">' +
+				'<img border="0" src="' + this.supportPrefix + 'zdocs/apply.gif" /></a>')
+					.click({context: this}, hoverActionEditSaveAction);
+		this.hoverActions.actions.rollback =
+			$('<a class="sc_hoverAction rollback" href="#" title="' + this.lang.cancel + '">' +
+				'<img border="0" src="' + this.supportPrefix + 'zdocs/arrowleft.gif" /></a>')
+					.click({context: this, rollback: true}, hoverActionEditSaveAction);
+		this.hoverActions.actions.newEl =
+			$('<a class="sc_hoverAction new" href="#" title="' + this.lang.new + '">' +
+				'<img border="0" src="' + this.supportPrefix + 'add-row.gif" /></a>')
+					.click({context: this}, hoverActionNewAction);
+		this.hoverActions.actions.deleteEl =
+			$('<a class="sc_hoverAction delete" href="#" title="' + this.lang.delete + '">' +
+				'<img border="0" src="' + this.supportPrefix + 'delete-row.gif" /></a>')
+					.click({context: this}, hoverActionDeleteAction);
+		this.hoverActions.actions.copyEl =
+			$('<a class="sc_hoverAction copy" href="#" title="' + this.lang.copy + '">' +
+				'<img border="0" src="' + this.supportPrefix + 'copy-row.png" /></a>')
+					.click({context: this}, hoverActionCopyAction);
+		this.hoverActions.el
+			.append(
+				this.hoverActions.actions.newEl,
+				this.hoverActions.actions.copyEl,
+				this.hoverActions.actions.editEl,
+				this.hoverActions.actions.saveEl,
+				this.hoverActions.actions.rollback,
+				this.hoverActions.actions.deleteEl
+			)
+			.appendTo('body');
+
+		//THEAD start
+		var theadItemsFirstLine = $('<tr></tr>');
+		var theadItemsSecondLine = $('<tr></tr>');
+		//Filters action
+		theadItemsFirstLine.click({context: this}, this.onTableHeadClick);
+		theadItemsSecondLine.click({context: this}, this.onTableHeadClick);
+
+
+		//Render thead cols, in two lines.
+		//First line contains attributes title, and levels;
+		//Second line contains additional attributes properties, like between attribute, and functions of levels
+		for (var attrIdx = 0; attrIdx < this.attributes.length; attrIdx++){
+			//If attribute type is int, then we should use two columns, for between value
+			if (this.isAttributeBetweenType(attrIdx)){
+				theadItemsFirstLine.append('<td colspan="2" class="sc_THeadInfoTD">' + this.attributes[attrIdx].title + '</td>');
+				//.sc_filter, class for excel like filter actions
+				theadItemsSecondLine.append('<td class="sc_filter from" itemColIdx="' + itemColIdx + '">'
+					+ this.lang.from
+					+ '</td><td class="sc_filter to" itemColIdx="' + itemColIdx + '">'
+					+ this.lang.to + '</td>');
+				//So as between is two columns property...
+				attributeCells += 2;
+			}else if (this.isAttributePartnerType(attrIdx)){
+				theadItemsFirstLine.append('<td colspan="2" class="sc_THeadInfoTD">' + this.attributes[attrIdx].title + '</td>');
+				theadItemsSecondLine.append('<td class="sc_filter partner" itemColIdx="' + itemColIdx + '">'
+					+ '</td><td class="sc_filter condition" itemColIdx="' + itemColIdx + '"></td>');
+				attributeCells += 2;
+			}else{
+				//Regular attribute
+				theadItemsFirstLine.append('<td rowspan="2" class="sc_filter" itemColIdx="' + itemColIdx + '">' + this.attributes[attrIdx].title + '</td>');
+				++attributeCells;
+			}
+			//Shift idx to next item
+			++itemColIdx;
+		}
+
+		//Going through each levels
+		for (var levelIdx = 0; levelIdx < this.levels.length; levelIdx++){
+			//If level got any functions, render it
+			if (this.levels[levelIdx].functions.length){
+				if (this.levels[levelIdx].functions.length == 1 && this.levels[levelIdx].title == this.levels[levelIdx].functions[0].title){
+					//Simple level with one function and with same name, render it like level without function
+					theadItemsFirstLine.append('<td rowspan="2" class="sc_filter" itemColIdx="' + itemColIdx + '">' + this.levels[levelIdx].title + '</td>');
+					++stepsCells;
+					++itemColIdx;
+				}else{
+					theadItemsFirstLine.append('<td class="sc_THeadInfoTD" colspan="' + this.levels[levelIdx].functions.length + '">' + this.levels[levelIdx].title + '</td>');
+					//Each function render in secondTheadTr
+					for (var a = 0; a < this.levels[levelIdx].functions.length; a++){
+						theadItemsSecondLine.append('<td class="sc_filter" itemColIdx="' + itemColIdx + '">' + this.levels[levelIdx].functions[a].title + '</td>');
+						//counting steps
+						++stepsCells;
+						//shift to next property
+						++itemColIdx;
+					}
+				}
+			}else{
+				//If this levels without any function
+				theadItemsFirstLine.append('<td rowspan="2" class="sc_filter" itemColIdx="' + itemColIdx + '">' + this.levels[levelIdx].title + '</td>');
+				++stepsCells;
+				++itemColIdx;
+			}
+
+			if (this.edsEnabled && this.levels[levelIdx].type=='signing'){
+				theadItemsFirstLine.append('<td rowspan="2" class="sc_filter edsDocTypeCode" itemColIdx="' + (itemColIdx - 1) + '">' + this.lang.edsTitle + '</td>');
+			}
+
+		}
+
+		theadItemsFirstLine.append('<td rowspan="2" class="sc_THeadInfoTD" > Номер строки </td>');
+		var stepsCells2 = stepsCells+1;
+
+		$('<thead></thead>')
+			.append('<tr>' +
+				'<td class="sc_THeadInfoTD" colspan="' + attributeCells + '">' + this.lang.keyFieldsTitle + '</td>' +
+				'<td class="sc_THeadInfoTD" colspan="' + stepsCells2 + '">' + this.lang.levelAndFunctionsTitle + '</td>' +
+				'</tr>')
+			.append(theadItemsFirstLine)
+			.append(theadItemsSecondLine).appendTo(this.element);
+
+		//THEAD END
+
+		//Render items
+		var tbodyItems = $('<tbody></tbody>');
+
+		//If no items in stock, add one empty
+		if (this.items.length == 0){
+			this.items.push(this.generateEmptyItem());
+		}
+
+		for (var itemIdx = 0; itemIdx < this.items.length; itemIdx++){
+			tbodyItems.append(this.renderItemView(itemIdx));
+
+		}
+
+		//Render whole table
+		tbodyItems.appendTo(this.element);
+		
+		for (var i = 0; i < this.cols.length; i++){
+			if (this.cols[i].colType != 'attribute'){
+				continue;
+			}
+			if (this.cols[i].alias == 'partner_id'){
+				 this.elementsFiltr.set('partner_id', i);
+					$.getJSON(sc.urlPrefix, {
+							'func': 'zdoc.GetPartnerSet',
+						}, function (data){
+							if (data.status != 'success'){
+								return alert('Error while getting partner data');
+							}
+							sc_ApprovalMatrix.filtrCol.set(sc_ApprovalMatrix.elementsFiltr.get('partner_id'), data.partnerSet);
+						}
+					);
+			}
+			else if (this.cols[i].alias == 'partners_internal_id'){
+				 this.elementsFiltr.set('partners_internal_id', i);
+					$.getJSON(sc.urlPrefix, {
+							'func': 'zdoc.GetPartnerSet',
+						}, function (data){
+							if (data.status != 'success'){
+								return alert('Error while getting partner data');
+							}
+							sc_ApprovalMatrix.filtrCol.set(sc_ApprovalMatrix.elementsFiltr.get('partners_internal_id'), data.partnerSet);
+					}
+				);
+			}
+			else if (this.isAttributeComplex(i)){
+				 this.elementsFiltr.set('AttributeComplex', i);
+				 $.getJSON(sc.urlPrefix, {
+						'func': 'zdoc.GetComplexAttrVV',
+						'recID': this.cols[i]
+					}, function (data){
+						if (data.status != 'success'){
+							return alert('Error while getting partner data');
+						}
+						var elFilter = new Array();
+						for (var i = 0; i < data.opts[0].length; i++)
+						{
+							for (var j = 0; j < data.opts[1].length; j++){
+								elFilter.push(data.opts[0][i] + ',' + data.opts[1][j]);
+							}
+						}
+						sc_ApprovalMatrix.filtrCol.set(sc_ApprovalMatrix.elementsFiltr.get('AttributeComplex'), elFilter);
+					}
+				);
+			}
+			else if (this.isAttributeTableLookupType(i)){
+				this.elementsFiltr.set(this.cols[i].alias, i);
+					$.getJSON(sc.urlPrefix, {
+						'func': 'zdoc.GetTableLookupDialog',
+						'catID': this.cols[i].catID,
+						'attrAlias': this.cols[i].alias,
+						'partnerID': 0
+						}, function (data){
+							if (data.status != 'success'){
+								return alert('Error while getting partner data');
+							}
+							sc_ApprovalMatrix.filtrCol.set(sc_ApprovalMatrix.elementsFiltr.get(data.attrAlias), data.validList);
+						}
+					);				
+			}
+			else{
+				if (this.cols[i].validValues)
+				{
+					this.filtrCol.set(i, this.cols[i].validValues);
+				}
+			}
+		}
+
+		$.getJSON(sc.urlPrefix, {
+			'func': 'zdoc.GetDFC'
+		}, function (data){
+			if (!data.ok) {
+				return alert('Error while getting partner data');
+			}
+			sc_ApprovalMatrix.dfc = data.dfc;
+		});
+	},
+
+	renderItemView: function (itemIdx, editMode){
+		var item = $('<tr></tr>').attr('itemID', itemIdx);
+
+		if (editMode){
+			item.addClass('sc_editMode');
+		}else{
+			item.removeClass('sc_editMode');
+		}
+
+		//Render each col in item
+		var wasChanges = 0;
+		for (var colIdx = 0; colIdx < this.items[itemIdx].length; colIdx++){
+			var colElement = this.renderItemColView(itemIdx, colIdx, editMode);
+			item.append(colElement);
+			var arr = [];
+			if ($.type(colElement) == 'array') {
+				arr = colElement;
+			} else {
+				arr.push(colElement);
+			}
+			for (var i = 0; i < arr.length; i++) {
+				if ($(arr[i]).hasClass("sc_showDeleteCel") || $(arr[i]).hasClass("sc_showAddCel") || $(arr[i]).hasClass("sc_showEditCel")) {
+					wasChanges = 1;
+				}
+			}
+		}
+		if (wasChanges == 0) {
+			$(item).addClass("nochanges");
+		}
+
+		var rowId;
+		if (this.mRecsID[itemIdx] === undefined){
+			rowId = 0;
+		}else{
+			rowId = this.mRecsID[itemIdx];
+		}
+		item.append('<td> '+ rowId +'</td>');//NEW
+		
+		//Events binding
+		if (this.isItemsEditable()){
+			item.mouseenter({context: this, action: 'enter'}, this.onTBodyTrHover)
+				.mouseleave({context: this, action: 'leave'}, this.onTBodyTrHover);
+		}
+
+		return item;
+	},
+
+	row_direction: [],
+	row_functions: [],
+	row_category: [],
+	
+	renderItemColView: function (itemIdx, colIdx, editMode){
+		var inputEl;
+		var curCol = this.items[itemIdx][colIdx];
+		var colInfo = this.getColInfo(colIdx);
+		var colElement = $('<td></td>');
+		colElement.attr('title', this.cols[colIdx].title);
+		var isEditedCel = false;
+
+		if (colInfo.alias)
+			colElement.addClass('attrAlias_' + colInfo.alias);
+
+		//If this is last, mark with css class
+		if (colIdx + 1 == this.cols.length)
+			colElement.addClass('sc_lastCol');
+		
+		//color
+		if (this.mRecsStatus[itemIdx] == -1){
+			colElement.addClass('sc_showDeleteCel');
+		}else{
+			if (this.mRecsStatus[itemIdx] == 1){
+				colElement.addClass('sc_showAddCel');
+			}else{
+				if (this.mFieldStatus[itemIdx] !== undefined){
+					var colStatus = this.mFieldStatus[itemIdx][colIdx];
+					if (colStatus == 1){
+						colElement.addClass('sc_showEditCel');
+						isEditedCel = true;
+					}
+				}
+			}
+		}
+
+		if ($('#sc_approvalmatrixStatus').val() == 'active') {
+			if (sc_ApprovalMatrix.lastChangesDel.indexOf(sc_ApprovalMatrix.mRecsID[itemIdx]) != -1) {
+				colElement.addClass('sc_showDeleteCel');
+			} else {
+				if (sc_ApprovalMatrix.lastChangesAdd.indexOf(sc_ApprovalMatrix.mRecsID[itemIdx]) != -1) {
+					colElement.addClass('sc_showAddCel');
+				} else {
+					if (colInfo.colType == 'level') {
+						if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+							if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id] != undefined) {
+								if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id][0] != undefined) {
+									colElement.addClass('sc_showEditCel');
+									isEditedCel = true;
+								}
+							}
+						}
+					} else if (colInfo.colType == 'function') {
+						if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+							if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.level.id] != undefined) {
+								if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.level.id][colInfo.id] != undefined) {
+									colElement.addClass('sc_showEditCel');
+									isEditedCel = true;
+								}
+							}
+						}
+					} else if (colInfo.colType == 'attribute') {
+						if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+							if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id] != undefined) {
+								colElement.addClass('sc_showEditCel');
+								isEditedCel = true;
+							}
+						}
+					}
+				}
+			}
+		}
+		//Levels and functions
+		if (colInfo.colType == 'level' || colInfo.colType == 'function'){
+			colElement.attr('columnid', colIdx);
+			colElement.addClass("sc_levelCol " + colInfo.oddEven);
+			if (colInfo.type != 'signing' && colInfo.type != 'confirmation') {
+				colElement.addClass("changeAvailable");
+			}
+			
+			if(this.edsEnabled && colInfo.type=='signing'){
+				secondElement = colElement.clone();
+			}
+
+			var dispStr = ($("#ShowOnlyChanges").prop('checked')) ? 'block' : 'none';
+			var oldValue = [];
+			var oldEDSValue = '';
+			if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+				if (colInfo.colType == 'level') {
+					if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id] != undefined) {
+						if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id][0] != undefined) {
+							oldValue = sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id][0].performerList;
+							oldEDSValue = sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id][0].EDSValue;
+						}
+					}
+				} else {
+					if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.level.id] != undefined) {
+						if (sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.level.id][colInfo.id] != undefined) {
+							oldValue = sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.level.id][colInfo.id].performerList;
+							oldEDSValue = sc_ApprovalMatrix.oldValues.oldLevels[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.level.id][colInfo.id].EDSValue;
+						}
+					}
+				}
+			}
+			var oldValueStr = '';
+			if (oldValue != null) {
+				for (var i = 0; i < oldValue.length; i++) {
+					oldValueStr += '&#013;';
+					oldValueStr += this.userModel.getUserByID(oldValue[i]).title;
+				}
+			}
+
+			var oldEDSValueStr = '';
+			for (var edsTypeIdx = 0; edsTypeIdx < this.edsDocTypeCodes.length; edsTypeIdx++){
+				if(oldEDSValue==this.edsDocTypeCodes[edsTypeIdx].code){
+					oldEDSValueStr = this.edsDocTypeCodes[edsTypeIdx].title;
+				}
+			}
+
+			if (editMode){
+				//TokenInput for user type fields, see jquery tokenInput plugin for docs
+				inputEl = $('<input class="sc_user" id="colInput' + itemIdx + '_' + colIdx + '" />')
+					.attr('zid', itemIdx + '_' + colIdx)
+					.appendTo(colElement);
+				inputEl.tokenInput(this.userModel2.items, {
+					minChars: 1,
+					animateDropdown: false,
+					tokenDelimiter: this.multipleAttributesDelimiter,
+					propertyToSearch: 'title',
+					hintText: this.lang.modelHintText,
+					noResultsText: this.lang.modelNoResult,
+					searchingText: this.lang.modelSearching,
+					prePopulate: this.userModel2.populateFromArray(curCol.performerList),
+					tokenFormatter: function (item){
+						return "<li><p title='" + item[this.propertyToSearch].replace(/'/g, "\\'") + "'>" + item[this.propertyToSearch] + "</p></li>"
+					},
+					onAdd: (colInfo.type=='signing')?this.onSignAdd:null,
+					onDelete: (colInfo.type=='signing')?this.onSignDelete:null
+				});
+				if (isEditedCel) {
+					$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+				}
+			}else{
+				for (var valIdx = 0; valIdx < curCol.performerList.length; valIdx++){
+					colElement.append('<a href="' + OTvar.livelink.cgiPath + '?func=zsabrisutils.userheader&userID='
+						+ curCol.performerList[valIdx]
+						+ '" class="sc_user" target="_blank" userID="' + curCol.performerList[valIdx] + '">'
+						+ this.userModel.getUserByID(curCol.performerList[valIdx]).title
+						+ this.multipleAttributesDelimiter + '</a> ');
+				}
+				if (isEditedCel) {
+					$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+				}
+			}
+
+			if(this.edsEnabled && colInfo.type=='signing'){
+				if (editMode){
+					inputEl = $('<select class="sc_eds"></select>')
+						.attr('id', 'colInputEDS' + itemIdx + '_' + colIdx)
+						.attr('zid', itemIdx + '_' + colIdx)
+						.attr('disabled', !curCol.performerList.length)
+						.change(this.onEDSChange);
+					for (var edsTypeIdx = 0; edsTypeIdx < this.edsDocTypeCodes.length; edsTypeIdx++){
+						inputEl = inputEl
+							.append($('<option></option>')
+							.val(this.edsDocTypeCodes[edsTypeIdx].code)
+							.text(this.edsDocTypeCodes[edsTypeIdx].title)
+							.prop('selected', (curCol.edsDocTypeCode==this.edsDocTypeCodes[edsTypeIdx].code)));
+					}                                                         
+					$.data(inputEl.get(0), 'current', inputEl.val());
+					secondElement = secondElement.append(inputEl);
+
+					if (isEditedCel) {
+						$(secondElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:&#013;' + oldEDSValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}else{
+					if (curCol.edsDocTypeCode){
+						for (var edsTypeIdx = 0; edsTypeIdx < this.edsDocTypeCodes.length; edsTypeIdx++){
+							if(curCol.edsDocTypeCode==this.edsDocTypeCodes[edsTypeIdx].code){
+								secondElement = secondElement
+									.append($('<span class="sc_eds"></span>')
+										.text(this.edsDocTypeCodes[edsTypeIdx].title));
+							}
+						}
+					}
+					if (isEditedCel) {
+						$(secondElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:&#013;' + oldEDSValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}	
+
+				colElement = [
+					colElement.get(0),
+					secondElement.get(0)
+				];
+			}
+		//Attributes
+		}else if (colInfo.colType == 'attribute'){
+			colElement.addClass('sc_attribute');
+			
+			if (this.isAttributeComplex(colIdx)){
+				var dispStr = ($("#ShowOnlyChanges").prop('checked')) ? 'block' : 'none';
+				var oldValue = [];
+				if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+					if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id] != undefined) {
+						oldValue = sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id];
+					}
+				}
+				var oldValueStr = '';
+				for (var i = 0; i < oldValue.length; i++) {
+					oldValueStr += '&#013;';
+					oldValueStr += this.complexValueToTextOld(oldValue[i]);
+				}
+
+				if (editMode){
+					colElement.append(
+						$('<div></div>').html(this.complexValueToText(curCol))
+					);
+					colElement.append(
+						$('<button type="button">Изменить</button>')
+							.click({
+								context: this,
+								colInfo: colInfo,
+								curCol: curCol,
+								colIdx: colIdx,
+								itemIdx: itemIdx
+							}, this.selectComplex)
+					);
+					if (isEditedCel) {
+						$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}else{
+					colElement.append($('<div></div>').html(this.complexValueToText(curCol)));
+					if (isEditedCel) {
+						$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}
+			}else if (this.isAttributeTableLookupType(colIdx) || this.isAttributeDictionaryType(colIdx) || this.isAttributeDocType(colIdx)){
+				var dispStr = ($("#ShowOnlyChanges").prop('checked')) ? 'block' : 'none';
+				var oldValue = [];
+				if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+					if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id] != undefined) {
+						oldValue = sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id];
+					}
+				}
+				var oldValueStr = '';
+				for (var i = 0; i < oldValue.length; i++) {
+					oldValueStr += '&#013;';
+					oldValueStr += oldValue[i];
+				}
+				if (editMode){
+					colElement.append(
+						$('<div></div>').append(
+							curCol.join(this.multipleAttributesDelimiter + '<br />')
+						)
+					);
+					colElement.append(
+						$('<button type="button">Изменить</button>')
+							.click({
+								context: this,
+								colInfo: colInfo,
+								curCol: curCol,
+								colIdx: colIdx,
+								itemIdx: itemIdx
+							}, this.selectTableLookup)
+					);
+					if (isEditedCel) {
+						$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}else{
+					colElement.append(
+						curCol.join(this.multipleAttributesDelimiter + '<br />')
+					);
+					if (isEditedCel) {
+						$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}
+			}else if (this.isAttributeClassificationType(colIdx)){
+				var dispStr = ($("#ShowOnlyChanges").prop('checked')) ? 'block' : 'none';
+				var oldValue = [];
+				if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+					if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id] != undefined) {
+						oldValue = sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id];
+					}
+				}
+				var oldValueStr = '';
+				for (var i = 0; i < oldValue.length; i++) {
+					oldValueStr += '&#013;';
+					oldValueStr += oldValue[i];
+				}
+				if (editMode){
+					var disabled = false;
+					if (colInfo.alias == "direction") {
+						row_direction = curCol;
+					}
+					if (colInfo.alias == "functions") {
+						row_functions = curCol;
+					}
+					if (colInfo.alias == "category") {
+						row_category = curCol;
+					}
+					if (colInfo.alias == "category" && row_functions.length == 0) {
+						disabled = true;
+					}
+					if (colInfo.alias != "direction") {
+						colElement.append(
+							$('<div></div>').append(
+								curCol.join(this.multipleAttributesDelimiter + '<br />')
+							)
+						);
+						colElement.append(
+							$('<button type="button" id="' + colInfo.alias + itemIdx + '"' + (disabled ? ' disabled' : '') + '>Изменить</button>')
+								.click({
+									context: this,
+									colInfo: colInfo,
+									curCol: curCol,
+									colIdx: colIdx,
+									itemIdx: itemIdx
+								}, this.selectTableLookup)
+						);
+						if (isEditedCel) {
+							$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+						}
+					} else {
+						colElement.append(
+							$('<div></div>').append(
+								this.base_direction
+							).append(
+								$('<input type="hidden" value="' + this.base_direction + '">')
+							)
+						);
+						if (isEditedCel) {
+							$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+						}
+					}
+				}else{
+					colElement.append(
+						curCol.join(this.multipleAttributesDelimiter + '<br />')
+					);
+					if (isEditedCel) {
+						$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}
+			}else if (this.isAttributePartnerType(colIdx)){
+				//Partner type attribute should render as two separete columns
+				var secondElement = colElement.clone();
+				var secondValue = sc_ApprovalMatrix.conditions[0];
+				if (curCol.length > 0 && curCol[0] < 0) {
+					secondValue = sc_ApprovalMatrix.conditions[1];
+				}
+				var dispStr = ($("#ShowOnlyChanges").prop('checked')) ? 'block' : 'none';
+				var oldValue = [];
+				if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+					if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id] != undefined) {
+						oldValue = sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id];
+					}
+				}
+				var isOldValUse = true;
+				var oldValueStr = '';
+				var oldAbsVal;
+				for (var i = 0; i < oldValue.length; i++) {
+					oldValueStr += '&#013;';
+					if (oldValue[i] < 0) {
+						isOldValUse = false;
+						oldAbsVal = -oldValue[i];
+					} else {
+						oldAbsVal = oldValue[i];
+					}
+					oldValueStr += sc_ApprovalMatrix.partnerCacheObject[oldAbsVal];
+				}
+
+				if (editMode){
+					colElement.append(
+						this.renderPartnerPane(curCol, true)
+					);
+					colElement.append(
+						$('<button type="button">Добавить</button>')
+							.click({
+								context: this,
+								colInfo: colInfo,
+								curCol: curCol,
+								colIdx: colIdx,
+								itemIdx: itemIdx
+							}, this.selectPartner)
+					);
+
+					if (isEditedCel) {
+						$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+					
+					secondElement.append("<div>" + secondValue + "</div>");
+					secondElement.append(
+						$('<button type="button" id="' + colInfo.alias + itemIdx + '"' + (disabled ? ' disabled' : '') + '>Изменить</button>')
+							.click({
+								context: this,
+								colInfo: colInfo,
+								curCol: curCol,
+								colIdx: colIdx,
+								itemIdx: itemIdx
+							}, this.selectRadioLookup)
+					);
+					if (isEditedCel) {
+						$(secondElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:&#013;' + (isOldValUse ? sc_ApprovalMatrix.conditions[0] : sc_ApprovalMatrix.conditions[1]) + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}else{
+					colElement.append(
+						this.renderPartnerPane(curCol)
+					);
+					if (isEditedCel) {
+						$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+					secondElement.append("<div>" + secondValue + "</div>");
+					if (isEditedCel) {
+						$(secondElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:&#013;' + (isOldValUse ? sc_ApprovalMatrix.conditions[0] : sc_ApprovalMatrix.conditions[1]) + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}
+				colElement = [
+					colElement.get(0),
+					secondElement.get(0)
+				];
+			}else if (this.isAttributeBetweenType(colIdx)){
+				var dispStr = ($("#ShowOnlyChanges").prop('checked')) ? 'block' : 'none';
+				var oldValue = [];
+				if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+					if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id] != undefined) {
+						oldValue = sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id];
+					}
+				}
+				var oldValueStrOne = '';
+				var oldValueStrTwo = '';
+				oldValueStrOne = (oldValue[0] ? oldValue[0] : '');
+				oldValueStrTwo = (oldValue[1] ? oldValue[1] : '');
+				//Between type attribute should render as two separete columns
+				var secondElement;
+				if (editMode){
+					secondElement = colElement
+						.clone()
+						.append($('<input class="sc_betweenField from" />')
+						.val(curCol[0]));
+
+					if (isEditedCel) {
+						$(secondElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:&#013;' + oldValueStrOne + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+
+					colElement
+						.append($('<input class="sc_betweenField to" />')
+						.val(curCol[1]));
+					if (isEditedCel) {
+						$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:&#013;' + oldValueStrTwo + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}else{
+					secondElement = colElement.clone().append(curCol[0]);
+					if (isEditedCel) {
+						$(secondElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:&#013;' + oldValueStrOne + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+					colElement.append(curCol[1]);
+					if (isEditedCel) {
+						$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:&#013;' + oldValueStrTwo + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+					}
+				}
+
+				//Dont forget, two columns
+				colElement = [
+					//Get(0) is are fix. Only array of native object can be appended.
+					secondElement.get(0),
+					colElement.get(0)
+				];
+			}else{
+				//Regular attrbiute with one column
+				var dispStr = ($("#ShowOnlyChanges").prop('checked')) ? 'block' : 'none';
+				var oldValue = [];
+				if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]] != undefined) {
+					if (sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id] != undefined) {
+						oldValue = sc_ApprovalMatrix.oldValues.oldAttrs[sc_ApprovalMatrix.mRecsID[itemIdx]][colInfo.id];
+					}
+				}
+				var oldValueStr = '';
+				for (var i = 0; i < oldValue.length; i++) {
+					oldValueStr += '&#013;';
+					oldValueStr += this.complexValueToText(oldValue[i]);
+				}
+				if (editMode){
+					if (colInfo.validValues){
+						//Popup list
+						inputEl = $('<select multiple="true" size="5"></select>');
+						for (var validValIdx = 0; validValIdx < colInfo.validValues.length; validValIdx++){
+							inputEl.append($('<option></option>')
+								.val(colInfo.validValues[validValIdx])
+								//Get text value decorators if exist
+								//  .text((this.validListValueDecorators[colInfo.validValues[validValIdx]] || colInfo.validValues[validValIdx]))
+								.text(colInfo.validValues[validValIdx])
+								.prop('selected', (curCol.indexOf(colInfo.validValues[validValIdx]) != -1)));
+						}
+						colElement.append(inputEl);
+					}else{
+						//Text field, multiple values shoud be separete by this.multipleAttributesDelimiter
+						inputEl = $('<textarea></textarea>');
+						if ($.type(curCol) == 'array'){
+							//Multiple values
+							inputEl.val(curCol.join(this.multipleAttributesDelimiter));
+						}else{
+							//One value only
+							inputEl.val(curCol);
+						}
+						colElement.append(inputEl);
+					}
+				}else{
+					//View mode
+					if ($.type(curCol) == 'array'){
+						//Multiple values
+						colElement.append(curCol.join(this.multipleAttributesDelimiter));
+					}else{
+						//One value only
+						colElement.append(curCol);
+					}
+				}
+				if (isEditedCel) {
+					$(colElement).append('<img class="imgEditedCel" src="' + OTvar.livelink.supportPath + 'information.gif" title="Предыдущее значение:' + oldValueStr + '" style="width:15px; height:15px; display:' + dispStr + ';" align="right" border="0">');
+				}
+			}
+		}else{
+			colElement.append(String(curCol));
+		}
+
+		//If column is empty, insert blank string just for proper height of row, exept between type
+		if ($.type(colElement) != 'array' && colElement.html() == ''){
+			colElement.html('&nbsp;');
+		}
+
+		return colElement;
+	},
+	onSignAdd:function(item){
+
+		if (sc_ApprovalMatrix.edsEnabled){
+			var	target=$(this);
+			var	signVals=$(target.tokenInput('get'))
+			var	eds=$('#colInputEDS' + target.attr('zid'));
+
+			if(signVals.length>1){
+				alert('Необходимо указывать только одного исполнителя на уровне "Подписание."');
+				target.tokenInput('remove', {id: signVals.get(-1).id});
+				return false;
+			}
+			eds.attr('disabled', false);
+		}
+	},
+	onSignDelete:function(item){
+
+		if (sc_ApprovalMatrix.edsEnabled){
+			var	target=$(this);
+			var	eds=$('#colInputEDS' + target.attr('zid'));
+			var	signVals=$(target.tokenInput('get'))
+
+			if(signVals.length==0){
+				eds.val('');
+				eds.attr('disabled', true);
+			}
+		}
+	},
+	onEDSChange: function(){
+		var	target=$(this);
+		var	sign=$('#colInput' + target.attr('zid'));
+		
+		if(target.val()){
+			if(sign.tokenInput('get').length==0){
+				alert('Необходимо выбрать исполнителя на уровне "Подписание".');
+				target.val($.data(this, 'current'));
+				return false;
+			}
+		}else{
+			if(sign.tokenInput('get').length>0){
+				alert('Необходимо выбрать не пустое значение "ЭП".');
+				target.val($.data(this, 'current'));
+				return false;
+			}
+		}
+		$.data(this, 'current', target.val());
+	},
+
+	//Action functions
+	//This function return array of items prepared for save, and change flag that items was saved.
+	getItemsJSON: function (){
+		var retVal = [];
+
+		this.isChangedItemsWasSave = true;
+
+		//Each item
+		for (var i = 0; i < this.items.length; i++){
+			retVal[i] = [];
+			//Each attribute and level
+			for (var j = 0; j < this.items[i].length; j++){
+				retVal[i][j] = {};
+				//Complex field
+/* 				if (this.cols[j].alias =='previously_signed'){
+					for (var l =0; l< this.items[i][j].length; l++){
+						this.items[i][j][l] = !!this.items[i][j][l];
+					}
+				}        */
+				if(this.cols[j].id == -2){
+					var tmpVal = this.items[i][j];
+					if($.isArray(tmpVal) && typeof(tmpVal[0]) == 'string'){
+						tmpVal = JSON.parse(tmpVal[0]);
+					}else if(tmpVal == undefined){
+						tmpVal = [];
+					}
+
+					retVal[i][j].val = tmpVal;
+				}else{					
+					if (this.isAttributeCheckbox(j)) {
+						retVal[i][j].val = [];
+						if (this.items[i][j][0] == this.lang.yes) {
+							retVal[i][j].val = [true];
+						} else if (this.items[i][j][0] == this.lang.no) {
+							retVal[i][j].val = [false];
+						}
+					} else {
+						retVal[i][j].val = this.items[i][j];
+					}
+				}
+
+				retVal[i][j].type = this.cols[j].colType;
+				retVal[i][j].id = this.cols[j].id;
+				retVal[i][j].alias = this.cols[j].alias;
+
+				if (retVal[i][j].type == 'function'){
+					retVal[i][j].levelId = this.cols[j].level.id;
+					retVal[i][j].functionId = this.cols[j].id;
+				}
+
+				if (retVal[i][j].type == 'level'){
+					retVal[i][j].levelId = this.cols[j].id;
+					//There are cant be level with function, otherwise it will be function
+					retVal[i][j].functionId = 0;
+				}
+
+				if (this.mRecsID[i] === undefined){
+					retVal[i][j].row = 0;
+				}else{
+					retVal[i][j].row = this.mRecsID[i];//NEW
+				}
+				if ( this.itemsEdit.indexOf(retVal[i][j].row) >= 0 ){
+					retVal[i][j].action = 'edit'
+				}
+				if (this.mRecsID == 0){
+					retVal[i][j].action = 'add'
+				}
+			}
+		}
+
+		return JSON.stringify(retVal);
+	},
+
+	toggleItemRenderState: function (element, dontSave){
+	        this.filterHide();
+
+		//if old state was edit, we shoud save results
+		if (element.hasClass('sc_editMode') && !dontSave){
+			if (!this.saveItemDataFromView(element)){
+				return false;
+			}
+		}
+
+		//Replace old element state view width new state view
+		var targetEl = element.prev();
+		var newEl = this.renderItemView(parseInt(element.attr('itemID')), !element.hasClass('sc_editMode'));
+
+		if (targetEl.length){
+			targetEl.after(newEl);
+		}else{
+			//If we coundt get prev() element, we in the first element, prepend new state to tbody
+			targetEl = element.parent();
+			targetEl.prepend(newEl);
+		}
+
+		//Destroy tokenInput garbadge
+		element.find('input.sc_user').each(function (idx, element){
+			$(element).tokenInput('destroy');
+		});
+		//Remove old state view
+		element.remove();
+		this.hoverActionsShow(newEl);
+	},
+
+	saveItemDataFromView: function (element){
+		var colInfo;
+		var colField;
+		var colsEl = element.find('td');
+		var itemIdx = parseInt(element.attr('itemID'));
+		var oldItem = this.items[itemIdx];
+		var errArr = [];
+		var errMsg = '';
+
+		this.filterHide();
+		//Going through each col
+		for (var i = 0; i < this.cols.length; i++){
+			colInfo = this.cols[i];
+
+			if (colInfo.colType == 'attribute'){
+				if (this.isAttributeBetweenType(i)){
+					var firstVal = $.trim($(colsEl[i]).find('input').val());
+					var secondVal = $.trim($(colsEl[i + 1]).find('input').val());
+					var fFirstVal = parseFloat(firstVal);
+					var fSecondVal = parseFloat(secondVal);
+
+					if ((firstVal && firstVal != fFirstVal) || (secondVal && secondVal != fSecondVal)){
+						errMsg = this.lang.inColumneNo.replace('#', colInfo.title) + this.lang.checkBetweenFields;
+						errArr.push(errMsg);
+					}
+
+					//Between attr build in two columns
+					this.items[itemIdx][i] = [
+						isNaN(parseFloat(firstVal)) ? undefined : parseFloat(firstVal),
+						isNaN(parseFloat(secondVal)) ? undefined : parseFloat(secondVal)
+					];
+
+					//Slice one for between field
+					colsEl = colsEl.not(':eq(' + i + ')');
+				} else if (this.isAttributePartnerType(i)){
+					var firstVal = $.trim($(colsEl[i]).find('input').val());
+					var strAsArray = firstVal.split(this.multipleAttributesDelimiter);
+					var arrToSave = [];
+					if (firstVal != "" && firstVal != "NaN" && firstVal != sc_ApprovalMatrix.nullValue) {
+						var secondVal = $(colsEl[i + 1]).find('div').html();
+						for (var j = 0; j < strAsArray.length; j++) {
+							var newVal = parseInt(strAsArray[j]);
+							if (secondVal == sc_ApprovalMatrix.conditions[1]) {
+								arrToSave.push(newVal > 0 ? -newVal : newVal);
+							} else {
+								arrToSave.push(newVal < 0 ? -newVal : newVal);
+							}
+						}
+					}
+					this.items[itemIdx][i] = arrToSave;
+					colsEl = colsEl.not(':eq(' + i + ')');
+				}else if ((colField = $(colsEl[i]).find('textarea, input')).length){
+					//Simple text field, or hidden input
+					//Any data must save as array
+					var strAsArray = colField.val().split(this.multipleAttributesDelimiter);
+					var arrToSave = [];
+					for (var j = 0; j < strAsArray.length; j++){
+						if (strAsArray[j] && strAsArray[j] != this.nullValue){
+							if (this.isAttributeIntType(i)){
+								arrToSave.push(parseInt(strAsArray[j]));
+							}else{
+								arrToSave.push(strAsArray[j]);
+							}
+						}
+					}
+		
+					this.items[itemIdx][i] = arrToSave;
+				}else if ((colField = $(colsEl[i]).find('select')).length){
+					//Popup field
+					this.items[itemIdx][i] = colField.val() || [];
+				}
+			}else if (colInfo.colType == 'level' || colInfo.colType == 'function'){
+				colField = $(colsEl[i]).find('.sc_user');
+				var fieldTokens = colField.tokenInput('get');
+				
+				this.items[itemIdx][i].performerList = [];
+				//We shoud save only id
+				for (var j = 0; j < fieldTokens.length; j++){
+					this.items[itemIdx][i].performerList.push(fieldTokens[j].id);
+				}
+
+				if (this.edsEnabled && colInfo.type=='signing'){
+					var	eds=$('#colInputEDS' + colField.attr('zid'));
+
+					this.items[itemIdx][i].edsDocTypeCode=eds.val();
+				
+					//Slice one for eds
+					colsEl = colsEl.not(':eq(' + i + ')');
+				}
+			}else{
+				this.onError({type: 'html', msg: 'Can\'t get column declaration, colID: (' + i + ')'})
+			}
+		}
+
+		if (errArr.length){
+			//If has some error, revent changes
+			this.items[itemIdx] = oldItem;
+			alert(errArr.join("\r"));
+			return false;
+		}else{
+			this.itemsEdit.push(this.mRecsID[itemIdx]);
+			this.isChangedItemsWasSave = false;
+			return true;
+		}
+	},
+
+	//Hover actions
+	hoverActionsShow: function (targetElement){
+
+		var targetPos = targetElement.position();
+		var windowWidth = $(window).width() + $(window).scrollLeft();
+
+		//Save link to target element
+		this.hoverActions.targetEl = targetElement;
+
+		//Toogle actions depend on target state
+		if (targetElement.hasClass('sc_editMode')){
+			this.hoverActions.actions.editEl.hide();
+			this.hoverActions.actions.copyEl.hide();
+			this.hoverActions.actions.deleteEl.hide();
+			this.hoverActions.actions.newEl.hide();
+			this.hoverActions.actions.saveEl.show();
+			this.hoverActions.actions.rollback.show();
+		}else{
+			this.hoverActions.actions.saveEl.hide();
+			this.hoverActions.actions.rollback.hide();
+			this.hoverActions.actions.editEl.show();
+			this.hoverActions.actions.copyEl.show();
+			this.hoverActions.actions.newEl.show();
+			this.hoverActions.actions.deleteEl.show();
+		}
+
+		//Align to the right border of screen
+		this.hoverActions.el
+			.css({
+				top: targetPos.top,
+				left: (windowWidth - 10 - this.hoverActions.el.outerWidth())
+			})
+			.show();
+	},
+
+	hoverActionsHide: function (){
+		this.hoverActions.el.hide();
+	},
+
+	addRecord: function (appendAfterItem){
+		var itemIdx = parseInt(appendAfterItem.attr('itemid'));
+
+		if ($.type(itemIdx) == 'number'){
+			++itemIdx;
+			this.items.splice(itemIdx, 0, this.generateEmptyItem());
+			var mRecID = 0;//NEW
+			this.mRecsID.splice(itemIdx, 0, mRecID);//NEW
+			this.mRecsStatus.splice(itemIdx, 0, 1);
+			appendAfterItem.after(this.renderItemView(itemIdx, false));
+			this.recalculateItems();
+		}else{
+			this.onError({type: 'itemIdx', msg: 'Could\'t get item id while deleting row'});
+		}
+
+		this.hoverActionsHide();
+	},
+
+	copyRecord: function (appendAfterItem){
+		var itemIdx = parseInt(appendAfterItem.attr('itemid'));
+
+		if ($.type(itemIdx) == 'number'){
+			++itemIdx;
+			this.items.splice(itemIdx, 0, this.copyItem(this.items[itemIdx-1]));
+			var mRecID = 0;//NEW
+			this.mRecsID.splice(itemIdx, 0, mRecID);//NEW
+			this.mRecsStatus.splice(itemIdx, 0, 1);
+			appendAfterItem.after(this.renderItemView(itemIdx, false));
+			this.recalculateItems();
+		}else{
+			this.onError({type: 'itemIdx', msg: 'Could\'t get item id while deleting row'});
+		}
+
+		this.hoverActionsHide();
+	},
+
+	recalculateItems: function (){
+		var elems = this.element.find('tbody > tr');
+		if (elems.length == this.items.length){
+			elems.each(function (idx, el){
+				$(this).attr('itemid', idx);
+			});
+		}else{
+			this.onError('Count of table rows != items count');
+		}
+	},
+
+	deleteRecord: function (item){
+		var itemIdx = parseInt(item.attr('itemid'));
+
+		if ($.type(itemIdx) == 'number'){
+			if (this.items.length == 1){
+				//Cant delete last record
+				this.onError({type: 'item', msg: 'Could\'t delete last row'});
+				return false;
+			}
+			this.items.splice(itemIdx, 1);
+			this.itemsDel.push(this.mRecsID[itemIdx]);
+			this.mRecsID.splice(itemIdx, 1);//NEW
+			item.remove();
+			this.recalculateItems();
+		}else{
+			this.onError({type: 'itemIdx', msg: 'Could\'t get item id while deleting row'});
+		}
+
+		this.hoverActionsHide();
+	},
+
+	//Filter actions
+	filterShow: function (element){
+		//If already opened, just close it
+		if (this.filter.el && this.filter.el.is(':visible')){
+			return this.filterHide();
+		}
+
+		//Hide before showing, DOM manipulation got more perfomance, if element is hidden
+		this.filterHide();
+
+		//Get idx of element in item
+		var itemColIdx = element.attr('itemColIdx');
+
+		this.filter.lastItemCol = {idx: itemColIdx};
+
+		//Clear values for filter
+		this.filter.valuesList = [];
+
+		//Temp function for push somethink in valuesList, if it is not exist already
+		var pushValidValueIfNotExist = function (haystack, value){
+			if ($.type(value) == 'object'){
+				var found = false;
+				for (var i = 0; i < haystack.valuesList.length; i++){
+					var curItem = haystack.valuesList[i];
+					if (curItem.id == value.id){
+						found = true;
+						break;
+					}
+				}
+				if (!found){
+					haystack.valuesList.push(value);
+				}
+			}else{
+				if (value != null && haystack.valuesList.indexOf(value) === -1){
+					haystack.valuesList.push(value);
+				}
+			}
+		};
+
+		if (this.cols[itemColIdx].colType == 'level' || this.cols[itemColIdx].colType == 'function'){
+			if ($(event.target).hasClass('edsDocTypeCode')){
+				this.filter.lastItemCol.addInfo = 'edsDocTypeCode';
+			}else{
+				this.filter.lastItemCol.addInfo = 'performerList';
+			}
+		}else if (this.isAttributeBetweenType(itemColIdx)){
+			if ($(event.target).hasClass('from')){
+				this.filter.lastItemCol.addInfo = 'from';
+			}else{
+				this.filter.lastItemCol.addInfo = 'to';
+			}
+		}else if (this.isAttributePartnerType(itemColIdx)){
+			if ($(event.target).hasClass('condition')){
+				this.filter.lastItemCol.addInfo = 'condition';
+			}
+		}
+
+
+		//populate filter valid list
+		//itar thru visible items
+		pushValidValueIfNotExist(this.filter, this.nullValue);
+		if (!$('#FilterOnlyMatrix').prop('checked') && this.filtrCol.has(+itemColIdx)){
+			var valuesFilter = this.filtrCol.get(+itemColIdx)
+			for (var i = 0; i < valuesFilter.length; i++){
+				if (this.isAttributePartnerType(itemColIdx)){
+					pushValidValueIfNotExist(
+						this.filter,
+						{
+							id: (valuesFilter[i].DataID > 0 ? valuesFilter[i].DataID : -valuesFilter[i].DataID),
+							title: valuesFilter[i].name
+						}
+					);	
+				}else if (this.isAttributeClassificationType(+itemColIdx)){
+					pushValidValueIfNotExist(this.filter, valuesFilter[i].Name);
+				}else{
+					pushValidValueIfNotExist(this.filter, valuesFilter[i]);
+				}
+			}
+		}else{
+			for (var i = 0; i < this.items.length; i++){
+
+				//If element value is array
+				if ($.type(this.items[i][itemColIdx]) == 'array' || $.type(this.items[i][itemColIdx]) == 'object'){
+					//Betweeen type
+					if (this.isAttributeBetweenType(itemColIdx)){
+
+						//Check if has class from, take first element of array, if not, take second
+						if ($(event.target).hasClass('from')){
+							pushValidValueIfNotExist(this.filter, this.items[i][itemColIdx][0]);
+						}else{
+							pushValidValueIfNotExist(this.filter, this.items[i][itemColIdx][1]);
+						}
+
+					}else if (this.cols[itemColIdx].colType == 'level' || this.cols[itemColIdx].colType == 'function'){
+						if ($(event.target).hasClass('edsDocTypeCode')){
+							if (this.items[i][itemColIdx].edsDocTypeCode){
+								for(var j=0; j<this.edsDocTypeCodes.length; j++){
+									if (this.items[i][itemColIdx].edsDocTypeCode==this.edsDocTypeCodes[j].code){
+										pushValidValueIfNotExist(
+											this.filter, {
+												id : this.edsDocTypeCodes[j].code,
+												title : this.edsDocTypeCodes[j].title
+											}
+										);
+									}
+								}
+							}
+						}else{
+							for (var j = 0; j < this.items[i][itemColIdx].performerList.length; j++){
+								pushValidValueIfNotExist(
+									this.filter,
+									sc_ModelUser.getUserByID(
+										this.items[i][itemColIdx].performerList[j]
+									)
+								);
+							}
+						}
+					}else{
+						//Any other array
+						for (var j = 0; j < this.items[i][itemColIdx].length; j++){
+							if (this.isAttributePartnerType(itemColIdx)){
+								if ($(event.target).hasClass('condition')){
+									pushValidValueIfNotExist(this.filter, sc_ApprovalMatrix.conditions[0]);
+									pushValidValueIfNotExist(this.filter, sc_ApprovalMatrix.conditions[1]);
+								} else {
+									pushValidValueIfNotExist(
+										this.filter,
+										{
+											id: (this.items[i][itemColIdx][j] > 0 ? this.items[i][itemColIdx][j] : -this.items[i][itemColIdx][j]),
+											title: this.partnerCacheObject[(this.items[i][itemColIdx][j] > 0 ? this.items[i][itemColIdx][j] : -this.items[i][itemColIdx][j])]
+										}
+									);
+								}
+							}else{
+								//Popup attribute, or text with delimiter inside
+								pushValidValueIfNotExist(this.filter, this.items[i][itemColIdx][j]);
+							}
+
+						}
+					}
+
+				}else{
+					//Text attribute without delimiter
+					pushValidValueIfNotExist(this.filter, this.items[i][itemColIdx]);
+				}
+
+			}	
+		}
+
+		this.filterRender(element);
+	},
+
+	filterHide: function (){
+		if (this.filter.el)
+			this.filter.el.hide();
+	},
+
+	filterRender: function (parentEl){
+
+		//If filter calling first time, shoud init template
+		if (!this.filter.el){
+			this.filter.el = $('<div class="sc_tableFilter" style="height: auto"></div>').css('display', 'none');
+			this.filter.el.append($('<h3></h3>').text(this.lang.filterTitle));
+			this.filter.el.append($('<br><input type="input" value="" id="sc_filterForFilterValues">'));
+			this.filter.ul = $('<ul class="sc_filterPropsList"></ul>');
+			//Select all checkbox, for selecting all other options in list by one click
+			this.filter.ul.append(
+				$('<li class="sc_selectAll"></li>').append(
+					$('<label></label>').text(this.lang.selectAll).prepend(
+						$('<input type="checkbox" value="">').click({context: this}, this.onFilterSelectAllClick)
+					)
+				)
+			);
+			this.filter.el.append(this.filter.ul);
+			//Buttons in filter
+			this.filter.el.append(
+				$('<div class="sc_filterButton"></div>').append(
+					$('<button type="button"></button>')
+						.text(this.lang.apply)
+						.click({context: this}, this.onFilterApplyClick),
+					$('<button type="button"></button>')
+						.text(this.lang.clear)
+						.click({context: this}, this.onFilterClearClick)
+				)
+			);
+
+			//if (sc_ApprovalMatrix.isEditable && this.filter.lastItemCol.addInfo && this.filter.lastItemCol.addInfo == 'performerList') {
+			this.filter.el.append(
+				$('<br>'));
+			this.filter.el.append(
+				$('<div class="sc_filterButton sc_CopyDataButtons"></div>').append(
+					$('<button type="button" id="copyDataButton"></button>')
+						.text(this.lang.copyColumnData)
+						.click({context: this}, this.onFilterCopyDataClick),
+					$('<button type="button" id="insertDataButton" ' + (sc_ApprovalMatrix.isDataCopied ? '' : 'disabled') + '></button>')
+						.text(this.lang.insertColumnData)
+						.click({context: this}, this.onFilterInsertDataClick)
+				)
+			);
+			
+			//Append to body, because of absolute position
+			this.filter.el.appendTo('body');
+		}
+		//End template init
+
+		var filterList = '';
+		//Each value in filtr condition list
+		var vals = [];
+		if (this.filter.lastItemCol.addInfo && this.filter.lastItemCol.addInfo == "condition") {
+			for (var i = 0; i < sc_ApprovalMatrix.conditions.length; i++) {
+				filterList += '<li><label><input type="checkbox" value="' + sc_ApprovalMatrix.conditions[i] + '"';
+				if (this.filter.colsFilterArray[this.filter.lastItemCol.idx] &&
+					this.filter.colsFilterArray[this.filter.lastItemCol.idx].condition &&
+					this.filter.colsFilterArray[this.filter.lastItemCol.idx].condition.indexOf(sc_ApprovalMatrix.conditions[i]) >= 0) {
+						filterList += ' checked="checked"';
+				}
+				filterList += '>' + sc_ApprovalMatrix.conditions[i] + '</label></li>';
+			}
+		} else {
+			for (var i = 0; i < this.filter.valuesList.length; i++){
+				if ($.type(this.filter.valuesList[i]) == 'array'){
+					var value = 'Тип = ' + (this.filter.valuesList[i][0][0] || '*') + ', ВН = ' + (this.filter.valuesList[i][1][0] || '*') + ';'
+					if (vals.indexOf(value) != -1) {
+						continue;
+					}
+					vals.push(value);
+					filterList += '<li><label><input type="checkbox"'
+						+ (
+							(this.filter.colsFilterArray[this.filter.lastItemCol.idx]
+								&& this.filter.colsFilterArray[this.filter.lastItemCol.idx]
+								.indexOf(value) != -1)
+							? ' checked="checked"'
+							: ''
+						)
+						+ ' value="' + value + '">'
+						+ value
+						+ '</label></li>';
+				} else if ($.type(this.filter.valuesList[i]) == 'object'){
+					//Complex objects like users
+					if (this.filter.lastItemCol.addInfo){
+						filterList += '<li><label><input type="checkbox"'
+							+ (
+								((this.filter.colsFilterArray[this.filter.lastItemCol.idx][this.filter.lastItemCol.addInfo]
+										.indexOf(this.filter.valuesList[i].id) != -1) 
+									|| (isNaN(this.filter.colsFilterArray[this.filter.lastItemCol.idx][this.filter.lastItemCol.addInfo]) 
+									&& this.filter.valuesList[i].id == this.nullValue))
+								? ' checked="checked"'
+								: ''
+							)
+							+ ' value="' + this.filter.valuesList[i].id + '">'
+							+ this.filter.valuesList[i].title
+							+ '</label></li>';
+					}else{
+						filterList += '<li><label><input type="checkbox"'
+							+ (
+								(this.filter.colsFilterArray[this.filter.lastItemCol.idx]
+									&& this.filter.colsFilterArray[this.filter.lastItemCol.idx]
+									.indexOf('' + this.filter.valuesList[i].id) != -1)
+								? ' checked="checked"'
+								: ''
+							)
+							+ ' value="' + this.filter.valuesList[i].id + '">'
+							+ this.filter.valuesList[i].title
+							+ '</label></li>';
+					}
+				}else{
+				//Simple objects
+					if (this.filter.lastItemCol.addInfo){
+						//Between attribute, shoud send direction as addInfo property ("from", "to")
+
+						filterList += '<li><label><input type="checkbox"'
+							+ (
+								((this.filter.colsFilterArray[this.filter.lastItemCol.idx][this.filter.lastItemCol.addInfo]
+										.indexOf(this.filter.valuesList[i]) != -1) 
+									|| (this.filter.colsFilterArray[this.filter.lastItemCol.idx][this.filter.lastItemCol.addInfo]
+											.indexOf(this.nullValue)!= -1 
+										&& this.filter.valuesList[i] == this.nullValue))
+								? ' checked="checked"'
+								: ''
+							)
+							+ ' value="' + ($.type(this.filter.valuesList[i]) == 'string' ? this.filter.valuesList[i].replace(/"/g, '&quot;') : this.filter.valuesList[i]) + '">'
+							+ this.filter.valuesList[i]
+							+ '</label></li>';
+					}else{
+						//Default attribute
+						filterList += '<li><label><input type="checkbox"'
+							+ (
+								(this.filter.colsFilterArray[this.filter.lastItemCol.idx]
+									.indexOf(this.filter.valuesList[i]) != -1)
+								? ' checked="checked"'
+								: ''
+							)
+							+ ' value="' + ($.type(this.filter.valuesList[i]) == 'string' ? this.filter.valuesList[i].replace(/"/g, '&quot;') : this.filter.valuesList[i]) + '">'
+							+ this.filter.valuesList[i]
+							+ '</label></li>';
+					}
+				}
+			}
+		}
+
+		$("#sc_filterForFilterValues").val("");
+		$("#sc_filterForFilterValues").on("change paste keyup", function() {
+			var $fltr = $("#sc_filterForFilterValues");
+			for (var i = 1; i < $(".sc_filterPropsList").find("li").length; i++) {
+				var $li = $($(".sc_filterPropsList").find("li")[i]);
+				if ($li.text().toLowerCase().indexOf($fltr.val().toLowerCase()) >= 0) {
+					$li.show();
+				} else {
+					$li.hide();
+				}
+			}
+		});
+		//Delete all exist conditions except select_All checkbox, as its first element
+		this.filter.ul.find('li:not(:eq(0))').remove();
+		//Append new conditions
+		this.filter.ul.append(filterList);
+
+		//check if selectAll shoud be checked or not, exclude selectAll is first element
+		var inputs = this.filter.ul.find('input').not(':eq(0)');
+		//inputs.eq(0).prev() is are selectAll checkbox. If checked count == count of  all inputs
+		inputs.eq(0).prev().prop('checked', (inputs.length == inputs.filter(':checked').length));
+
+		//Column element where filterShow was called
+		this.filter.lastItemCol.el = parentEl;
+		//Positioning
+		var parentPos = $(parentEl).position();
+		parentPos.top += $(parentEl).outerHeight();
+		parentPos.left += $(parentEl).outerWidth() - 15;
+		//If element is positioning out of documents bounds
+		if (this.filter.el.outerWidth() + parentPos.left >= $(document).width()){
+			parentPos.left -= this.filter.el.outerWidth() - 15;
+		}
+		this.filter.el.css({'top': parentPos.top, 'left': parentPos.left}).show();
+		$(".sc_tableFilter").height($(".sc_filterPropsList").height() + (sc_ApprovalMatrix.isEditable && this.filter.lastItemCol.addInfo && this.filter.lastItemCol.addInfo == 'performerList' ? 150 : 120));
+		$(".sc_tableFilter").resizable({
+			minWidth: 283,
+			minHeight: $(".sc_filterPropsList").height() + (sc_ApprovalMatrix.isEditable && this.filter.lastItemCol.addInfo && this.filter.lastItemCol.addInfo == 'performerList' ? 150 : 120)
+		});
+
+		if (sc_ApprovalMatrix.isEditable && this.filter.lastItemCol.addInfo && this.filter.lastItemCol.addInfo == 'performerList' && this.cols[this.filter.lastItemCol.idx].title != 'ЭП') {
+			$('.sc_CopyDataButtons').show();
+			var isEnableCopyButton = false;
+			for (var i = 0; i < this.items.length; i++) {
+				if (this.items[i][this.filter.lastItemCol.idx].performerList.length > 0) {
+					isEnableCopyButton = true;
+					break;
+				}
+			}
+			if (isEnableCopyButton) {
+				$('#copyDataButton').prop('disabled', false);
+			} else {
+				$('#copyDataButton').prop('disabled', true);
+			}
+		} else {
+			$('.sc_CopyDataButtons').hide();
+		}
+
+		if (sc_ApprovalMatrix.isDataCopied) {
+			$('#insertDataButton').prop('disabled', false);
+		} else {
+			$('#insertDataButton').prop('disabled', true);
+		}
+	},
+
+	filterApply: function (){
+		var conditionWasChecked = false;
+
+		//Clear condition in current item property
+		if (this.filter.lastItemCol.addInfo){
+			//If complex condition, e.g. between type
+			this.filter.colsFilterArray[this.filter.lastItemCol.idx][this.filter.lastItemCol.addInfo] = [];
+		}else{
+			//Simple condition
+			if(this.filter.lastItemCol.idx == 0){
+				this.filter.colsFilterArray[this.filter.lastItemCol.idx].length = 0;
+			}else{
+				this.filter.colsFilterArray[this.filter.lastItemCol.idx] = [];
+			}
+		}
+
+		var context = this;
+		//Each checked condition
+		this.filter.ul.find('input:checked').each(function (){
+			if (this.value){
+				//If this is an object, its are complex condition
+				if (context.filter.lastItemCol.addInfo){
+					if (parseFloat(this.value)){
+						context.filter
+							.colsFilterArray[context.filter.lastItemCol.idx][context.filter.lastItemCol.addInfo]
+							.push(parseFloat(this.value));
+					}else{
+						context.filter
+							.colsFilterArray[context.filter.lastItemCol.idx][context.filter.lastItemCol.addInfo]
+							.push(this.value);
+					}
+				}else{
+					//Simple condition
+					context.filter.colsFilterArray[context.filter.lastItemCol.idx].push(this.value);
+				}
+				//Check that some condition was selected
+				conditionWasChecked = true;
+			}
+		});
+
+		//toggle column class, for display is any condition is apply on this column
+		this.filter.lastItemCol.el.toggleClass('sc_filterHasCondition', conditionWasChecked);
+
+		this.filterItems();
+	},
+
+	filterItems: function (){
+		var colInfo;
+
+		//Clear this before start
+		this.visibleItems = [];
+
+		//Going through each visible item
+		for (var itemIdx = 0; itemIdx < this.items.length; itemIdx++){
+			var isItemSatisfiesCondition = true;
+			//Each column(rule)
+			for (var column = 0; column < this.filter.colsFilterArray.length; column++){
+				var found = false;
+
+				colInfo=this.getColInfo(column);
+
+				if (this.isAttributePartnerType(column) && this.filter.colsFilterArray[column] && this.filter.colsFilterArray[column].condition){
+					var isFound = false;
+					if (this.filter.colsFilterArray[column].condition.length == 0) {
+						isFound = true;
+					}
+					for (var i = 0; i < this.filter.colsFilterArray[column].condition.length; i++) {
+						if (this.filter.colsFilterArray[column].condition[i] == sc_ApprovalMatrix.conditions[0] && (this.items[itemIdx][column].length == 0 || this.items[itemIdx][column].length > 0 && this.items[itemIdx][column][0] > 0)) {
+							isFound = true;
+						}
+						if (this.filter.colsFilterArray[column].condition[i] == sc_ApprovalMatrix.conditions[1] && this.items[itemIdx][column].length > 0 && this.items[itemIdx][column][0] < 0) {
+							isFound = true;
+						}
+					}
+					//
+					if(isFound){
+						//If column rule is empty, dont check it
+						if (this.filter.colsFilterArray[column].length == 0){
+							//continue;
+							found = true;
+						}
+
+
+						//Each value in column
+						for (var conditionValue = 0; conditionValue < this.filter.colsFilterArray[column].length; conditionValue++){
+							if (this.items[itemIdx][column].length == 0 && this.filter.colsFilterArray[column][conditionValue] == this.nullValue){
+								found = true;
+							}
+							else{
+								for (var idxOf = 0; idxOf < this.items[itemIdx][column].length; idxOf++){
+									if(this.items[itemIdx][column][idxOf] == this.filter.colsFilterArray[column][conditionValue]){
+										//We found one of possible variant, break this loop
+										found = true;
+										break;
+									} else if ((colInfo.alias == 'partner_id' || colInfo.alias == 'partners_member_id' || colInfo.alias == 'partners_internal_id') && (this.items[itemIdx][column][idxOf] == -this.filter.colsFilterArray[column][conditionValue])) {
+										found = true;
+										break;
+									}
+								}
+							}
+							//Dont use indexOf here, because indexOf is strict search, and 1000 != "1000", but in our conditions 1000 == "1000" so strict mode is unnecessary
+							//if (this.items[itemIdx][column].indexOf(this.filter.colsFilterArray[column][conditionValue]) != -1){
+						}
+					}
+					//
+				} else if (colInfo.id == -2){
+					if (this.filter.colsFilterArray[column].length == 0) {
+						found = true;
+					} else {
+						var value = "";
+						if ($.type(this.items[itemIdx][column]) == 'array' && this.items[itemIdx][column].length > 0) {
+							for (var i = 0; i < this.items[itemIdx][column].length; i++) {
+								value += 'Тип = ' + (this.items[itemIdx][column][i][0][0] || '*') + ', ВН = ' + (this.items[itemIdx][column][i][1][0] || '*') + ';'
+							}
+						} else {
+							value = this.nullValue;
+						}
+						for (var conditionValue = 0; conditionValue < this.filter.colsFilterArray[column].length; conditionValue++){
+							var fvalue = this.filter.colsFilterArray[column][conditionValue];
+							if (value.indexOf(fvalue) != -1){
+								found = true;
+								break;
+							}
+						}
+					}
+				}else if ($.type(this.filter.colsFilterArray[column]) == 'object'){
+					//Beetween type
+					if (this.isAttributeBetweenType(column)){
+						var fromCondition = false,
+							toCondition = false;
+
+						//From
+						if (this.filter.colsFilterArray[column].from.length == 0){
+							fromCondition = true;
+						}
+						//Each value in column
+						for (var conditionValue = 0; conditionValue < this.filter.colsFilterArray[column].from.length; conditionValue++){
+							if ((this.items[itemIdx][column].length == 0 || !this.items[itemIdx][column][0]) && this.filter.colsFilterArray[column].from[conditionValue] == this.nullValue){
+								fromCondition = true;
+							} else {
+								if(this.items[itemIdx][column][0] == this.filter.colsFilterArray[column].from[conditionValue]){
+									fromCondition = true;
+								}
+							}
+						}
+						
+						//To
+						if (this.filter.colsFilterArray[column].to.length == 0){
+							toCondition = true;
+						}
+						//Each value in column
+						for (var conditionValue = 0; conditionValue < this.filter.colsFilterArray[column].to.length; conditionValue++){
+							if ((this.items[itemIdx][column].length == 0 || !this.items[itemIdx][column][1]) && this.filter.colsFilterArray[column].to[conditionValue] == this.nullValue){
+								toCondition = true;
+							} else {
+								if(this.items[itemIdx][column][1] == this.filter.colsFilterArray[column].to[conditionValue]){
+									toCondition = true;
+								}
+							}
+						}
+						
+						found = (fromCondition && toCondition);
+					}else if(colInfo.colType=='level' || colInfo.colType=='function'){
+						var perfCondition=false,
+							edsCondition=false;
+
+						if (this.filter.colsFilterArray[column].performerList.length){
+							for (var conditionValue = 0; conditionValue < this.filter.colsFilterArray[column].performerList.length; conditionValue++){
+								if (this.items[itemIdx][column].performerList.length == 0 && this.filter.colsFilterArray[column].performerList[conditionValue] == this.nullValue){
+									perfCondition = true;
+								}else{
+									for (var idxOf = 0; idxOf < this.items[itemIdx][column].performerList.length; idxOf++){
+										if(this.items[itemIdx][column].performerList[idxOf] == this.filter.colsFilterArray[column].performerList[conditionValue]){
+											perfCondition = true;
+											break;
+										}
+									}
+								}
+			
+								if(perfCondition){
+									break;
+								}
+							}
+						}else{
+							perfCondition=true;
+						}
+
+						if (this.filter.colsFilterArray[column].edsDocTypeCode.length){
+							for (var conditionValue = 0; conditionValue < this.filter.colsFilterArray[column].edsDocTypeCode.length; conditionValue++){
+								if (!this.items[itemIdx][column].edsDocTypeCode && this.filter.colsFilterArray[column].edsDocTypeCode[conditionValue] == this.nullValue){
+									edsCondition = true;
+									break;
+								}else if(this.items[itemIdx][column].edsDocTypeCode == this.filter.colsFilterArray[column].edsDocTypeCode[conditionValue]){
+									edsCondition = true;
+									break;
+								}
+							}
+						}else{
+							edsCondition=true;
+						}
+					
+						found = (perfCondition && edsCondition);
+					}
+				}else{
+					//If column rule is empty, dont check it
+					if (this.filter.colsFilterArray[column].length == 0){
+						continue;
+					}
+
+
+					//Each value in column
+					for (var conditionValue = 0; conditionValue < this.filter.colsFilterArray[column].length; conditionValue++){
+						if (this.items[itemIdx][column].length == 0 && this.filter.colsFilterArray[column][conditionValue] == this.nullValue){
+							found = true;
+						}
+						else{
+							for (var idxOf = 0; idxOf < this.items[itemIdx][column].length; idxOf++){
+								if(this.items[itemIdx][column][idxOf] == this.filter.colsFilterArray[column][conditionValue]){
+									//We found one of possible variant, break this loop
+									found = true;
+									break;
+								} else if ((colInfo.alias == 'partner_id' || colInfo.alias == 'partners_member_id' || colInfo.alias == 'partners_internal_id') && (this.items[itemIdx][column][idxOf] == -this.filter.colsFilterArray[column][conditionValue])) {
+									found = true;
+									break;
+								}
+							}
+						}
+						//Dont use indexOf here, because indexOf is strict search, and 1000 != "1000", but in our conditions 1000 == "1000" so strict mode is unnecessary
+						//if (this.items[itemIdx][column].indexOf(this.filter.colsFilterArray[column][conditionValue]) != -1){
+					}
+				}      
+
+				//Nothing is found, exit loop
+				if (!found){
+					isItemSatisfiesCondition = false;
+					break;
+				}
+			}
+
+			if (isItemSatisfiesCondition){
+				//Nothing is found, hide this item
+				this.visibleItems.push(itemIdx);
+			}
+		}
+
+		if (this.visibleItems.length > 0 && this.isUserFiter){
+			var newvisibleItems = [];
+			var i;
+			for (i = 0; i < this.userFilter.length; i++){
+				if (this.visibleItems.indexOf(this.userFilter[i]) != -1){
+					newvisibleItems.push(this.userFilter[i]);
+				}
+			}
+			this.visibleItems = newvisibleItems;
+		}
+		
+		//Just for next each
+		var context = this;
+
+		//Toogle elemenets to show that is satisfies condition, another must be hidden
+		this.element.find('tbody > tr').each(function (idx, el){
+			if (context.visibleItems.indexOf(idx) != -1){
+				$(el).show();
+			}else{
+				$(el).hide();
+			}
+		});
+	},
+
+	copyData: function () {
+		sc_ApprovalMatrix.isDataCopied = false;
+		sc_ApprovalMatrix.copiedData = [];
+		sc_ApprovalMatrix.copiedDataColumnName = '';
+
+		for (var i = 0; i < this.items.length; i++) {
+			sc_ApprovalMatrix.copiedData.push(this.items[i][this.filter.lastItemCol.idx].performerList);
+		}
+		sc_ApprovalMatrix.copiedDataColumnName = this.cols[this.filter.lastItemCol.idx].title;
+		sc_ApprovalMatrix.isDataCopied = true;
+		console.log(sc_ApprovalMatrix.isDataCopied);
+		console.log(sc_ApprovalMatrix.copiedData);
+		console.log(sc_ApprovalMatrix.copiedDataColumnName);
+	},
+
+	insertData: function () {
+		var cdText = 'Все данные в столбце «' + this.cols[this.filter.lastItemCol.idx].title + '» будут удалены!'
+		$('#CopyDataDialogText1').text(cdText);
+		cdText = 'Вместо них будут помещены данные из столбца «' + sc_ApprovalMatrix.copiedDataColumnName + '».'
+		$('#CopyDataDialogText2').text(cdText);
+		cdText = 'Продолжить?'
+		$('#CopyDataDialogText3').text(cdText);
+
+		$("#copyDataDialog").dialog({
+			resizable: true,
+			//height: auto,
+			width: 500,
+			modal: true,
+			buttons: {
+				"Да": function (){
+					sc_ApprovalMatrix.doInsertData();
+					$(this).dialog("close");
+				},
+				"Нет": function (){
+					$(this).dialog("close");
+				}
+			},
+			close: function(){
+			}
+		});
+	},
+
+	doInsertData: function() {
+		var prevEl;
+		var wasChanges = false;
+		$('[columnid=' + this.filter.lastItemCol.idx + ']').each(function (idx, el) {
+			prevEl = $(el).prev();
+			wasChanges = false;
+			if (JSON.stringify(sc_ApprovalMatrix.items[idx][sc_ApprovalMatrix.filter.lastItemCol.idx].performerList) != JSON.stringify(sc_ApprovalMatrix.copiedData[idx])) {
+				wasChanges = true;
+			}
+			sc_ApprovalMatrix.items[idx][sc_ApprovalMatrix.filter.lastItemCol.idx].performerList = sc_ApprovalMatrix.copiedData[idx];
+			var colElement = sc_ApprovalMatrix.renderItemColView(idx, sc_ApprovalMatrix.filter.lastItemCol.idx, $(el).parent().hasClass("sc_editMode"));
+			if (wasChanges) {
+				//$(colElement).addClass("sc_showEditCel");
+				sc_ApprovalMatrix.itemsEdit.push(sc_ApprovalMatrix.mRecsID[idx]);
+				sc_ApprovalMatrix.isChangedItemsWasSave = false;
+			}
+			$(el).remove();
+			prevEl.after(colElement);
+
+		})
+	},
+
+	//Utils functions
+	getColInfo: function (colIdx){
+		return this.cols[colIdx];
+	},
+
+	complexAttrRowAdd: function(e, list){
+		var $target = $(e.target);
+		var $table = $target.closest('tbody');
+		var $tr;
+		if(list){
+			$tr = $('<tr></tr>');
+
+			for (var i = 0; i < list.length; i++){
+				var $select = $('<select></select>').append('<option></option>');
+
+				for (var j = 0; j < list[i].length; j++){
+					$select.append($('<option></option>').attr('value', list[i][j]).text(list[i][j]));
+				}
+
+				$tr.append($select.wrap('<td></td>').parent());
+				if (i == list.length - 1){
+					var $plus = $('<span class="sc_addRow">')
+						.append('<img src="' + OTvar.livelink.supportPath + 'add-row.gif" border="0">');
+					var $minus = $('<span class="sc_delRow">')
+						.append('<img src="' + OTvar.livelink.supportPath + 'delete-row.gif" border="0">');
+					$tr.append($('<td width="60"></td>')
+						.append($plus)
+						.append('<img height="20" src="' + OTvar.livelink.supportPath + 'spacer.gif" width="3" border="0">')
+						.append($minus)
+					);
+				}else{
+					$tr.append('<td width="20"> И </td>');
+				}
+			}
+		}else{
+			$tr = $target.closest('tr').clone();
+		}
+
+		$tr.appendTo($table);
+	},
+
+	complexAttrRowDel: function(e){
+		var $tr = $(e.target).closest('tr');
+		if($tr.parent().find('tr').length <= 1){
+			if ($tr.parent().find('tr').length == 1){
+				//Cant delete last record
+				sc_ApprovalMatrix.onError({type: 'item', msg: 'Could\'t delete last row'});
+			}
+			return false;
+		}else{
+			$tr.remove();
+		}
+	},
+
+	selectClassification: function (event){
+		//event.data.context.renderClassification();
+		window.classificationDialogTarget = event;
+		//Using standard OT classification list
+		window.browseClassifications('noForm', 'classification');
+	},
+
+	selectTableLookup: function (event){
+		var sc = event.data.context;
+		var curCol = event.data.curCol;
+		var colInfo = event.data.colInfo;
+		var itemIdx = event.data.itemIdx;
+		var selectedItems = [];
+		var $target = $(event.target).parent().find('div');
+		if ($target.find("input").length == 0) {
+			selectedItems = [];
+		} else {
+			selectedItems = $target.find("input").val().split(sc.multipleAttributesDelimiter);
+		}
+
+		var partnerID = new Array();
+		var attrAlias_partner_id = $(this).parent().parent().find('.attrAlias_partner_id').find('input').val();
+		if (attrAlias_partner_id == undefined){
+			attrAlias_partner_id = $(this).parent().parent().find('.attrAlias_partners_internal_id').find('input').val();
+		}
+		if (attrAlias_partner_id != undefined && attrAlias_partner_id != sc_ApprovalMatrix.nullValue){
+			partnerID = attrAlias_partner_id.split(sc.multipleAttributesDelimiter);
+		}
+		if (partnerID.length == 1 && partnerID[0]){
+			partnerID = partnerID[0];
+		}else if (partnerID.length == 0 || (partnerID.length == 1 && !partnerID[0])){
+			partnerID = 0;
+		}else{
+			if (colInfo.alias == "partners_internal_op") {
+				return alert(sc.lang.youCantSelectOpForFewPartners);
+			} else {
+				partnerID = 0;
+			}
+		}
+		
+		var direction = $(this).parent().parent().find('.attrAlias_direction').find('div').text()
+		if (direction == undefined){
+			direction = $(this).parent().parent().find('.attrAlias_direction').find('input').val();
+		}
+		var functions = $(this).parent().parent().find('.attrAlias_functions').find('div').text()
+		if (functions == undefined){
+			functions = $(this).parent().parent().find('.attrAlias_functions').find('input').val();
+		}
+		var category = $(this).parent().parent().find('.attrAlias_category').find('div').text()
+		if (category == undefined){
+			category = $(this).parent().parent().find('.attrAlias_category').find('input').val();
+		}
+		
+		if (colInfo.alias == "direction") {
+			colInfo.validValues = [];
+			var keys = Object.keys(sc.dfc);
+			for (var i = 0; i < keys.length; i++) {
+				colInfo.validValues.push(keys[i]);
+			}
+		} else if (colInfo.alias == "functions") {
+			colInfo.validValues = [];
+			if (direction.split(sc.multipleAttributesDelimiter).length == 1 && direction.length > 0) {
+				var keys = Object.keys(sc.dfc[direction]);
+				for (var i = 0; i < keys.length; i++) {
+					colInfo.validValues.push(keys[i]);
+				}
+				if (functions == "") {
+					selectedItems = colInfo.validValues;
+				}
+			}
+		} else if (colInfo.alias == "category") {
+			colInfo.validValues = [];
+			if (direction.split(sc.multipleAttributesDelimiter).length == 1 && direction.length > 0) {
+				var funcs = functions.split(sc.multipleAttributesDelimiter);
+				if (funcs.length > 0 && functions.length > 0) {
+					for (var j = 0; j < funcs.length; j++) {
+						var keys = Object.keys(sc.dfc[direction][funcs[j]]);
+						for (var i = 0; i < keys.length; i++) {
+							colInfo.validValues.push(keys[i]);
+						}
+					}
+					if (category == "") {
+						selectedItems = colInfo.validValues;
+					}
+				}
+			}
+		}
+
+		//TODO: cache
+		$div = $('<div></div>').attr('id', 'sc_cacheTable_' + colInfo.catID + '_' + colInfo.alias);
+		$div.append($('<center><img src="' + sc.supportPrefix + 'circleecm_progmeter40x40.gif" border="0" /></center>"'));
+		$div.dialog({
+			modal: true,
+			title: sc.lang.select + ' (' + colInfo.title + ')',
+			buttons: {
+				"Выбрать все": function (){
+					var result = [];
+					$(this).find('input:checkbox').each(function (idx, el){
+						result.push(el.value);
+					});
+					sc.processDFCbuttons(colInfo, result, functions, itemIdx);
+					$target.html(result.join(sc.multipleAttributesDelimiter + '<br />')).append($('<input type="hidden" />').val(result.join(sc.multipleAttributesDelimiter)));
+					$div.dialog("destroy");
+				},
+				"Выбрать": function (){
+					var result = [];
+					$(this).find('input:checked').each(function (idx, el){
+						result.push(el.value);
+					});
+					sc.processDFCbuttons(colInfo, result, functions, itemIdx);
+					$target.html(result.join(sc.multipleAttributesDelimiter + '<br />')).append($('<input type="hidden" />').val(result.join(sc.multipleAttributesDelimiter)));
+					$(this).dialog("destroy");
+				},
+				"Очистить": function (){
+					$(this).find('input:checked').each(function (idx, el){
+						$(this).prop("checked", false);
+					});
+				}
+			}
+		});
+
+		if (colInfo.validValues.length == 1 && ['direction', 'functions', 'category'].indexOf(colInfo.alias) < 0) {
+			$.post(sc.urlPrefix, {
+					'func': 'zdoc.GetTableLookupDialog',
+					'catID': colInfo.catID,
+					'attrAlias': colInfo.alias,
+					'partnerID': partnerID,
+					'direction': direction,
+					'functions': functions,
+					'category':category,
+				}, function (data){
+					if (typeof data == 'string') {
+						data = JSON.parse(data);
+					}
+					if (data.status != 'success'){
+						return alert('Error while getting partner data');
+					}
+
+					sc_ApprovalMatrix.buildCheckboxForm($div, curCol, selectedItems, data.validList);
+			});
+		} else {
+			sc_ApprovalMatrix.buildCheckboxForm($div, curCol, selectedItems, colInfo.validValues);
+		}
+	},
+	
+	selectRadioLookup: function (event){
+		var sc = event.data.context;
+		var curCol = event.data.curCol;
+		var colInfo = event.data.colInfo;
+		var itemIdx = event.data.itemIdx;
+		var selectedItem = sc_ApprovalMatrix.conditions[0];
+		var $target = $(event.target).parent().find('div');
+		if ($target.html().length > 0) {
+			selectedItem = $target.html();
+		}
+		colInfo.validValues = sc_ApprovalMatrix.conditions;
+
+		//TODO: cache
+		$div = $('<div></div>').attr('id', 'sc_cacheTable_' + colInfo.catID + '_' + colInfo.alias);
+		$div.append($('<center><img src="' + sc.supportPrefix + 'circleecm_progmeter40x40.gif" border="0" /></center>"'));
+		$div.dialog({
+			modal: true,
+			title: sc.lang.select + ' (' + colInfo.title + ')',
+			buttons: {
+				"Выбрать": function (){
+					var result = [];
+					$(this).find('input[type="radio"]:checked').each(function (idx, el){
+						result.push(el.value);
+					});
+					$target.html(result[0]);
+					$(this).dialog("destroy");
+				}
+			}
+		});
+
+		sc_ApprovalMatrix.buildRadioForm($div, curCol, selectedItem, colInfo.validValues);
+	},
+	
+	processDFCbuttons: function(colInfo, result, functions, itemIdx) {
+		if (colInfo.alias == "direction") {
+			if (result.length == 1) {
+				if (functions.length > 0 && functions.split(sc_ApprovalMatrix.multipleAttributesDelimiter).length == 1) {
+					$("#category" + itemIdx).attr("disabled", false);
+				}
+			} else {
+				$("#category" + itemIdx).attr("disabled", true);
+				$("#category" + itemIdx).prev().html('<input type="hidden">')
+			}
+		}
+		if (colInfo.alias == "functions") {
+			if (result.length > 0) {
+				$("#category" + itemIdx).attr("disabled", false);
+			} else {
+				$("#category" + itemIdx).attr("disabled", true);
+				$("#category" + itemIdx).prev().html('<input type="hidden">')
+			}
+			if (result.join(sc_ApprovalMatrix.multipleAttributesDelimiter) != functions) {
+				$("#category" + itemIdx).prev().html('<input type="hidden">')
+			}
+		}
+	},
+	
+	buildRadioForm: function($div, curCol, selectedItems, validList) {
+		var $listEl = $('<ul class="sc_tableTableLookupList"></ul>');
+		for (var i = 0; i < validList.length; i++){
+			var obj = validList[i];
+			var $li = $('<li></li>');
+			$('<input name="radio_name" type="radio" value="" />').val(obj).appendTo($li);
+			$('<label for="radio_name">' + obj + '</label>').appendTo($li);
+			$li.appendTo($listEl);
+			if (obj === selectedItems) {
+				$li.find('input').prop('checked', true);
+			}
+		}
+		$div.html('');
+		$listEl.appendTo($div);
+	},
+
+	buildCheckboxForm: function($div, curCol, selectedItems, validList) {
+		var $listEl = $('<ul class="sc_tableTableLookupList"></ul>');
+		for (var i = 0; i < validList.length; i++){
+			var obj = validList[i];
+			var $li = $('<li></li>');
+			$('<input type="checkbox" value="" />').val(obj).appendTo($li);
+			$('<label>' + obj + '</label>').appendTo($li);
+			$li.appendTo($listEl);
+			if (curCol.indexOf(obj) != -1 && selectedItems.length == 0){
+				$li.find('input').prop('checked', true);
+			}
+			for (var j = 0; j < selectedItems.length; j++) {
+				if (obj === selectedItems[j]) {
+					$li.find('input').prop('checked', true);
+					break;
+				}
+			}
+		}
+		$div.html('');
+		$listEl.appendTo($div);
+	},
+
+	complexValueToText: function(colVal){
+		var result = '';
+
+		if($.isArray(colVal) && typeof(colVal[0]) == 'string'){
+			colVal = colVal[0];
+		}
+
+		if(typeof(colVal) == 'string'){
+			colVal = JSON.parse(colVal);
+		}
+
+		if($.isArray(colVal) && colVal.length){
+			for (var i = 0; i < colVal.length; i++){
+				result += '<nobr>Тип = ' + (colVal[i][0][0] || '*') + ', ВН = ' + (colVal[i][1][0] || '*') + ';</nobr><br />';
+			}
+		}
+
+		return result;
+	},
+
+	complexValueToTextOld: function(colVal){
+		var result = '';
+
+		if($.isArray(colVal) && typeof(colVal[0]) == 'string'){
+			colVal = colVal[0];
+		}
+
+		if(typeof(colVal) == 'string'){
+			colVal = JSON.parse(colVal);
+		}
+
+		if($.isArray(colVal) && colVal.length){
+			result += 'Тип = ' + (colVal[0][0] || '*') + ', ВН = ' + (colVal[1][0] || '*') + ';';
+		}
+
+		return result;
+	},
+
+	complexDialogFill: function(event){
+		var sc = event.data.context;
+		var curCol = event.data.curCol;
+		var colInfo = event.data.colInfo;
+		var $target = $(event.target).parent().find('div');
+		var $div = event.dialog;
+		var $table = $div.find('table tbody');
+
+		if($.isArray(curCol) && typeof(curCol[0]) == 'string'){
+			curCol = curCol[0];
+		}
+
+		if(typeof(curCol) == 'string'){
+			curCol = JSON.parse(curCol);
+		}
+
+		var $tr = $table.find('tr').first().clone();
+		$table.find('tr').remove();
+
+		if($.isArray(curCol) && curCol.length){
+			for (var i = 0; i < curCol.length; i++){
+				$tr = $tr.clone();
+				$table.append($tr);
+				$tr.find('select').each(function (idx, el){
+					$(el).val(curCol[i][idx][0]);
+				});
+			}
+		}else{
+			$tr.appendTo($table);
+		}
+	},
+
+	selectComplex: function (event){
+		var sc = event.data.context;
+		var curCol = event.data.curCol;
+		var colInfo = event.data.colInfo;
+		var $target = $(event.target).parent().find('div');
+
+		var $div = $('#sc_cacheTable_C' + Math.abs(colInfo.id));
+		if(!$div.length){
+			$div = $('<div></div>').attr('id', 'sc_cacheTable_C' + Math.abs(colInfo.id));
+			$div.append($('<center><img src="' + sc.supportPrefix + 'circleecm_progmeter40x40.gif" border="0" /></center>"'));
+		}
+		$div.dialog({
+			modal: true,
+			title: sc.lang.select + ' (' + colInfo.title + ')',
+			width: 600,
+			buttons: {
+				Ok: function (){
+					var result = [];
+
+					$(this).find('.sc_complexAttrTable > tbody > tr').each(function (idx, el){
+						var $sel = $(this).find('select');
+						if(!$sel.length){
+							return false;
+						}
+
+						result[idx] = [];
+						
+						$sel.each(function(sidx, sel){
+							result[idx][sidx] = [$(sel).val()];
+						});
+					});
+					if (result[0][0]=="" && result[0][1]=="")
+						result.splice(0, 1);
+					result = [JSON.stringify(result)];
+					event.data.curCol = result;
+					//var newVal = result.join(sc.multipleAttributesDelimiter);
+					$target.html(sc_ApprovalMatrix.complexValueToText(result)).append($('<input type="hidden" />').val(result));
+					$(this).dialog("close");
+				}
+			}
+		});
+
+		if(!$div.data('sc_mLoaded')){
+			$.getJSON(sc.urlPrefix, {
+				'func': 'zdoc.GetComplexAttrVV',
+				'recID': colInfo.id
+			}, function (data){
+				if (data.status != 'success'){
+					return alert('Error while getting partner data');
+				}
+
+				$div.html('');
+
+				$table = $('<table class="sc_complexAttrTable"><thead><tr><td>Тип сделки</td><td>&nbsp;</td><td>Внутрихолдинг</td><td>&nbsp;</td></tr></thead><tbody></tbody></table>');
+				$table.on('click', '.sc_addRow', sc_ApprovalMatrix.complexAttrRowAdd);
+				$table.on('click', '.sc_delRow', sc_ApprovalMatrix.complexAttrRowDel);
+
+				sc_ApprovalMatrix.complexAttrRowAdd({target: $table.find('tbody')}, data.opts);
+				$div.append($table);
+
+				sc_ApprovalMatrix.complexDialogFill($.extend(true, event, {dialog:$div}));
+
+				$div.data('sc_mLoaded', true);
+			});
+		}else{
+			sc_ApprovalMatrix.complexDialogFill($.extend(true, event, {dialog:$div}));
+		}
+	},
+
+	targetPartnerEvent: undefined,
+	partnerCacheObject: {},
+
+	renderPartnerPane: function (items, editMode){
+
+		if ($.type(items) == 'string'){
+			items = items.split(this.multipleAttributesDelimiter);
+		}
+
+		var $el = $('<div></div>');
+
+		var elData = items.join(this.multipleAttributesDelimiter)
+		if (elData.length == 0){
+			elData = this.nullValue
+		}
+		$el.append($('<input type="hidden" ' + ((elData.length == 0) || elData == this.nullValue ? 'disabled ' : ' ') + '/>')
+			.val(elData));
+		if (items.length){
+			if (editMode){
+				var $ul = $('<ul class="token-input-list"></ul>');
+
+				for (var i = 0; i < items.length; i++){
+					var item = items[i];
+					if (item < 0) {
+						item = -item;
+					}
+					var itemName = this.partnerCacheObject[item];
+        
+					$('<li class="token-input-token"></li>')
+						.attr('partnerid', item)
+						.append(
+							$('<p></p>')
+							.attr('title', itemName)
+							.text(itemName))
+						.append(
+							$('<span class="token-input-delete-token">×</span>')
+								.click(this.deletePartner))
+						.appendTo($ul);
+				}
+				$ul.appendTo($el);
+			}else{
+				for (var i = 0; i < items.length; i++){
+					var item = items[i];
+					if (item < 0) {
+						item = -item;
+					}
+					$el.append(
+						$('<a target="_blank" class="sc_partner"></a>')
+							.text(this.partnerCacheObject[item] + this.multipleAttributesDelimiter)
+							.attr('href', this.urlPrefix + '/open/' + item)
+					);
+				}
+			}
+		}
+
+		return $el;
+	},
+
+	deletePartner: function (event){
+		var partnerID = $(this).parent().attr('partnerid');
+		if (!partnerID){
+			return alert("Partner id is undefined, could not delete record");
+		}
+
+		var $input = $(this).parents('div:eq(0)').find('input');
+		var oldVal = $input.val().split(sc_ApprovalMatrix.multipleAttributesDelimiter);
+		var newVal = [];
+
+		for (var i = 0; i < oldVal.length; i++){
+			if (Math.abs(oldVal[i]) != Math.abs(partnerID)){
+				newVal.push(oldVal[i]);
+			}
+		}
+
+		$input.val(newVal.join(sc_ApprovalMatrix.multipleAttributesDelimiter))
+
+		$(this).parent().remove();
+	},
+
+	selectPartner: function (event){
+		var self = event.data.context;
+		self.targetPartnerEvent = event;
+
+		var $target = $(event.target).parent().find('div');
+		//$target.html('<img border="0" src="' + self.supportPrefix + 'circleecm_progmeter40x40.gif" />');
+
+		sc.partner.getBySearchMulti(function (items){
+			var event = sc_ApprovalMatrix.targetPartnerEvent;
+			var self = event.data.context;
+			var curCol = event.data.curCol;
+			var colInfo = event.data.colInfo;
+			var $target = $(event.target).parent().find('div');
+
+			sc.utils.arrayToInt(curCol);
+			for (var i =0; i < items.length; i++) {
+				var item = items[i];
+				sc.utils.pushIfNotExist(curCol, item.DataID);
+				self.partnerCacheObject[item.DataID] = item.name;
+			}
+			$target.replaceWith(self.renderPartnerPane(curCol, true));
+		}, "&multiselect=1");
+	},
+
+	generateEmptyItem: function (){
+		var retVal = [];
+		var colInfo;
+
+		for (var i = 0; i < this.cols.length; i++){
+			var colInfo = this.getColInfo(i);
+
+			if (colInfo.colType == 'level' || colInfo.colType == 'function'){
+				retVal.push({
+					'performerList' : []
+				});
+			} else if (colInfo.alias == "direction") {
+				retVal.push([this.base_direction]);
+			} else {
+				retVal.push([]);
+			}
+		}
+
+		return retVal;
+	},
+
+	copyItem: function (toCopy){
+		var retVal = [];
+		var colInfo;
+
+		for (var i = 0; i < this.cols.length; i++){
+			var colInfo = this.getColInfo(i);
+			var value = toCopy[i]
+
+			if (colInfo.colType == 'level' || colInfo.colType == 'function'){
+				retVal.push({
+					'performerList' : value.performerList,
+					'edsDocTypeCode' : value.edsDocTypeCode
+				});
+			}else{
+				retVal.push(value);
+			}
+		}
+
+		return retVal;
+	},
+
+	isAttributeBetweenType: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+
+		//If its not attribute, it cant be as between
+		if (colInfo.colType != 'attribute')
+			return false;
+
+		//As partner type attributes is int value, we should check it before
+		if (this.isAttributePartnerType(colIdx)){
+			return false;
+		}
+
+		//Between types is any int type field
+		return this.isAttributeIntType(colIdx);
+	},
+
+	isAttributeIntType: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+		return this.attributeTypes.int.indexOf(colInfo.attrType) !== -1;
+	},
+
+	isAttributeClassificationType: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+
+		//If it's not attribute, it can't as Classification
+		if (colInfo.colType != 'attribute')
+			return false;
+		if (colInfo.alias && ['direction', 'functions', 'category'].indexOf(colInfo.alias) != -1){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isAttributeDirection: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+
+		if (colInfo.colType != 'attribute')
+			return false;
+		if (colInfo.alias && ['direction'].indexOf(colInfo.alias) != -1){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isAttributeFunctions: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+
+		if (colInfo.colType != 'attribute')
+			return false;
+		if (colInfo.alias && ['functions'].indexOf(colInfo.alias) != -1){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isAttributeCategory: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+
+		if (colInfo.colType != 'attribute')
+			return false;
+		if (colInfo.alias && ['category'].indexOf(colInfo.alias) != -1){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isAttributeCheckbox: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+
+		//If it's not attribute, it can't as Classification
+		if (colInfo.colType != 'attribute')
+			return false;
+		if (colInfo.attrType == 5){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isAttributeComplex: function(colIdx){
+		var colInfo = this.getColInfo(colIdx);
+		if (colInfo.colType != 'attribute')
+			return false;
+		if (colInfo.id == -2){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isAttributeTableLookupType: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+
+		//If it's not attribute, it can't as Classification
+		if (colInfo.colType != 'attribute')
+			return false;
+		if (colInfo.attrType == 10013){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isAttributeDictionaryType: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+
+		//If it's not attribute, it can't as Classification
+		if (colInfo.colType != 'attribute')
+			return false;
+		if (colInfo.attrType == 10){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isAttributePartnerType: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+		//If it's not attribute, it can't as Classification
+		if (colInfo.colType != 'attribute')
+			return false;
+		if (colInfo.alias == 'partner_id' || colInfo.alias == 'partners_internal_id'){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isAttributeDocType: function (colIdx){
+		var colInfo = this.getColInfo(colIdx);
+
+		if (colInfo.alias == 'document_type'){
+			return true;
+		}else{
+			return false;
+		}
+	},
+
+	isItemsEditable: function (){
+
+		return this.isEditable;
+	},
+
+	//Events
+	onError: function (event){
+		//I think it shoud be more complex, ist it?
+		alert(event.msg);
+	},
+
+	onFilterApplyClick: function (event){
+
+		event.data.context.filterHide();
+		event.data.context.filterApply();
+	},
+
+	onFilterCopyDataClick: function (event){
+		event.data.context.filterHide();
+		event.data.context.copyData();
+	},
+
+	onFilterInsertDataClick: function (event){
+		event.data.context.filterHide();
+		event.data.context.insertData();
+	},
+
+	onFilterClearClick: function (event){
+		//Confirm message
+		if (confirm(event.data.context.lang.confirmResetFilter)){
+			//Clear css classes
+			event.data.context.element.find('.sc_filterHasCondition').removeClass('sc_filterHasCondition');
+			//Clear filters through init
+			event.data.context.initFilters();
+			event.data.context.filterHide();
+			//As filter is cleared, shoud show all items
+			event.data.context.filterItems();
+		}
+	},
+
+	onTableHeadClick: function (event){
+
+		var target = $(event.target);
+
+		if (target.hasClass('sc_filter')){
+			event.data.context.filterShow(target);
+		}
+	},
+
+
+	onFilterSelectAllClick: function (event){
+		//Check all items like target element, dont forget exclde target element
+		event.data.context.filter.ul.find('input').not(this).prop('checked', $(this).prop('checked'));
+	},
+
+	onTBodyTrHover: function (event){
+		//Show hover actions on hover row
+		event.data.context.hoverActionsShow($(this));
+	},
+
+	//Initiating block
+	initiated: false,
+
+	//Initiate all columns, get settings, type, and others...
+	initCols: function (){
+		var colIdx = 0;
+		this.cols = [];
+
+		for (colIdx; colIdx < this.attributes.length; colIdx++){
+			this.cols.push(this.attributes[colIdx]);
+			this.cols[colIdx].colType = 'attribute';
+			//Replace some attributes validValues
+			if (this.cols[colIdx].alias == 'document_type'){
+				this.cols[colIdx].validValues = this.docTypes;
+			}else if (this.isAttributeCheckbox(colIdx)){
+				this.cols[colIdx].validValues = [this.lang.yes, this.lang.no];
+			}
+		}
+		//For the right Math
+		--colIdx;
+
+		//Levels are visual separete by colors, only levels, functions got same color as level
+		var colOddEven = 'odd';
+		for (var levelIdx = 0; levelIdx < this.levels.length; levelIdx++){
+			colOddEven = (colOddEven == 'odd') ? 'even' : 'odd';
+			//If level have any function, go through each of them
+			if (this.levels[levelIdx].functions.length){
+				for (var functionIdx = 0; functionIdx < this.levels[levelIdx].functions.length; functionIdx++){
+					this.cols.push(this.levels[levelIdx].functions[functionIdx]);
+					++colIdx;
+					this.cols[colIdx].colType = 'function';
+					//Level info to function, just for convenience
+					this.cols[colIdx].level = {
+						id: this.levels[levelIdx].id,
+						title: this.levels[levelIdx].title
+					};
+
+					//Dont forget, functions has same color as level
+					this.cols[colIdx].oddEven = colOddEven;
+				}
+			}else{
+				//Level hast any function, yes that could be to
+				this.cols.push(this.levels[levelIdx]);
+				++colIdx;
+				this.cols[colIdx].colType = 'level';
+				this.cols[colIdx].oddEven = colOddEven;
+			}
+		}
+	},
+
+	initFilters: function (){
+		var colInfo;
+		//Clear object
+		for (var i = 0; i < this.cols.length; i++){
+			colInfo = this.getColInfo(i);
+			if (this.isAttributeBetweenType(i)){
+				this.filter.colsFilterArray[i] = {from: [], to: []};
+			}else if (colInfo.colType=='level' || colInfo.colType=='function'){
+				this.filter.colsFilterArray[i] = {performerList: [], edsDocTypeCode: []};
+			}else{
+				this.filter.colsFilterArray[i] = [];
+			}
+		}
+	},
+
+	decoreCheckboxes: function (){
+		for (var i = 0; i < this.items.length; i++){
+			for (var j = 0; j < this.items[i].length; j++){
+				if (this.isAttributeCheckbox(j)) {
+					if (this.items[i][j] == "true") {
+						this.items[i][j] = [this.lang.yes];
+					} else if (this.items[i][j] == "false") {
+						this.items[i][j] = [this.lang.no];
+					} else {
+						this.items[i][j] = [];
+					}
+				}
+			}
+		}
+	},
+
+	init: function (){
+		var colInfo;
+
+		this.initCols();
+		this.decoreCheckboxes();
+		this.initFilters();
+
+		for (var i = 0; i < this.items.length; i++){
+			//As it first time, we shoud fill all items as visible for filter purpose
+			this.visibleItems.push(i);
+
+			//Fill null fields with empty arrays
+			for (var j = 0; j < this.items[i].length; j++){
+				if (this.items[i][j] === null || this.items[i][j] === undefined){
+					colInfo = this.getColInfo(j);
+
+					if (colInfo.colType == 'level' || colInfo.colType == 'function'){
+						this.items[i][j] = {
+							performerList : []
+						};
+					}else{
+						this.items[i][j] = [];
+					}
+				}
+			}
+		}
+
+		this.initiated = true;
+		return this;
+	},
+
+	checkEDS: function(){
+		var signColIdx;
+		var colInfo;
+
+		for (var colIdx = 0; colIdx < this.cols.length; colIdx++){
+			colInfo = this.getColInfo(colIdx);
+			if(colInfo.colType=='level' && colInfo.type=='signing'){
+				signColIdx=colIdx;
+				break;
+			}
+		}
+
+		if(!signColIdx){
+			return true;
+		}
+
+		var item
+		var rowList='';
+
+		for (var rowIdx = 0; rowIdx < this.items.length; rowIdx++){
+			item=this.items[rowIdx][colIdx];
+			if(item.performerList && item.performerList.length>1){
+				if (rowList.length>0){
+					rowList+=',';
+				}
+				rowList+=this.mRecsID[rowIdx];
+			}
+		}
+		if (rowList.length>0){
+			alert('В строках матрицы ' + rowList + ' указано более одного значения. Пожалуйста, внесите изменения, после чего выполните сохранение изменений.');
+			return false;
+		}
+
+		rowList=''
+		for (var rowIdx = 0; rowIdx < this.items.length; rowIdx++){
+			item=this.items[rowIdx][colIdx];
+			if(item.performerList>0 && !item.edsDocTypeCode){
+				if (rowList.length>0){
+					rowList+=',';
+				}
+				rowList+=this.mRecsID[rowIdx];
+			}
+		}
+		if (rowList.length>0){
+			alert('В строках матрицы ' + rowList + ' выбраны исполнители для шага Подписание, но не выбран ключ типа документа в колонке ЭП. Пожалуйста, внесите изменения, после чего выполните сохранение изменений.');
+			return false;
+		}
+		
+		return true;
+	},
+	
+	changeApprovers: function (){
+		var $dialog = $("#sc_changeApprovers");
+		if ($dialog.length > 0) {
+			$dialog.dialog('open');
+			return;
+		}
+		var html = 
+		'<div id="sc_changeApprovers"><form name="changeApproversForm"><table><tr>' +
+				'<td>Текущий согласующий или группа</td>' +
+				'<td><input type="hidden" id="currentApprover" name="currentApprover_ID"><input type="text" name="currentApprover_Name" readonly></td>' +
+				'<td style="cursor: pointer"><img src="' + sc.supportPrefix + 'guy_select.gif" border="0" onclick="sc_ApprovalMatrix.chooseCurrentApproval()" /></td>'+
+			'</tr><tr><td>Новый согласующий или группа</td>'+
+				'<td><input type="hidden" id="newApprover" name="newApprover_ID"><input type="text" name="newApprover_Name" readonly></td>'+
+				'<td style="cursor: pointer"><img src="' + sc.supportPrefix + 'guy_select.gif" border="0" onclick="sc_ApprovalMatrix.chooseNewApproval()" /></td>'+
+		'</tr></table></form></div>';
+		var $div = $(html);
+		$div.dialog({
+			modal: true,
+			width: 400,
+			title: 'Замена согласующего в матрицах согласования',
+			buttons: {
+				"Заменить": function (){
+					var valid = true;
+					var found = false;
+					var $item = $("#currentApprover").next();
+					if ($item.val() == "") {
+						$item.addClass("sc_invalid");
+						valid = false;
+					} else {
+						$item.removeClass("sc_invalid");
+					}
+					$item = $("#newApprover").next();
+					if ($item.val() == "") {
+						$item.addClass("sc_invalid");
+						valid = false;
+					} else {
+						$item.removeClass("sc_invalid");
+					}
+					if (valid) {
+						for (var i = 0; i < sc_ApprovalMatrix.items.length; i++) {
+							for (var j = 0; j < sc_ApprovalMatrix.items[i].length; j++) {
+								var colInfo = sc_ApprovalMatrix.getColInfo(j);
+								if (colInfo.colType == 'level' || colInfo.colType == 'function') {
+									if (colInfo.type == 'signing' || colInfo.type == 'confirmation') {
+										continue;
+									}
+								}
+								if (sc_ApprovalMatrix.items[i][j].performerList && sc_ApprovalMatrix.items[i][j].performerList.length > 0) {
+									for (var k = 0; k < sc_ApprovalMatrix.items[i][j].performerList.length; k++) {
+										if (sc_ApprovalMatrix.items[i][j].performerList[k] == $("#currentApprover").val()) {
+											sc_ApprovalMatrix.items[i][j].performerList[k] = parseInt($("#newApprover").val());
+											found = true;
+											if (sc_ApprovalMatrix.itemsEdit.indexOf(sc_ApprovalMatrix.mRecsID[i]) == -1) {
+												sc_ApprovalMatrix.itemsEdit.push(sc_ApprovalMatrix.mRecsID[i]);
+											}
+										}
+									}
+								}
+							}
+						}
+						if (found) {
+							$(".changeAvailable").each(function() {
+								var $a = $(this).find("a");
+								$a.each(function() {
+									if ($(this).html() == $("#currentApprover").next().val().replace(/\"/g, "") + sc_ApprovalMatrix.multipleAttributesDelimiter) {
+										$(this).attr("userid", $("#newApprover").val());
+										$(this).html($("#newApprover").next().val().replace(/\"/g, "") + sc_ApprovalMatrix.multipleAttributesDelimiter);
+										$(this).attr("href", $(this).attr("href").replace($("#currentApprover").val(), $("#newApprover").val()));
+									}
+								});
+							});
+						}
+						$("#currentApprover").val("");
+						$("#newApprover").val("");
+						$("#currentApprover").next().removeClass("sc_invalid").val("");
+						$("#newApprover").next().removeClass("sc_invalid").val("");
+						if (!confirm("Замена согласующих выполнена успешно. Продолжить работу с формой?")) {
+							$(this).dialog("close");
+						}
+					}
+				},
+				"Отмена": function (){
+					$("#currentApprover").val("");
+					$("#newApprover").val("");
+					$("#currentApprover").next().removeClass("sc_invalid").val("");
+					$("#newApprover").next().removeClass("sc_invalid").val("");
+					$(this).dialog('close');
+				}
+			}
+		});
+	},
+
+	chooseCurrentApproval: function(){
+		var	url;
+		var	w;
+
+		url = sc.urlPrefix + '?func=user.SelectUserDlg&formname=changeApproversForm&fieldprefix=currentApprover&title=Select%20User&dirtyflag=currentApprover&DisplayUserName&NoGroups=FALSE';
+		w = window.open(url,"","height=340,width=680,scrollbars=yes,resizable=yes,menubar=no,toolbar=yes,status=yes");
+		if ( w.focus ){
+			w.focus();
+		}
+	},
+
+	chooseNewApproval: function(){
+		var	url;
+		var	w;
+
+		url = sc.urlPrefix + '?func=user.SelectUserDlg&formname=changeApproversForm&fieldprefix=newApprover&title=Select%20User&dirtyflag=newApprover&DisplayUserName&NoGroups=FALSE';
+		w = window.open(url,"","height=340,width=680,scrollbars=yes,resizable=yes,menubar=no,toolbar=yes,status=yes");
+		if ( w.focus ){
+			w.focus();
+		}
+	},
+
+	toggleChangedRows: function(){
+		var $chbx = $("#ShowOnlyChanges");
+		var $rows = $(".nochanges");
+		$rows.each(function (idx, element){
+			if ($chbx.prop("checked")) {
+				$(this).hide();
+			} else {
+				$(this).show();
+			}
+		});
+		if ($chbx.prop("checked")) {
+			$('.imgEditedCel').show();
+		} else {
+			$('.imgEditedCel').hide();
+		}
+	}
+
+};

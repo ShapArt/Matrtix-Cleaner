@@ -17,6 +17,18 @@ async function loadUserscript(page) {
 async function openCleanerPanel(page) {
   await page.locator('#mc-open-btn').waitFor({ state: 'visible' });
   await page.locator('#mc-open-btn').click();
+  await page.evaluate(() => {
+    const moduleSelect = document.querySelector('[data-role="compact-module-select"]');
+    if (moduleSelect) {
+      moduleSelect.value = 'all';
+      moduleSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const coreMode = document.querySelector('[data-role="core-compact-mode"]');
+    if (coreMode) {
+      coreMode.value = 'all';
+      coreMode.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
 }
 
 test('1. detects matrix list page', async ({ page }) => {
@@ -758,4 +770,53 @@ test('42. end-to-end smoke flow', async ({ page }) => {
   });
   expect(summary.reportSize).toBeGreaterThan(0);
   expect(summary.checklistTotal).toBeGreaterThan(0);
+});
+
+test('43. compact mode shows only action buttons by default', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  await page.click('#mc-open-btn');
+  const state = await page.evaluate(() => {
+    const mode = document.querySelector('[data-role="core-compact-mode"]');
+    if (mode) {
+      mode.value = 'action';
+      mode.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const jsonBtn = document.querySelector('[data-role="export-json"]');
+    const runBtn = document.querySelector('[data-role="run"]');
+    return {
+      modeValue: mode ? mode.value : '',
+      jsonHidden: jsonBtn ? jsonBtn.style.display === 'none' : false,
+      runVisible: runBtn ? runBtn.style.display !== 'none' : false,
+    };
+  });
+  expect(state.modeValue).toBe('action');
+  expect(state.jsonHidden).toBeTruthy();
+  expect(state.runVisible).toBeTruthy();
+});
+
+test('44. run all tests button writes diagnostic logs', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  await openCleanerPanel(page);
+  await page.click('[data-role="run-all-tests"]');
+  await page.waitForFunction(() => {
+    const el = document.querySelector('#mc-log');
+    return el && String(el.textContent || '').includes('Тест всего');
+  }, null, { timeout: 10000 });
+  const text = await page.textContent('#mc-log');
+  expect(String(text)).toContain('Тест всего');
+});
+
+test('45. counterparty operations enforce default affiliation', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const report = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.previewRuleBatch([{
+    type: 'remove_counterparty_from_rows',
+    matrixName: document.title,
+    payload: { partnerName: 'КУЗНЕЦОВСКИЙ КОМБИНАТ ООО' },
+    options: {},
+  }], {}));
+  expect(report.length).toBeGreaterThan(0);
+  expect(String(report[0].affiliation)).toContain('Группа Черкизово');
 });

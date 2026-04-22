@@ -1,0 +1,326 @@
+try
+{
+localStorage.removeItem('chatbot_question');
+localStorage.removeItem('chatbot_answer');
+localStorage.removeItem('allanswer');
+}
+catch(e)
+{
+	//
+}
+// конфигурация чат-бота
+const configChatbot = {};
+// CSS-селектор кнопки, посредством которой будем вызывать окно диалога с чат-ботом
+configChatbot.btn = '.chatbot__btn';
+// ключ для хранения отпечатка браузера
+configChatbot.key = 'fingerprint';
+configChatbot._all = false;
+configChatbot._close = false;
+//место запуска: OT/хендлер
+configChatbot.startOT = true;
+//пользователь
+try {
+    configChatbot.user = this.OTvar.currentUser.login || document.getElementsByClassName('username')[0].innerText;
+	configChatbot.user_fio =this.OTvar.currentUser.firstName +' '+this.OTvar.currentUser.lastName+ ' ('+this.OTvar.currentUser.email+')';
+} catch (e) {
+    configChatbot.user = 'Anonymous';
+	configChatbot.user_fio ='Анонимный пользователь'
+}
+if (configChatbot.user.length > 0) {
+    localStorage.setItem('user', configChatbot.user);
+	localStorage.setItem('user_fio', configChatbot.user_fio);
+}
+var that = this;
+// корневой элемент
+configChatbot.root = SimpleChatbot.createTemplate();
+// URL chatbot.php
+configChatbot.url = '/chatbot.php';
+configChatbot.dialogueID=window.localStorage.getItem('dialog_id');
+// переменная для хранения экземпляра
+let chatbot = null;
+let answer = null;
+
+   var that=this;
+ 
+
+this.host = window.localStorage.getItem('cb_host');
+            //настройки
+            configChatbot.settings = that.host + '/chatbot/api/v1/settingsview/';
+            // реплики чат-бота
+            configChatbot.replicas = that.host + '/chatbot/api/v1/actorlist';
+            // ответы чат-бота
+            configChatbot.answer = that.host + '/chatbot/api/v1/mainview/';
+			//диалог с юристом
+			configChatbot.replicasOpenDialog = that.host +  '/chatbot/api/v1/consultation/'+configChatbot.dialogueID+'/';
+
+
+
+document.querySelector(configChatbot.btn).onclick = function (e) {
+    this.classList.add('d-none');
+    const $tooltip = this.querySelector('.chatbot__tooltip');
+    if ($tooltip) {
+        $tooltip.classList.add('d-none');
+    }
+    configChatbot.root.classList.toggle('chatbot_hidden');
+    if (chatbot) {
+        return;
+    }
+
+    // считываем настройки
+const requestSettings = new XMLHttpRequest();
+
+requestSettings.open('GET', configChatbot.settings, true);
+requestSettings.responseType = 'json';
+requestSettings.onload = function () {
+    const statusSettings = requestSettings.status;
+    if (statusSettings === 200) {
+        const dataSettings = requestSettings.response;
+        if (typeof dataSettings === 'string') {
+            configChatbot.settings = JSON.parse(dataSettings);
+        } else {
+
+            for (var i = 0; i < dataSettings.length; i++) {
+                switch (dataSettings[i].name) {
+                case 'collapse':
+                    window.localStorage.setItem('cb_collapse', dataSettings[i].value);
+                    break;
+                case 'assessment':
+                    window.localStorage.setItem('cb_assessment', dataSettings[i].value);
+                    break;
+				case 'notification':
+                    window.localStorage.setItem('cb_notification', dataSettings[i].value);
+                    break;
+                }
+
+            }
+
+        }
+
+    } else {
+        console.log(statusSettings, requestSettings.response);
+    }
+};
+requestSettings.send();
+//
+const requestAnsw = new XMLHttpRequest();
+
+requestAnsw.open('GET', configChatbot.answer, true);
+requestAnsw.responseType = 'json';
+requestAnsw.onload = function () {
+    const statusAnsw = requestAnsw.status;
+    if (statusAnsw === 200) {
+        const dataAnsw = requestAnsw.response;
+        if (typeof dataAnsw === 'string') {
+            configChatbot.answer = JSON.parse(dataAnsw);
+        } else {
+            var newAnsw = [];
+            var inc = 0;
+            var topic = dataAnsw[0].topics;
+            for (var i = 0; i < dataAnsw.length; i++) {
+                if (topic !== dataAnsw[i].topics) {
+                    inc = 1;
+                    topic = dataAnsw[i].topics;
+                } else {
+                    inc++;
+                }
+               // var num = '900' + String(dataAnsw[i].topics) + String(inc) + "000"; //DEF
+			   var num = '900' + String(dataAnsw[i].topics)  + "000" + String(inc);
+                newAnsw[i] = {};
+                newAnsw[i]['id'] = num;
+                newAnsw[i]['bot'] = '900' + String(dataAnsw[i].topics) + "000";
+                // newAnsw[num]['bot']=[];
+                //newAnsw[num]['bot'][0]='0';
+                newAnsw[i]['content'] = dataAnsw[i].question;
+                newAnsw[i]['answer'] = dataAnsw[i].content;
+            }
+            window.localStorage.setItem('answers', JSON.stringify(newAnsw));
+        }
+
+    } else {
+        console.log(statusAnsw, requestAnsw.response);
+    }
+};
+requestAnsw.send();
+
+window.localStorage.removeItem('dialog_state');
+//получение данных открытого диалога
+ const requestOpenDialog = new XMLHttpRequest();
+    requestOpenDialog.open('GET', configChatbot.replicasOpenDialog, true);
+    requestOpenDialog.responseType = 'json';
+    requestOpenDialog.onload = function () {
+        const status = requestOpenDialog.status;
+        if (status === 200) {
+            const data = requestOpenDialog.response;
+            
+            window.localStorage.setItem('dialog_state', data.state);
+        } else {
+            console.log(status, requestOpenDialog.response);
+			window.localStorage.removeItem('dialog_state');
+        }
+    };
+    requestOpenDialog.send();
+//получение идентификатора системы
+var that=this
+const reqSystem = new XMLHttpRequest();
+const url_Host = 'https://mow03-opt13.cherkizovsky.net/chatbot/api/v1/host/?search=' + window.location.origin.replaceAll('file://','https://mow03-opt13.cherkizovsky.net');
+
+reqSystem.open('GET', url_Host, true);
+reqSystem.responseType = 'json';
+reqSystem.onload = function () {
+    const statusSettings = reqSystem.status;
+    if (statusSettings === 200) {
+        const dataSettings = reqSystem.response;  
+        that.system= reqSystem.response[0].system;
+        window.localStorage.setItem('cb_system', that.system);                  
+
+    } else {
+        console.log(statusSettings, reqSystem.response);
+    }
+};
+reqSystem.send();
+
+// получение json-файла, содержащего сценарий диалога для чат-бота через AJAX
+const request = new XMLHttpRequest();
+request.open('GET', configChatbot.replicas, true);
+request.responseType = 'json';
+request.onload = function () {
+    const status = request.status;
+    if (status === 200) {
+        const dataDirt = request.response;
+        if (typeof dataDirt === 'string') {
+            configChatbot.replicas = JSON.parse(data);
+        } else {
+            var mHello = [],
+            cntHello = 0;
+            var newRepl = {};
+            newRepl['bot'] = {};
+            newRepl['human'] = {};
+            var fistLevel = [];
+            try {
+                answer = JSON.parse(window.localStorage.getItem('answers'));
+            } catch (e) {
+                answer=[];
+            }
+			var data=[],n=0;
+			for (var i = 0; i < dataDirt.length; i++) { //Фильтрация реплик
+				if (dataDirt[i].systems.includes(1))
+				{
+					dataDirt[i].systems.push(Number(localStorage.getItem('cb_system'))); //если в репликах не указана система, то поумолчанию  считать, что система та, из которой совершается вызов
+				}
+				if (dataDirt[i].systems.includes(Number(localStorage.getItem('cb_system'))))
+				{
+				data[n]=dataDirt[i];
+				n++;
+				}
+			}
+            for (var i = 0; i < data.length; i++) {
+				
+				
+                if (data[i].actor === 'bot') {
+                    // выбор приветствия
+                    if (data[i].order === 0) {
+                        mHello[cntHello] = data[i].content;
+                        cntHello++;
+                    }
+                    //реплика бота, если ответ не найден
+                    if (data[i].order === 9999) {
+
+                        window.localStorage.setItem('not_answer', data[i].content);
+                    }
+
+                    newRepl['bot'][data[i].order] = {};
+                    newRepl['bot'][data[i].order]['content'] = data[i].content;
+                    newRepl['bot'][data[i].order]['human'] = [];
+                    for (var j = 0; j < data[i].orderLink.split(',').length; j++) {
+                        newRepl['bot'][data[i].order]['human'][j] = data[i].orderLink.split(',')[j].replaceAll(' ', '');
+                        if (data[i].order === 0) {
+                            fistLevel[j] = data[i].orderLink.split(',')[j].replaceAll(' ', '');
+                        }
+                    }
+
+                } else {
+                    newRepl['human'][data[i].order] = {};
+                    newRepl['human'][data[i].order]['bot'] = [];
+                    newRepl['human'][data[i].order]['content'] = data[i].content;
+
+                    if (data[i].orderLink !== 'QUESTION') {
+                        for (var j = 0; j < data[i].orderLink.split(',').length; j++) {
+                            newRepl['human'][data[i].order]['bot'][j] = data[i].orderLink.split(',')[j].replaceAll(' ', '');
+
+                        }
+                    } else {
+                        newRepl['human'][data[i].order]['bot'][0] = '900' + String(data[i].order);
+                        newRepl['bot']['900' + String(data[i].order)] = {};
+                        newRepl['bot']['900' + String(data[i].order)]['content'] = "Выберите вопрос";
+                        newRepl['bot']['900' + String(data[i].order)]['human'] = [];
+                        var k = 0;
+						try{
+                        for (var a = 0; a < answer.length; a++) {
+                            if (answer[a].bot === ('900' + String(data[i].order) + "000")) {
+                                newRepl['bot']['900' + String(data[i].order)]['human'][k] = answer[a].id;
+                                k++;
+                                newRepl['human'][answer[a].id] = {};
+                                newRepl['human'][answer[a].id]['bot'] = [];
+                                newRepl['human'][answer[a].id]['bot'][0] = answer[a].id;
+                                newRepl['human'][answer[a].id]['content'] = answer[a].content;
+
+                                //ответ  бота
+                                newRepl['bot'][answer[a].id] = {};
+                                newRepl['bot'][answer[a].id]['content'] = answer[a].answer;
+                                newRepl['bot'][answer[a].id]['human'] = [];
+                                // newRepl['bot'][answer[a].id]['human']=fistLevel; //реплики
+                            }
+                        }
+						}
+						catch(e)
+						{
+						//
+						}
+
+                    }
+                }
+            }
+            //приветствие
+            newRepl['bot'][0]['content'] = mHello[Math.floor(Math.random() * cntHello)];
+            configChatbot.replicas = newRepl;
+            window.localStorage.setItem('default_questions', JSON.stringify(newRepl));
+        }
+        // инициализация SimpleChatbot
+        chatbot = new SimpleChatbot(configChatbot);
+        chatbot.init();
+    } else {
+        console.log(status, request.response);
+    }
+};
+request.send();
+};
+
+// подсказка для кнопки
+const $btn = document.querySelector(configChatbot.btn);
+//document.querySelector(configChatbot.btn).click(); //открытие окна чатбота
+$btn.addEventListener('mouseover', function (e) {
+    const $tooltip = $btn.querySelector('.chatbot__tooltip');
+    if (!$tooltip.classList.contains('chatbot__tooltip_show')) {
+        $tooltip.classList.remove('d-none');
+        setTimeout(function () {
+            $tooltip.classList.add('chatbot__tooltip_show');
+        }, 0);
+    }
+});
+$btn.addEventListener('mouseout', function (e) {
+    const $tooltip = $btn.querySelector('.chatbot__tooltip');
+    if ($tooltip.classList.contains('chatbot__tooltip_show')) {
+        $tooltip.classList.remove('chatbot__tooltip_show');
+        setTimeout(function () {
+            $tooltip.classList.add('d-none');
+        }, 200);
+    }
+});
+
+setTimeout(function () {
+    const tooltip = document.querySelector('.chatbot__tooltip');
+    tooltip.classList.add('chatbot__tooltip_show');
+    setTimeout(function () {
+        tooltip.classList.remove('chatbot__tooltip_show');
+    }, 10000)
+}, 10000);

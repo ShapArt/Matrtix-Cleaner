@@ -1,0 +1,53 @@
+/*
+ *  Thumbnail image class
+ */
+.thumbImage64x64 {
+	margin: auto;
+	max-width: 64px;
+	max-height: 64px;
+	border-style: solid;
+	border-color: #000000;
+	border-width: 1px;
+	/* IE8 is the current oldest supported version of IE. Both IE8 and IE9 have a bug with max-width and max-height.
+	 * Using expression to set IE-specific _width and _height to overcome this problem.
+	 * Note: the expression logic determines the one dimension to be left on auto to keep the thumb image aspect ratio. */
+	_width: expression( this.width > this.height ? '64px' : 'auto' );
+	_height: expression( this.width > this.height ? 'auto' : '64px' ); 
+}
+
+.thumbImage128x128 {
+	margin: auto;
+	max-width: 128px;
+	max-height: 128px;
+	border-style: solid;
+	border-color: #000000;
+	border-width: 1px;
+	/* See comment in thumbImage64x64 about the IE8 and IE9 bug with max-width and max-height. */ 
+	_width: expression( this.width > this.height ? '128px' : 'auto' );
+	_height: expression( this.width > this.height ? 'auto' : '128px' ); 
+}
+
+.thumbImage145x145
+{
+	margin: auto;
+	max-width: 145px;
+	max-height: 145px;
+	border-style: solid;
+	border-color: #000000;
+	border-width: 1px;
+	/* See comment in thumbImage64x64 about the IE8 and IE9 bug with max-width and max-height. */ 
+	_width: expression( this.width > this.height ? '145px' : 'auto' );
+	_height: expression( this.width > this.height ? 'auto' : '145px' ); 
+}
+
+.thumbImage200x200 {
+	margin: auto;
+	max-width: 200px;
+	max-height: 200px;
+	border-style: solid;
+	border-color: #000000;
+	border-width: 1px;
+	/* See comment in thumbImage64x64 about the IE8 and IE9 bug with max-width and max-height. */ 
+	_width: expression( this.width > this.height ? '200px' : 'auto' );
+	_height: expression( this.width > this.height ? 'auto' : '200px' ); 
+}

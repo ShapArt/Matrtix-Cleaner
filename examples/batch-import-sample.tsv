@@ -1,0 +1,3 @@
+type	matrix	current_partner	comment
+remove_counterparty_from_rows	Matrix X	КУЗНЕЦОВСКИЙ КОМБИНАТ ООО	Тестовый пакетный импорт
+add_doc_type_to_matching_rows	Matrix X		Проверка doc type patch

@@ -1,0 +1,129 @@
+var sc_constructorDocID=null;
+
+function openDocAtConstructor(constructorDocID, mode, checkModify=false){
+	if (checkModify && window.someThingWasChange){
+            alert('Вы должны сохранить изменения перед тем как продолжить');
+            return;
+	}
+
+	var title;
+	if(mode=='create'){
+		title='Создать новый документ в конструкторе';
+	}else{
+		title='Редактирование документа в конструкторе';
+	}
+
+	window.scrollTo(0,0);
+	$('html').css( "overflow", "hidden");
+
+	if ($('#DocConstructorOpenDocDiv').length==0){
+		$('<div style="display:none;" ID="DocConstructorOpenDocDiv"><iframe id="DocConstructorOpenDocFrame" src="" height="500" width="1100" align="left">Ваш браузер не поддерживает плавающие фреймы!</iframe></div>').appendTo(document.body);
+	}
+
+	sc_constructorDocID=constructorDocID;
+	var frameURL=OTvar.livelink.cgiPath + '?func=zdoc.DocConstructorOpenDoc&ConstructorDocID=' + constructorDocID;
+
+	let h=Math.abs($(window).height() - 150);
+	let w=Math.abs($(window).width() - 50);
+
+	if(h<500){
+		h=500;
+	}
+	if(w<1100){
+		w=1100;
+	}
+	$('#DocConstructorOpenDocFrame').attr('height', h);
+	$('#DocConstructorOpenDocFrame').attr('width', w);
+	$('#DocConstructorOpenDocFrame').attr('src', frameURL);
+
+	confirmSaveDocument=true;
+	closeDocumentWithoutSave=false;
+
+	$("#DocConstructorOpenDocDiv").dialog({
+		resizable: true,
+		height: 'auto',
+		width: 'auto',
+		modal: true,
+		title: title,
+		buttons: {
+			"Сохранить и закрыть": function (){
+				confirmSaveDocument=false;
+				$(this).dialog("close");
+			},
+			"Закрыть": function (){
+				confirmSaveDocument=true;
+				$(this).dialog("close");
+			}
+		},
+		resizeStop: function( event, ui ){
+			$('#DocConstructorOpenDocFrame').attr('height', 500);
+			$('#DocConstructorOpenDocFrame').attr('width', 1100);
+
+			let p=$('#DocConstructorOpenDocFrame').parent();
+			let h=Math.abs(p.height()-4);
+			let w=Math.abs(p.width()-4);
+				
+			if(h<500){
+				h=500;
+			}
+			if(w<1100){
+				w=1100;
+			}
+			$('#DocConstructorOpenDocFrame').attr('height', h);
+			$('#DocConstructorOpenDocFrame').attr('width', w);
+		},
+		open: function(event,ui){
+			$(this).parent().focus();
+		},
+		beforeClose: function(event,ui){
+			return getDocFromConstructor();
+		},
+		close: function(event,ui){
+			$('#DocConstructorOpenDocFrame').attr('src', '');
+			$('html').css( "overflow", "scroll");
+		}
+	});
+}
+
+function getDocFromConstructor(){
+	let result=false;
+
+	if (!sc_constructorDocID){
+		return result;
+	}
+
+	if(closeDocumentWithoutSave){
+		return true;
+	}
+
+	if (confirmSaveDocument){
+		if (!confirm('Сохранить изменения? Да/Нет')){
+			return true;
+		}
+	}
+
+	$.ajax({
+		url : OTvar.livelink.cgiPath,
+		dataType : 'json',
+		async : false,
+		data: {
+			func: 'zdoc.DocConstructorGetDoc',
+			ConstructorDocID: sc_constructorDocID
+		}
+	}).done(function(data){
+		if(data.ErrMsg){
+			alert(data.ErrMsg);
+		}else{
+			if(data.InfoMsg){
+				alert(data.InfoMsg);
+			}
+			location.reload();
+			result=true;
+		}
+	}).fail(function( jqxhr, textStatus, error ){
+		var err = textStatus + ", " + error;
+		alert( "Ошибка сохранения документа: " + err);
+	});
+
+	return result;
+}

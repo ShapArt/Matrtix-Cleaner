@@ -1,0 +1,5968 @@
+/* ---------------------------  CONTENT SERVER 10 STYLES  ---------------------------- */
+
+/* -----------------------------------------------------------------------
+ CSS section Resetting ( to reset add the .csx class name)
+----------------------------------------------------------------------- */
+html{
+	overflow: scroll;
+	height: 100%;
+}
+.csx 
+{
+	font-size:16px;
+}
+.csx, .csx *{
+	margin:0;padding:0;
+	font-weight:inherit;font-style:inherit;font-family:inherit;
+	vertical-align:baseline;
+	line-height:1em;
+}
+
+/* Tag specific resetting
+----------------------------------------------------------------------- */
+/*
+	headers 1 to 6
+*/
+.csx h1 {font-size:3em;line-height:1;margin-bottom:0.5em;border:0;}
+.csx h2 {font-size:2em;margin-bottom:0.75em;border:0;}
+.csx h3 {font-size:1.5em;line-height:1;margin-bottom:1em;border:0;}
+.csx h4 {font-size:1.2em;line-height:1.25;margin-bottom:1.25em;border:0;}
+.csx h5 {font-size:1em;font-weight:bold;margin-bottom:1.5em;border:0;}
+.csx h6 {font-size:1em;font-weight:bold;border:0;}
+/*
+	Paragraphs and text
+*/
+.csx p {margin:0 0 1.5em;border:0;}
+.csx strong,.csx b{font-weight:bold;border:0;}
+.csx dfn {font-weight:bold;border:0;}
+.csx dnf,
+.csx em, .csx i{font-style:italic;border:0;}
+.csx sup,
+.csx sub {line-height:0;border:0;}
+.csx abbr,
+.csx acronym {border-bottom:1px dotted #666;border:0;}
+.csx address {margin:0 0 1.5em;font-style:italic;border:0;}
+.csx del {color:#666;border:0;}
+.csx pre {margin:1.5em 0;white-space:pre;border:0;}
+.csx pre,
+.csx code,
+.csx tt {font:1em 'andale mono', 'lucida console', monospace;line-height:1.5;border:0;}
+/*
+	Lists (ordered, unordered, definitions)
+*/
+.csx li ul,
+.csx li ol {margin:0 1.5em;border:0;}
+.csx ul,
+.csx ol {margin:0 1.5em 1.5em 1.5em;border:0;}
+.csx ul {list-style-type:disc;border:0;}
+.csx ol {list-style-type:decimal;border:0;}
+.csx dl {margin:0 0 1.5em 0;border:0;}
+.csx dl dt {font-weight:bold;border:0;}
+.csx dd {margin-left:1.5em;border:0;}
+/*
+	Tables
+*/
+.csx table {margin-bottom:1.4em;width:100%;border:0;}
+.csx th {font-weight:bold;border:0;}
+.csx tfoot {font-style:italic;border:0;}
+.csx th,
+.csx td,
+.csx caption {padding:4px 10px 4px 5px;border:0;}
+/*
+	Forms (legend, fieldset, input, textarea, etc)
+*/
+.csx legend {border:0; display:none;}
+.csx fieldset {border:0;}
+.csx input[type=text],
+.csx input[type=password],
+.csx input.text,
+.csx input.title,
+.csx textarea,
+.csx select {padding:.1em;}
+.csx input.title {font-size:1.5em;border:0;}
+.csx input.title,
+.csx input.text {width:300px;padding:5px;border:0;}
+.csx textarea {width:390px;height:250px;padding:5px;border:0;}
+.csx input[type=radio],
+.csx input.radio,
+.csx input[type=checkbox],
+.csx input.checkbox{position:relative;top:.25em;border:0;}
+.csx form.inline {line-height:3;border:0;}
+.csx form.inline p {margin-bottom:0;border:0;}
+/*
+	Images
+*/
+.csx img {margin:0;border:0;}
+
+
+/*
+	Defines the style to apply by default to all links.
+
+	Use with:
+		none, this is applied to the tag
+*/
+a {
+		color:				#05447e;
+		font-size:			11px;
+}
+
+/*
+	Defines the style to apply by default to all links when the cursor hovers over the link.
+
+	Use with:
+		none, this is applied to the tag
+*/
+a:link, a:visited {
+		color:				#05447e;
+}
+
+a:active {
+		font-style: 		normal;
+		text-decoration: 	underline;
+		 color: 			#981b1e;
+}
+
+a:hover{
+		color:				#D39300;
+}
+
+/*
+	The default style that is applied to the <BODY> tag.
+
+	Use with:
+		none, this is applied to the tag '<BODY>'
+*/
+body {
+		font-family: 			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 				11px;
+		margin:					0px;
+		background-color:		#f7f8f8;
+		height:				100%;
+}
+
+TABLE {
+		font-family: 			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 				11px;
+}
+
+.header TABLE {
+		font-family: 			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 				11px;
+}
+
+h2	{
+		font-family: 			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:				12px;
+}
+
+.tightTable
+{
+	border:		0px;
+	padding:	0px;
+	margin:		0px;
+	width:		100%;
+}
+
+/*
+ *	Emphasized text.
+ *
+ *	See use in:
+ *		notify/nspecificnode.html
+ */
+.important {
+		font-weight:			bold;
+}
+
+/*
+ *	Emphasized text, though not as emphasized as the 'important' class.
+ *
+ */
+.stressed {
+		font-style:			italic;
+}
+
+/*
+ *	Makes an hr into a useful section divider.
+ *
+ *	Explanation:
+ *		- border must be none for netscape or else the line has a black border
+ *		- background-color controls the colour of the line in Netscape
+ * 		- color controls the colour of the line in IE
+ *
+ *	See search pages.
+ */
+hr.sectionDivider {
+		border: 			none;
+		background-color: 	#999999;
+		color: 				#999999;
+}
+
+
+
+
+/* *****************  All Livelink Classes ********************** */
+
+.tabForeground {
+		background-color:	#ffffff;
+}
+
+.tabForegroundHigh {
+		background-color:	#ffffff;
+		height:				24px;
+}
+
+.tblBackground {
+		background-color:	#CCCCCC;
+}
+.tblBackground-BrowseView {
+		background-color:	#B3CBDC;
+}
+
+.tblForeground {
+		background-color:	#FFFFFF;
+}
+
+.labelHorizontalDivider {
+		background-color:	#b4b4b4;
+		font-size: 0px;
+}
+
+.valueHorizontalDivider {
+		background-color:	#dfdfdf;
+}
+
+.pageBody {
+		background-color:	#f7f8f8;
+}
+
+TD.labelVerticalDivider {
+		border-right: 		1px solid #999999;
+}
+.tblForeground TD, .tblForeground TH {
+		padding:			5px;
+}
+
+/* added for the create project 3 to adjust the padding for the 
+	add following users table, padding was being inherited
+	and threw off the layout of the table.
+*/
+.tblForegroundNoPadding TD, .tblForegroundNoPadding TH {
+		padding:			0px;
+}
+
+.listTable TD, TD.listTable {
+		padding:			0px;
+}
+
+.horizontalCellDivider TD, horizontalCellDivider TH, TD.cellDivider, .cellDivider {
+		padding:			0px;
+		border-bottom: 		1px solid #DFDFDF;
+		font-size:			0px;
+}
+
+/* Add the following class for Data source Backup Manager History tab*/
+.historyBrowse TD, historyBrowse TH {
+	padding:		0px;
+	border-bottom:		1px solid #DFDFDF;
+}
+
+TD.browseRowDivider, .browseRowDivider {
+		padding:			0px;
+		height:				1px;
+}
+
+TD.labelVerticalDivider {
+		padding:			0px;
+}
+
+TD.labelVerticalDividerRight {
+		padding:			0px;
+		background:			url(../tbl-divider-ver.gif) repeat-y;
+		width:				2px; 
+}
+
+TD.valueHorizontalDivider {
+		padding:			0px;
+		font-size:*			0px;
+}
+
+/*
+ * This style is applied to text that is used to describe status
+ * values which are "good"
+ *
+ * Use with:
+ * <SPAN> or <TD>
+ */
+.statusTextGood {
+		color: 			#33CC33;
+}
+
+/*
+ * This style is applied to text that is used to describe status
+ * values which are "bad"
+ *
+ * Use with:
+ * <SPAN> or <TD>
+ */
+.statusTextBad {
+		color: 			#FF0000;
+}
+
+/*
+ * This style is applied to text that is used to describe status
+ * values which are neither good nor bad
+ *
+ * Use with:
+ * <SPAN> or <TD>
+ */
+.statusTextUnknown {
+		color: 			#0000FF;
+}
+
+/*
+ * This class is applied to text that is used to display log contents.
+ *
+ * Use with:
+ * <PRE>
+ *
+ */
+.logText {
+}
+
+/**
+ * Used to format descriptive text under configuration names.
+ *
+ * Use with:
+ * <SPAN>
+ *
+ * See:
+ * websovmgmt/smconfig.html
+ */
+.smallDescriptiveText {
+		font-family: 	Arial,Helvetica,sans-serif;
+		font-size: 		10px;
+}
+
+/*
+ * A wide bar that has text in it labelling a section of the page.
+ *
+ * Use with:
+ * <TR>
+ */
+.adminSectionBar {
+		background-color:	#999999;
+		color: 				white;
+		width: 				100%;
+		text-align:			center;
+}
+
+/*
+ * A tall, narrow bar used on the left side of a set of rows to mark
+ * them as a section.
+ *
+ * Use with:
+ * <TD>
+ */
+ .verticalSectionBar {
+	 	background-color: 	#999999;
+		color: 				white;
+		text-align: 		center;
+}
+
+
+/*
+ *	This class is applied to text that might come before a series of labels
+ * 	explaining their use, etc.
+ *
+ *	Use with:
+ * 		<SPAN> or <TD>
+ */
+.explanatoryText {
+		font-size:			11px;
+		color:				#000000;
+}
+
+
+/*
+ *	This class is applied to text that is displayed on the pages that takes time to process
+ *
+ * Use with:
+ * <TD>
+ */
+.messageWait {
+		font-size:				11px;
+		font-weight:			bold;
+		text-align:				center;
+}
+
+/*
+ * 	The right-aligned bar that contains the images and links. Found
+ *	in the favorites tabs and in discussions, as well as other places.
+ *
+ *	Use with:
+ *		<TR>
+ */
+.imageActionBar, .imageActionBar a {
+		font-size:			10px;
+}
+
+/*
+	The style to use for the label part of the label/value pair.
+
+	Use with:
+		<TD>
+*/
+.label {
+		width:					15%;
+		white-space:			nowrap;
+		color:					#434343;
+		background-color: 		#e2e2e2;
+		border-left: 			1px solid #ffffff;
+		border-top: 			1px solid #ffffff;
+		border-right: 			1px solid #999999;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align:				left;
+		font-weight:			bold;
+		font-size: 				11px;
+}
+
+.adminLabel {
+		width:				15%;
+		white-space:			nowrap;
+		background-color: 		#cccccc;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align:			left;
+		font-size: 			16px;
+		padding: 			0 8px 0 8px;
+}
+
+.adminLabel2 {
+		width:				25px;
+		white-space:			nowrap;
+		background-color: 		#cccccc;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align:			left;
+		font-size: 			16px;
+		padding: 			0 8px 0 8px;
+}
+
+.logoutLabel TD {
+		text-align:				center;
+		font-weight:			bold;
+		font-size: 				11px;
+		padding-top:			20px;
+		padding-bottom:			20px;
+		padding-right:			8px;
+		padding-left:			8px;
+		white-space:			nowrap;
+}
+
+.darkColumnLabel {
+		background-color:		#999999;
+		text-align:			center;
+		color:				white;
+		font-size: 			11px;
+}
+
+.columnLabel {
+		background-color:		#cccccc;
+		text-align:			center;
+		color:				black;
+		font-size: 			11px;
+}
+
+/*
+	Changes the style of editable input text
+
+	Use with:
+		<INPUT TYPE="TEXT" ... >
+		<TEXTAREA ... >
+*/
+.valueEditable {
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:		 		11px;
+		font-weight:	 		normal;
+
+}
+
+/*
+	Changes the white-space property of editable input text for multiline fields 
+	IE11 textarea elements inherit the "white-space" property from their parent div so we need to define it here
+
+	Use with:
+		<TEXTAREA CLASS="valueEditable ...> 
+*/
+.multiline {
+		white-space:			pre-wrap;
+}
+
+/*
+	Defines the style of static text next to the label. The second part of the label/value pair.
+
+	Use with:
+		All input types other than "TEXT"
+		In some cases it may be used as the class for the enclosing table division (<TD>), this is
+		useful when you have multiple elements with static text and a single label, e.g. several radio
+		buttons.
+*/
+.valueStatic {
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:		 		11px;
+		font-weight:	 		normal;
+}
+
+/**
+ *	Background Bar Images
+ *
+ *	fon-table-header.png
+ *	fon-table-header-blue.gif	0px, 0px
+ *	fon-table-header-yellow.gif	0px, -50px
+ *	fon-table-header-gray.gif	0px, -100px
+ *	search-header-gray.gif		0px, -160px
+ *
+ */
+
+.fon-table-header, .boxTitleBar, .buttonBar, .searchComponent, .headerRow, .unlockedContainerAttributeHeaderRow, .channelRow
+{
+	background-image:		url( '../fon-table-header.png' );
+}
+
+/*
+ * 	These classes are used to make a thin divider horizontally.
+ *
+ * Use with:
+ *		<TD>
+ *
+ */
+.lightHorizontalDivider {
+	background-color:			#cccccc;
+}
+
+.horizontalDivider, .heavyHorizontalDivider {
+	background-color:			#666666;
+}
+
+.boxTitleBar
+{
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-weight:			bold;
+		font-size:				12px;
+		color:					#666666;
+		background-position:	0px -100px;
+		background-repeat:		repeat-x;
+		text-align:				left;
+		padding:				3px;
+		padding-left:			10px;
+}
+
+.buttonBar
+{
+	background-position:	0px -100px;
+	background-repeat:	repeat-x;
+	height:			18px;
+	text-align:		center;
+	padding:		5px;
+	font-size:		11px;
+}
+
+/*
+	This class defines the style to use with general buttons.
+
+	Use with:
+		<INPUT TYPE="BUTTON">
+*/
+.button {
+		color: #000000;
+		font-size: 10px;
+		margin: 0 1px;
+}
+
+/*
+	This class defines the style to use with save and apply buttons.
+
+	Use with:
+		<INPUT TYPE="BUTTON">
+		<INPUT TYPE="SUBMIT">
+*/
+.saveButton, .applyButton {
+		color: #000000;
+		font-size: 10px;
+		margin: 0 1px;
+}
+
+/* This section is defines the style for
+   multi select buttons copy, move, delete ...
+*/
+
+.multiButton{
+	font-size:1em;
+	font-family:Tahoma;
+	padding:.3em .6em .3em 2.5em;
+	border:0;
+	background-color:#EFEFEF;
+	color:#000000;
+	display:block;
+	float:left;
+	text-decoration:none;
+	margin:0;
+	cursor:pointer;
+	overflow:visible;
+}
+
+/*
+	This class defines the style to use with cancel, delete, and reset buttons.
+
+	Use with:
+		<INPUT TYPE="BUTTON">
+		<INPUT TYPE="RESET">
+*/
+.cancelButton, .resetButton, .deleteButton {
+	color: #000000;
+	font-size: 10px;
+	margin: 0 1px;
+}
+/*
+	This class defines the style to use with iframe.
+
+*/
+.iFrame {
+	border:none;
+	vertical-align:top;
+}
+/* *********************** Search Classes ****************************** */
+
+/*
+	Defines the style applied to the search bar.
+
+	Use with:
+		<TR>
+*/
+.searchBar {
+		color: 					#333333;
+		font-family: 				Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+
+}
+
+
+.searchBar a {
+		font-family: 				Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-weight:				normal;
+		color: 					#05447e;
+}
+
+.searchBar a:link, .searchBar a:visited {
+		 color: 				#05447e;
+		 text-decoration: 			none;
+}
+
+.searchBar a:hover, .searchBar a:active {
+		 color: 				#05447e;
+		 text-decoration: 			underline;
+}
+
+.searchButton {
+		font-size:	.6em;
+}
+
+.searchMenuSelect
+{
+	background-image:		url( '../searchselectbackground.png');
+	color:				#000000;
+	padding-left:			4px;
+	padding-right:			0px;
+	padding-top:			0px;
+	border:				1px solid #777777;
+	white-space:			nowrap;
+	text-align:			left;
+}
+
+
+/*
+ *	Class that was already in the search page.
+ */
+.searchBut INPUT, SELECT.searchBut  {
+		font-family: 		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-style: 		normal;
+		color: 				#000000;
+}
+
+#searchComponent
+{
+	background-position:	0px -160px;
+	background-repeat:		repeat-x;
+}
+/* *********************** HEADER CLASSES ***************************** */
+
+#topComponent
+{
+	width:		100%;
+}
+
+/*
+	Defines the style to apply to the first bit of text in the header bar.
+
+	Use with:
+		<SPAN>
+*/
+#headerTitle1 {
+		font-family: 		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align:		left;
+		font-size:		11px;
+		color:			#ffffff;
+		margin-left:	7px;
+}
+
+/*
+	Defines the style aplied to the second bit of text in the header bar.
+
+	Use with:
+		<SPAN>
+*/
+#headerTitle2 {
+		font-family: 		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align:		left;
+		font-size:		14px;
+		font-weight:		bold;
+		color:			#ffffff;
+		margin-left:	7px;
+}
+
+/*
+	Defines the style aplied to the User Name in the header bar.
+
+	Use with:
+		<SPAN>
+*/
+#headerUserName {
+		font-family: 		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align:		center;
+		font-size:		11px;
+		font-weight:		bold;
+		color:			#ffffff;
+		padding-left:	10px;
+		padding-right:	10px;
+}
+
+.headerCurrentDate {
+		font-family: 		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align:			center;
+		font-size:			10px;
+		color:				#ffffff;
+}
+
+.headerUserName {
+		font-family: 		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align:		center;
+		font-size:		11px;
+		font-weight:		bold;
+		color:			#ffffff;
+		padding-left:	10px;
+		padding-right:	10px;
+}
+
+.headerCurrentUser {
+		font-size:			11px;
+		font-weight:		bold;
+}
+
+/*
+	Defines the style aplied to the Current Date in the header bar.
+
+	Use with:
+		<SPAN>
+*/
+#headerCurrentDate{
+		font-family: 	Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		color:			#ffffff;
+		font-size:		10px;
+		text-align:		center;
+		padding-left:	10px;
+		padding-right:	10px;
+
+}
+
+
+.headerBar {
+}
+
+
+/*
+ *	A wide bar that has text in it labelling a section of the page.
+ *	See the Task List browse page for an example.
+ *
+ *	Use with:
+ *		<TR>
+ */
+.sectionBar {
+	text-align:			left;
+	background-color:	#aaaaaa;
+	color:				#000000;
+	width:				100%;
+}
+
+
+
+/* *********************** FOOTER CLASSES ***************************** */
+
+/*
+	Defines the style that is applied to the footer bar.
+
+	Use with:
+		<TABLE>
+*/
+.footer {
+		color:			#666666;
+		white-space:		nowrap;
+		width:			100%;
+		font-family: 		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 		10px;
+}
+
+#footer
+{
+	vertical-align:		bottom;
+}
+
+/*
+ *	Defines the style to apply to the Livelink version and copyright section
+ *	of the footer.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ */
+.livelinkVersionAndCopyright {
+		text-align:		left;
+}
+
+/*
+ *	The class set on the dashboard bar when java is disabled.
+ */
+.dashboardNoJava {
+		font-size:		10px;
+}
+
+
+
+/* ***********************  BROWSE CLASSES  ****************************** */
+
+.browseRowDivider {
+		background-color:	#e0e0e0;
+}
+
+.featuredItemBG {
+		background-color:	#999999;
+		height:				1px;
+}
+
+.featuredItemTitle, .featuredItemTitle TD, .browseBoxHeader TD, .browseBoxHeader {
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-weight:		bold;
+		font-size:			12px;
+		color:				#666666;
+}
+
+.featuredItems, .featuredItems TD, .featuredItems TR {
+		background-color:	white;
+}
+
+.browseViewTab {
+	background-color:	#D5EAFF;
+	width:				1%;
+	font-size:			11px;
+}
+
+/*
+ * The style applied to the bar of buttons shown in the browse view and used for
+ * multi-select actions.
+ */
+.multiButtonBar {
+	background-color:		#ffffff;
+}
+
+/*
+ *	The class that defines the styles for every other row of a browse view,
+ *	beginning with the first. Changes, made to anything other than the background
+ *	color, should be reflected in the 'browseRow2' class. This is an odd bit of
+ *	ugliness, but it's better than the alternatives.
+ *
+ *	Use with:
+ *		<TR>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseRow1, .browseRow1 a {
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 			11px;
+		color: 				#333333;
+}
+
+/*
+ * We don't want to set the background-color on the anchor tags since user overrides don't
+ * apply to them.
+ */
+.browseRow1 {
+		background-color: 	#eeeeee;
+		height:				24px;
+		border-bottom:		1px solid #dfdfdf;
+}
+
+/*
+ *	The class that defines the styles for every other row of a browse view,
+ *	beginning with the second. Changes, made to anything other than the background
+ *	color, should be reflected in the 'browseRow1' class. This is an odd bit of
+ *	ugliness, but it's better than the alternatives.
+ *
+ *	Use with:
+ *		<TR>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseRow2, .browseRow2 a {
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 			11px;
+		color: 				#333333;
+}
+
+.browseRow2
+{
+	height:				24px;
+	border-bottom:		1px solid #dfdfdf;
+}
+/*
+ *	Use this style when a browse row isn't appropriate, but the browse item styles are.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		task/edititems.html ( Task List function menu -> Edit Items )
+ *
+ */
+.itemRow {
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 		11px;
+		font-weight: 		normal;
+		color: 			#000000;
+}
+
+/*
+	Defines the styles for the table header in the list view of the browse
+	and sets the defaults for links that appear in the header.
+
+	Use with:
+		<TR>
+*/
+.browseListHeader, .headerRow {
+		background-position:	0px 0px;
+		background-repeat:		repeat-x;
+		font-size: 				11px;
+}
+
+.browseListHeader a, .headerRow a {
+		font-size: 		11px;
+}
+
+.browseListHeader .cellDivider {
+		background-image:		url( '../table-header-divider.gif' );
+		background-repeat:		no-repeat;
+		width:					2px;
+		height:					19px;
+}
+
+/*
+ *	The style to use for the strong background color and light font color.
+ *	Please do not add "width: 1%;" to this style
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		itemtemplate/filtering.html
+ */
+.columnHeaderLabel {
+        white-space:        nowrap;
+        background-color:   #999999;
+        font-family:        Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align: 		left;
+		font-size: 			small;
+		color: 				#ffffff;
+}
+
+/*
+ *  Defines the styles to apply to the text in a header row.
+ *
+ *  Use with:
+ *      <TD>
+ *
+ *  See:
+ *      itemtemplate/namesubstitution.html
+ */
+.browseListHeaderText {
+        text-align:     left;
+        font-size:	11px;
+}
+
+/*
+ *	Defines the styles to apply to the table content with many text columns.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		itemtemplate/namesubstitution.html
+ */
+.browseText {
+		text-align:		left;
+		font-size:		11px;
+}
+
+/*
+ *	Defines the styles to apply to the name and actions items in a
+ *	browse header row.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseListHeaderName {
+		text-align:		left;
+		font-size:		11px;
+}
+
+.browseListHeaderUser, .browseListHeaderActions {
+		text-align:		left;
+		font-size:		11px;
+}
+
+/*
+ *	Defines the styles to apply to the date and functions items in a
+ *	browse  header row.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseListHeaderDate {
+		text-align:		center;
+		font-size:		11px;
+}
+
+.browseListHeaderFunctions{
+		text-align:		center;
+		width:			1%;
+		font-size:		11px;
+}
+
+/*
+ *	Defines the styles to apply to the type item in a
+ *	browse header row.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseListHeaderType {
+		text-align:		center;
+		width:			1%;
+		font-size:		11px;
+}
+
+/*
+ *	Defines the styles to apply to the size item in a
+ *	browse header row.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseListHeaderSize {
+		text-align:		right;
+		font-size:		11px;
+}
+
+/*
+ *	Used for the multi-select checkboxes column
+ */
+.browseListHeaderCheck {
+		text-align:		center;
+		width:			1%;
+		font-size:		11px;
+}
+
+/*
+ * The class applied to a Status column title.
+ */
+.browseListHeaderStatus {
+		text-align:		center;
+		font-size:		11px;
+}
+
+/*
+ *	The class applied to banner images in a container object.
+ *
+ */
+.browseImages {
+		text-align:		center;
+		white-space:		nowrap;
+}
+
+/*
+ *	The class applied to a Status item in a browse list.
+ *
+ */
+.browseItemStatus {
+		text-align:		center;
+		font-size:	11px;
+}
+.browseItemStatusIdle {
+		color:		#00D;
+}
+.browseItemStatusRunning{
+		color:		#090;
+}
+.browseItemStatusStopped{
+		color:		#C00;
+}
+.browseItemStatusPaused{
+		color:		#000;
+}
+
+/*
+ * Defines the styles to apply to the location items in a
+ * browse  header row.
+ *
+ * Use with:
+ * <TD>
+ *
+ */
+.browseListHeaderLocation {
+		text-align: 		left;
+		font-size: 		11px;
+}
+
+.browseItemDivider {
+	height:					24px;
+	width:					2px;
+}
+/*
+ * Defines the styles to apply to the location item in a
+ * browse row.
+ *
+ * Use with:
+ * <TD>
+ *
+ */
+.browseItemLocation {
+		text-align: 		left;
+}
+
+/*
+ * Defines the styles to apply to a the header of columns containing text.
+ *
+ * Use with:
+ * <TD>
+ *
+ */
+ .browseListHeaderLeftText {
+		text-align: left;
+		font-size: 11px;
+}
+
+ .browseListHeaderRightText {
+		text-align: right;
+		font-size: 11px;
+}
+
+ .browseListHeaderCenterText {
+		text-align: center;
+		font-size: 11px;
+}
+
+/*
+ * Defines the styles to apply to a the header of columns containing
+popups.
+ *
+ * Use with:
+ * <TD>
+ *
+ */
+.browseListHeaderDropDown {
+		text-align: 	center;
+		font-size:	11px;
+}
+
+/*
+ * Defines the styles to apply to a the header of columns containing
+numbers.
+ *
+ * Use with:
+ * <TD>
+ *
+ */
+.browseListHeaderNumber {
+		text-align: 	right;
+		font-size:	11px;
+}
+
+/*
+ * Defines the styles to apply to a columns containing text.
+ *
+ * Use with:
+ * <TD>
+ *
+ */
+.browseItemLeftText {
+		text-align: 		left;
+}
+
+.browseItemCenterText {
+		text-align: 		center;
+}
+
+/*
+ *	Defines the styles to apply to the Name item in a
+ *	browse row.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseItemName, .browseItemUser, .browseItemActions {
+		text-align:		left;
+		font-size:		11px;
+}
+
+/*
+ * Defines the styles to apply to the icon tags in Name item in a
+ * browse row. This style causes images to be vertically centered
+ * with respect to text in the line, minimizing impact on line-height.
+ *
+ * Use with:
+ * 	   <SPAN>
+ *
+ * See:
+ *		task/browsetasklist.html
+ */
+.browseInlineIcon {
+		vertical-align:	middle;
+}
+
+/*
+ *	Defines the styles to apply to the Name item in a
+ *	browse row.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseItemNameLargeIcon {
+		text-align:		center;
+		font-size:		11px;
+}
+
+/*
+ *	Defines the styles to apply to the area that displays the "No items to display" message for various browse views.
+ *
+ */
+.browseNoItems {
+		background-color:	#FFFFFF;
+		padding-top:		30px;
+		padding-bottom:		30px;
+		text-align:			center;
+		color:				#888888;
+		font-weight:		bold;
+}
+
+
+/*
+ *	Defines the styles to apply to the area that displays the messages for
+ * 	various browse views when the search criteria returns no results
+ *
+ */
+.browseNoItemsFound {
+		background-color:	#FFFFFF;
+		padding-top:		30px;
+		padding-bottom:		30px;
+		text-align:			center;
+		color:				#666666;
+}
+
+
+/*
+ *	Defines the styles to apply to the date item in a
+ *	browse row.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseItemDate {
+		text-align:		center;
+		white-space: 		nowrap;
+}
+
+/*
+ *	For Milestone Number browse only
+ */
+.browseItemMilestoneNumber{
+		text-align:		right;
+		width:			1%;
+}
+
+/*
+ *	Defines the styles to apply to the functions and type items in a
+ *	browse row.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseItemFunctions {
+		text-align:		center;
+}
+
+.browseItemType{
+		text-align:		center;
+		width:			1%;
+		white-space:	nowrap;
+}
+
+.browseItemCheck {
+		text-align:		center;
+		width:			1%;
+}
+
+.browseItemTypeRight{
+		text-align:		right;
+		width:			1%;
+}
+
+/*
+ *	Defines the styles to apply to the size item in a
+ *	browse row.
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	See:
+ *		webnode/browseview.html
+ */
+.browseItemSize {
+		text-align:		right;
+		white-space: 		nowrap;
+}
+
+.browseItemDropDown {
+		text-align:		center;
+}
+
+.browseItemNumber {
+		text-align:		right;
+}
+
+/* This class is used by user and group page
+ * where the search section is displayed
+ */
+
+.browseUserGroup {
+		background-color: 		#ffffff;
+		border: 				1px solid 	#cccccc;
+}
+
+/*
+ *	Defines the style applied to general drop-down select boxes
+ *
+ *	Use with:
+ *		<SELECT ...
+ */
+select {
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:			11px;
+}
+
+.navSelect, .functionSelect {
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:		11px;
+}
+
+.addItem {
+		background-color:	#d7d7d7;
+}
+
+.addItemSelect {
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:			11px;
+}
+
+
+.addItemMenuSelect
+{
+	background-image:		url( '../additembackground.png');
+	color:					#000000;
+	padding-left:			4px;
+	padding-right:			0px;
+	padding-top:			0px;
+	border:					1px solid #777777;
+	white-space:			nowrap;
+	text-align:				left;
+}
+
+.addItemOutline {
+		background-color:	#cbcbcb;
+}
+
+/*
+ *	Defines the style that applies to items in the catalog view.
+ *
+ *	Use with:
+ *		<TD>
+ */
+.catalog, .catalog a , .catalog a:visited{
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 			11px;
+		font-weight:		bold;
+		color:				#333333;
+}
+.catalog .functionMenuDiv a:link, .catalog .functionMenuDiv a:visited{
+	font-weight:normal;
+}
+
+/*
+ *	Defines the style that applies to items in the subcatalog view.
+ *
+ *	Use with:
+ *		<TD>
+ */
+.subCatalog, .subCatalog a {
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 			11px;
+		font-style: 		normal;}
+
+/*
+ *	Defines the style that applies to links with the mouse over them in the subcatalog view.
+ *
+ *	Use with:
+ *		<TD>
+ */
+.subCatalog a:hover {
+		color: 				#cc0000;
+}
+
+/* **************************  TAB CLASSES  ******************************** */
+
+
+/*
+ *	Defines the styles to apply to the table that contains all the content between
+ *	the tab row and the footer in the info tab display.
+ *
+ *	Use with:
+ *		<TABLE>
+ */
+.infoTable {
+		width:				100%;
+}
+
+/*
+ *	The style for the selected tab in the tabbed views
+ *
+ *	Use with:
+ *		<TD>
+ *
+ *	Includes:
+ *		NOWRAP ALIGN="CENTER" VALIGN="BOTTOM"
+ */
+.selectedTab {
+		text-align:			center;
+		font-style: 		normal;
+		text-decoration: 	none;
+		font-size: 			11px;
+		color: 				#333333;
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-weight: 		bold;
+		white-space:		nowrap;
+}
+
+/*
+ *	The style for the other, unselected tabs in the info tab view
+ *
+ *	Use with:
+ *		<TD>
+ */
+.unselectedTab, .unselectedTab a:link, .unselectedTab a:visited {
+		text-align:			center;
+		font-style: 		normal;
+		text-decoration: 	none;
+		font-size: 			11px;
+		color: 				#05447e;
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-weight: 		bold;
+		white-space:		nowrap;
+}
+
+.unselectedTab a:hover, .unselectedTab a:active {
+		text-align:			center;
+		font-style: 		normal;
+		text-decoration: 	underline;
+		font-size: 			11px;
+		color: 				#05447e;
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-weight: 		bold;
+}
+
+/* ************************** Error Classes ********************************** */
+
+/*
+ *	This class is applied to the table that shows the error messages.
+ *
+ *	Use with:
+ *		<TD>
+ */
+.errorBox, .errorBox a {
+		background-color:	#ffffff;
+		font-style: 		normal;
+		font-size: 			16px;
+		font-weight: 		bold;
+		color: 				#000000;
+	margin: 20px auto;
+}
+
+.errorBox a {
+		color: 				#981b1e;
+}
+
+table.errorBox{
+	-moz-border-radius: 		7px;
+	-webkit-border-radius: 		7px;
+	border-radius: 			8px;
+	border: 			1px solid lightgrey;
+	padding: 			15px;
+}
+
+table.errorBox .errorImage{
+
+	width: 30px;
+
+}
+
+
+
+/* ************************** Login Page Classes ****************************** */
+
+.loginLabel {
+		text-align:		right;
+		font-size:		11px;
+		color:			#333333;
+}
+
+/* ************************** Multiselect Classes *************************** */
+
+/*
+ *	The class set on the header row for the multiple item operation listing
+ *
+ * 	Use with:
+ *		<TR>
+ */
+.multiHeaderRow {
+		font-size:		11px;
+		color:			#000000;
+		background-color:	#CC9999;
+}
+
+
+/*
+ *	The class set on every other row of items, starting with the first in the multiple item operation listing
+ *
+ * 	Use with:
+ *		<TR>
+ */
+.multiRow1 {
+	background-color:		#FFCCCC;
+}
+
+/*
+ *	The class set on every other row of items, starting with the second in the multiple item operation listing
+ * 	Use with:
+ *		<TR>
+ */
+.multiRow2 {
+}
+
+/*
+ *	The class set on the header row for the sub folders in the multiple item operation listing
+ *
+ * 	Use with:
+ *		<TR>
+ */
+
+.subFolderDivider {
+	background-color:			#cccccc;
+	height:						18px;
+	text-align:					center;
+	padding:					5px;
+}
+
+/* ********************************* Task Classes ************************************ */
+.currentMilestone {
+		background-color:	#ffff66;
+		font-weight:		bold;
+}
+
+.late, .error {
+		color:			#FF0000;
+}
+
+.percentBar {
+		background-color:	#009900;
+}
+
+.percentBarLate {
+		background-color:	#FF0000;
+}
+
+/* ************************** Categories Classes **************************** */
+/*
+ *	The style to use on the table that contains the attributes header for a given category.
+ *
+ *	Use with:
+ *		<TR>
+ */
+.attrHeader {
+		text-align:		left;
+		background-color:	#999999;
+		color:			#ffffff;
+}
+
+/*
+ *	The little shadow below the Categories header.
+ *
+ *	Use with:
+ *		<TR>
+ */
+.attrHeaderDrop {
+		background-color:	#440044;
+}
+
+/*
+ *	The styles for the selected category name that is displayed in the header row.
+ *
+ *	Use with:
+ *		<SPAN>
+ */
+.selectedCategory {
+		font-weight:		bold;
+		color:				#666666;
+}
+
+.attrActionImage {
+		padding:				2px;
+}
+
+
+/* *************************************** Web Attribute ******************************* */
+
+/*
+ *	The class applied to the table of attributes that is displayed when one edits or
+ *	views a category node.
+ *
+ *	Use with:
+ *		<TABLE>
+ */
+.attrTable {
+		background-color:	#999999;
+}
+
+/*
+ *	When viewing or editing a category node, this bar is displayed at the top of the table.
+ *
+ *	use with:
+ *		<TR>
+ */
+.editCategoryTitleRow {
+		color:				#666666;
+		background-color:	#cccccc;
+		font-weight:		bold;
+}
+
+/*
+ *	When viewing or editing a category node, this bar is displayed at the top of the table.
+ *	This class is applied to the tile section of that bar.
+ *
+ *	Use with:
+ *		<TD>
+ */
+.editCategoryHeaderRow {
+		color:			#ffffff;
+		font-weight:		bold;
+}
+
+/*
+ *	The label of an attribute when viewing a category.
+ */
+.attrLabel {
+		color:			#ffffff;
+		font-size:		smaller;
+}
+
+.containerAttributeHeader {
+		width:					15%;
+		white-space:			nowrap;
+		color:					#434343;
+		background-color: 		#cccccc;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		text-align:				left;
+		font-weight:			bold;
+		font-size: 				15px;
+}
+
+.unlockedContainerAttributeHeaderRow TD {
+		width:					15%;
+		white-space:			nowrap;
+		color:					#434343;
+		background-position:	0px 0px;
+		background-repeat:		repeat-x;
+		border-left: 			1px solid #ffffff;
+		border-top: 			1px solid #ffffff;
+		border-right: 			1px solid #999999;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-weight:			bold;
+		font-size: 				11px;
+}
+
+/*
+ *	This is the background-color of the specific attributes when they are displayed
+ * 	when a user views a category.
+ *
+ *	You will likely want the background color to be the same as the background color
+ *	of your <BODY> tag.
+ *
+ */
+.specificAttrTable {
+		background-color:	#ffffff;
+		width:				100%;
+}
+
+.specificAttrTable.attributeRow TD,
+.specificAttrTable.containerAttributeHeader,
+.specificAttrTable.unlockedContainerAttributeHeaderRow {
+		padding:			5px;
+}
+
+/*
+ * This style is applied to the box that allows the removal or
+ * addition of rows to an attribute set.
+ */
+.addDeleteBox {
+		text-align:			center;
+}
+
+/************************* icon picker ********************/
+
+/*
+ * This style is applied to the icon picker page for selected icon
+ *
+ */
+.selectedIcon {
+		background-color:		#FFFFCC;
+		text-align:			center;
+}
+
+/*
+ * This style is applied to the icon picker page for unselected icon
+ *
+ */
+.unselectedIcon {
+		text-align:			center;
+}
+
+/* ************************** Channel ************************* */
+
+.newsText {
+		font-size:			11px;
+}
+
+.headline {
+		font-weight:			bold;
+		font-size:			larger;
+}
+
+.byline {
+		font-style:			italic;
+		white-space:			nowrap;
+}
+
+.channelImage {
+		margin-left: auto;
+		margin-right: auto;
+		display: block;
+}
+
+.newsImage {
+		padding:			0px 10px;
+}
+
+.newsSummary {
+		font-size:			smaller;
+}
+
+.newsSummaryDate {
+		font-style:			italic;
+}
+
+.newsSummaryName {
+}
+
+/*
+ * This style is applied to the news row
+ *
+ */
+
+.newsHeaderRow {
+		background-color: 		#e2e2e2;
+}
+
+.channelRow TD
+{
+		background-position:	0px 0px;
+		background-repeat:		repeat-x;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:				11px;
+		font-weight:			bold;
+}
+
+/* *************************************** Users ************************ */
+
+/*
+ * Use for options that are not available.
+ */
+.notAvailable, .notAvailable a {
+		color:				#999999;
+}
+
+.note {
+		color:				#0000cc;
+}
+
+.ugSearchWords, .groupPaneTitles {
+		font-size:			10px;
+		font-weight:			bold;
+}
+
+/* ******************************** Location Display ********************** */
+
+.locationDisplayTrail, .locationDisplayDropdown {
+	background-color:	#e9e9e9;
+}
+
+.locationDisplayDropdown SELECT {
+	font-size:			11px;
+}
+
+.locationDisplayTrailTerminalElement, .locationDisplayTrailNonterminalElement {
+	white-space:		nowrap;
+}
+
+.locationDisplayTrailTerminalElement, .locationDisplayTrailTerminalElement a, .locationDisplayDDTerminalElement {
+	font-weight:		bold;
+}
+
+.locationDisplayTrailPostDivide {
+	font-size:				10px;
+}
+
+.locationDisplayTrailPostDivide a {
+	font-size:				10px;
+}
+
+/* *************************************** Iconbar ************************ */
+
+/*
+ */
+.iconbar, .iconbar a {
+		text-align:			center;
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:			11px;
+		font-weight:		bold;
+}
+
+.icon a {
+}
+
+.iconselect	{
+		background-color:		#ffffff;
+		border:					1px solid #dedede;
+}
+
+/* *************************************** QuickLinks  AND Global Menus ************************ */
+
+.quicklinkBar {
+		border-bottom:			1px solid #ffffff;
+	 	background-color:		#eeeeee;
+}
+
+ /*
+ *
+ */
+.quickLinkBottom {
+		border-top:			1px solid #ffffff;
+ }
+  /*
+ *
+ */
+.quickLinkBarDivider {
+	 	background-color:	#ffffff;
+		border-right:		1px solid #eeeeee;
+ }
+
+ .quicklink
+ {
+	 	background-color:	#eeeeee;
+ }
+
+.quickLink a:visited, .quickLink a:link {
+		font-size:			10px;
+		font-weight:		normal;
+		text-decoration: 	none;
+		color:				#05447e;
+}
+
+.quickLink a:hover,.quickLink a:active {
+		font-size:			10px;
+		font-weight:		normal;
+		text-decoration: 	underline;
+		color:				#05447e;
+}
+
+a.globalMenu:link, a.globalMenu:visited {
+		font-style: 		normal;
+		text-decoration:	none;
+	 	font-size: 			10px;
+		color: 				#05447e;
+		white-space:		nowrap;
+}
+
+a.globalMenu:hover, a.globalMenu:active {
+		font-style:	 		normal;
+		text-decoration: 	none;
+		font-size: 			10px;
+		color: 				#ff0000;
+}
+
+
+/* *************************************** Reports for Notification ************************ */
+
+/*
+ *	Main header for the section
+ */
+.notificationHeader, .notificationHeader a {
+		text-align:		left;
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:		11px;
+		font-weight:		bold;
+}
+
+/*
+ *	Second header for the section
+ */
+.notificationSecondHeader, .notificationSecondHeader a {
+		text-align:		left;
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:		11px;
+}
+
+/*
+ *	Background color for second header
+ */
+.notificationSecondHeaderBg {
+		background-color:	#fff2eC;
+}
+
+/* *************************************** Wizard ************************ */
+
+/*
+ *	Active step fonts
+ */
+
+.wizardActiveStep {
+	color: #000000;
+	font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-size:		11px;
+	font-weight:		bold;
+}
+
+/*
+ *	Inactive step fonts
+ */
+.wizardInactiveStep {
+	color: 				#7a7a7a;
+	font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-size:			11px;
+	font-weight:		bold;
+}
+
+/* *************************************** DHTML Menu Support ************************ */
+
+.menu
+{
+		visibility: 		hidden;
+		z-index: 			1;
+		position:	 		absolute;
+		left:				0px;
+		background-color: 	#aaaaaa;
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:			11px;
+		padding:			1px;
+		border-top:			1px solid #ffffff;
+		border-left:		1px solid #ffffff;
+		text-align:			left;
+}
+
+.functionMenuDiv
+{
+		visibility: hidden;
+		position: absolute;
+		text-align: left;
+}
+
+#functionMenuParent
+{
+	visibility:		hidden;
+	position: 		absolute;
+	top: 			0px;
+	left: 			0px;
+	bottom: 		auto;
+	right: 			auto;
+	text-align: 	left;
+}
+
+#bridgeFrame
+{
+	width: 0px;
+	height: 0px;
+	z-index: 0;
+	visibility: hidden;
+}
+
+.functionMenu
+{
+		z-index: 			2;
+		position:	 		absolute;
+		background-color: 	#aaaaaa;
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:			0px;
+		padding:			1px;
+		border-top:			1px solid #ffffff;
+		border-left:		1px solid #ffffff;
+}
+
+.menuItem
+{
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:			11px;
+		color:				#000000;
+		padding:			4px;
+		padding-left:		8px;
+		font-weight:		normal;
+		background-color: 	#fff;
+		border-right:		1px solid #ffffff;
+		white-space:		nowrap;
+		cursor:				default;
+}
+
+.menuItemLevel2
+{
+	padding-left:28px;
+}
+
+.menuItemLevel3
+{
+	padding-left:48px;
+}
+
+.menuItemWithSubmenu
+{
+		background-image: 	url( ../submenuarrow.gif );
+		background-repeat: 	no-repeat;
+		background-position: 95% 50%;
+		padding-right: 		12px;
+}
+
+.menuItemMore
+{
+		background-image: 	url( ../submenuarrow-down.gif );
+		background-repeat: 	no-repeat;
+		background-position: 95% 50%;
+		padding-right: 		12px;
+}
+
+.menuItemLess
+{
+		background-image: 	url( ../submenuarrow-up.gif );
+		background-repeat: 	no-repeat;
+		background-position: 95% 50%;
+		padding-right: 		12px;
+}
+
+.menuItemHover
+{
+		background-color:	#b3d7e3;
+}
+
+.menuDivider
+{
+		background-color: 	#999999;
+		border-top:			1px solid #eeeeee;
+		font-size:			0px;
+}
+
+.lastItemHilite
+{
+	background-color: 	#eeeeee;
+}
+
+.menu a, .functionMenu a, .subMenu a
+{
+		text-decoration:	none;
+		font-weight:		normal;
+		color:				#000000;
+}
+
+.menu a:hover, .functionMenu a:hover, .subMenu a:hover, .menuItemHover a, .menu a:visited, .functionMenu a:visited, .subMenu a:visited
+{
+		text-decoration:	none;
+		color:				#000000;
+		cursor:				default;
+}
+
+.subMenu
+{
+		background-color: 	#eeeeff;
+		z-index: 			2;
+		visibility:		 	hidden;
+		position: 			absolute;
+		font-family:		Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:			11px;
+		left:				2px;
+		border: 			1px solid #999999;
+}
+
+.selectMenu
+{
+	background-color:		#ffffff;
+	color:					#000000;
+	padding-left:			4px;
+	padding-right:			0px;
+	padding-top:			0px;
+	border:				1px solid #777777;
+	white-space:			nowrap;
+	text-align:			left;
+}
+
+.menuSpacer
+{
+	width:					50px;
+	height:					1em;
+}
+
+.selectTitle
+{
+	color:					#000000;
+	text-decoration:		none;
+	white-space:			nowrap;
+	padding-right:		3px;
+	border-right:			1px solid #999;
+}
+
+.selectTitle a, .selectTitle a:hover, .selectTitle a:visited
+{
+	color:					#000000;
+	text-decoration:		none;
+}
+
+.selectTitle a:hover
+{
+	color:					#f00;
+}
+
+.selectArrow
+{
+	padding:				0px;
+	margin:					0px;
+}
+
+/* special settings for the location drop down menu */
+#LocationSelectTitle
+{
+	background-color:		#fff;
+	border-right:			1px solid #999;
+	padding-right:		6px;
+}
+
+/* special setting for the location drop down menu */
+.locationMenu
+{
+	background-color:		#fff;
+	color:					#000000;
+	padding-left:			4px;
+	padding-right:			0px;
+	padding-top:			0px;
+	border:					1px solid #999;
+	white-space:			nowrap;
+	text-align:				left;
+}
+
+.locationMenu .menuItem, .locationMenu .menuItemHover
+{
+	padding-right:		6px;
+}
+
+.newsTicker
+{
+	position:				relative;
+	height:					15px;
+	overflow: 				hidden;
+}
+
+.newsItem
+{
+	position:				absolute;
+	white-space:			nowrap;
+	height:					11px;
+	padding:				1px;
+}
+
+/* ============================================================= */
+
+.itemCol1
+{
+	float: left;
+	width: 50%;
+}
+
+.itemCol2
+{
+	float: right;
+	width: 49%;
+}
+
+.smallItem
+{
+	padding: 4px 0px;
+}
+
+/************************* Rounded Rectangle Classes **************************/
+
+/**
+ *	These classes are used to render rounded rectangle backgrounds of any color.  They employ 4x4 white triangle images
+ *	with transparent backgrounds to affect the "rounded" corner.  For an example of their usage, see WebDoc's
+ *	overview.html.
+ *
+ *	As of version 1.0.7, Firefox only renders a table cell's background image if the cell has content (and the content's
+ *	dimensions must be large enough to render the entire background image), so an <IMG SRC="`.Img()`spacer.gif" WIDTH="4"
+ *	HEIGHT="4"> must be placed within the <TD>.  IE 6 honors the class width and height, but is unaffected by the
+ *	Firefox-required spacer.
+ *
+ *	cornerbottomleft.gif	0px 0px
+ *	cornerbottomright.gif	0px -4px
+ *	cornertopleft.gif		0px -8px
+ *	cornertopright.gif		0px -12px
+ *
+ */
+
+.cornerBackground, .cornerBottomLeft, .cornerBottomRight, .cornerTopLeft, .cornerTopRight
+{
+	background-image: url( ../corner.png );
+}
+
+.cornerBottomLeft
+{
+	background-position: 0px 0px;
+}
+
+.cornerBottomRight
+{
+	background-position: 0px -4px;
+}
+
+.cornerTopLeft
+{
+	background-position: 0px -8px;
+}
+
+.cornerTopRight
+{
+	background-position: 0px -12px;
+}
+
+/* *************************************** Personal Staging ************************ */
+
+.dragAndDropAlert{
+		background-color:#ffffcc;
+		border:1px solid #999999;
+		padding:5px;
+}
+
+/*
+ *	Primary/secondary action box classes
+ */
+.actionBox, .actionBox a
+{
+	background-color: #ccffff;
+	font-weight: bold;
+	line-height: 150%;
+	text-decoration: none;
+}
+
+.actionBox a:hover
+{
+	text-decoration: underline;
+}
+
+.actionBox hr {
+	color: #aadddd;
+}
+
+.actionBox .smallText, .actionBox .smallText a {
+	font-weight: normal;
+}
+
+.secondaryActionBox
+{
+	background-color: #dddddd;
+}
+
+.secondaryActionBoxLink, .secondaryActionBoxLink a
+{
+	background-color: #dddddd;
+	text-decoration: none;
+}
+
+.secondaryActionBoxLink a:hover
+{
+	text-decoration: underline;
+}
+
+/**
+ *	Action button classes
+ *
+ *	buttoncenter.gif	0px 0px
+ *	buttonleft.gif		0px -25px
+ *	buttonright.gif		0px -50px
+ *
+ */
+
+.buttonBackground, .buttonCenter, .buttonLeft, buttonRight
+{
+	background-image: url( ../button.png );
+}
+
+.buttonCenter, .buttonCenter a, .buttonCenter a:visited
+{
+	background-position: 0px 0px;
+	background-repeat: repeat-x;
+	color: #000000;
+	font-weight: bold;
+	text-decoration: none;
+	text-align: center;
+}
+
+.buttonCenter a:hover
+{
+	color: #981b1e;
+	text-decoration: underline;
+}
+
+.buttonLeft
+{
+	background-position: 0px -25px;
+	width: 8px;
+	height: 25px;
+}
+
+.buttonRight
+{
+	background-position: 0px -50px;
+	width: 8px;
+	height: 25px;
+}
+
+.contentTable
+{
+	width: 100%;
+	border: none;
+	border-spacing: 0px;
+}
+
+/* *************************************** Optimize the Browse page ************************ */
+
+.updatedBrowse
+{
+	border-collapse:	collapse;
+	border-spacing:		0;
+	width:			100%;
+}
+
+.updatedBrowse .browseListHeader TD
+{
+	height: 		19px;
+}
+
+.updatedBrowse .browseListHeader TH
+{
+	border-bottom: 		solid 1px #A5C9E5;
+	height: 		19px;
+	font-weight:		normal;
+}
+
+.updatedBrowse  .browseListHeader .browseListHeaderCheck, .updatedBrowse .browseListHeader .browseListHeaderPromotedCmds
+{
+	border-left:		none;
+	padding:		0;
+}
+
+.updatedBrowse .browseListHeader TD
+{
+	padding:		0 .35em 0 .35em;
+	white-space: 		nowrap;
+}
+
+.updatedBrowse .browseListHeader TH
+{
+	padding:		0 .35em 0 .35em;
+	white-space: 		nowrap;
+	border-left: 		solid 1px #A5C9E5;
+}
+
+.updatedBrowse .browserow1 TD, .updatedBrowse .browserow2 TD
+{
+	padding: 		0 .35em  0 .35em;
+	border-bottom: 		solid 1px #EFEFEF;
+}
+
+.updatedBrowse .promotedCmds
+{
+	white-space: 		nowrap;
+	text-align:		right;
+	width:			1%;
+}
+
+.updatedBrowse .promotedCmds a:link,
+.updatedBrowse .promotedCmds a:visited
+{
+	color:#C8C8C8;
+	text-decoration:none;
+}
+
+.updatedBrowse .browseRowHover .promotedCmds a:link,
+.updatedBrowse .browseRowHover .promotedCmds a:visited
+{
+	color:#00609E;
+}
+
+.updatedBrowse .promotedCmds a:hover
+{
+	text-decoration:underline;
+}
+
+
+.updatedBrowse .browseItemName
+{
+	width:			70%;
+	white-space: 		normal;
+}
+
+
+/* *************************************** Browse Page New Styles For Client Rendering ************************ */
+
+.hlt td {
+		padding: 			0 .35em  0 .35em;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 			11px;
+		font-weight: 			normal;
+		background-color: 		#E2EBF3;
+		color: 				black;
+		white-space: 			nowrap;
+		border-bottom: 			solid 2px;
+		border-bottom-color:		#DDD;
+		height : 			24px;
+}
+
+.hltPageIndicator td {
+		padding: 			0 .35em  0 .35em;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 			11px;
+		font-weight:	 		normal;
+		background-color: 		yellow;
+		color: 				black;
+		white-space: 			nowrap;
+		border-bottom: 			solid 1px;
+		border-bottom-color: 		#DDD;
+		height: 			24px;
+}
+
+.pageSelectorReference {
+		padding: 			0 2px  0 2px;
+		margin: 			0 4px  0 4px;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 			8pt;
+		font-weight: 			normal;
+		color: 				#00609e;
+		white-space: 			nowrap;
+		border: 			solid 1px;
+		border-color: 			#F5F5F5;
+		height : 			15px;
+}
+
+
+.pageSelectorReferenceCurrent {
+		padding: 			0 2px  0 2px;
+		margin: 			0 4px  0 4px;
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size: 			8pt;
+		font-weight: 			normal;
+		color: 				#00609e;
+		white-space: 			nowrap;
+		border: 			1px solid;
+		border-color: 			#A9B7C6;
+		background-color: 		#E2EBF3;
+		height : 			17px;
+}
+
+.valueEditableCell {
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:	 		11px;
+		font-weight:	 		normal;
+		width:				80%;
+		height:				100%;
+}
+.valueEditableCell75 {
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:	 		11px;
+		font-weight:	 		normal;
+		width:				75%;
+		height:				100%;
+}
+
+
+.valueEditableCell50 {
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:	 		11px;
+		font-weight:	 		normal;
+		width:				50%;
+		height:				100%;
+}
+
+.valueEditableCell25 {
+		font-family:			Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+		font-size:	 		11px;
+		font-weight:	 		normal;
+		width:				25%;
+		height:				100%;
+}
+
+#progressPopupDiv {
+		position:			absolute;
+		visibility:			hidden;
+		z-index:			200;
+}
+
+.bcMenuSelect
+{
+	background-image:			url( '../bcselectbackground.png');
+	opacity:					25;
+	color: 						#666666;
+	padding-left:				4px;
+	padding-right:				0px;
+	padding-top:				0px;
+	white-space:				nowrap;
+	text-align:					left;
+	border:						1px solid ;
+	border-color:				#999999;
+	text-decoration:			none;
+}
+
+.bcselectArrow
+{
+	background-image:			url( '../bcselectbackground.png');
+	opacity:					25;
+	padding:					0px;
+	margin:						0px;
+	border-left:				1px solid ;
+	border-color:				#999999;
+	width:						17px;
+}
+
+.bcselectTitle
+{
+	color: 					#666666;
+	text-decoration:			none;
+	white-space:				nowrap;
+	padding-right:				3px;
+	padding-left:				2px;
+	font-size:				8pt;
+}
+
+.bcselectTitle a, .bcselectTitle a:hover, .bcselectTitle a:visited
+{
+	color:					#666666;
+	text-decoration:			none;
+	font-size:				8pt;
+}
+
+.bcselectTitle a:hover
+{
+	color:					#f00;
+	font-size:				8pt;
+}
+
+.searchInitaltext
+{
+	color: 					#333333;
+	font-style: 				italic;
+	font-family:				Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-size:				11px;
+	background-color: 			#efefef;
+}
+
+.browsePaginationBarEdit
+{
+	font-family:				Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-size:		 		8pt;
+	font-weight:	 			normal;
+	text-align:				center;
+	height: 				17px;
+}
+
+.activatePickDivShow
+{
+	visibility: 				visible;
+}
+
+.activateMiniPickDivShow
+{
+	visibility: 				visible;
+	padding-left:				7px;
+}
+.activatePickDivHide
+{
+	visibility: 				hidden;
+	display: 					none;
+}
+
+.browsePickDivShow
+{
+	visibility: 				visible;
+}
+
+.browseMiniPickDivShow
+{
+	visibility: 				visible;
+	padding-left:				8px;
+}
+
+
+.browsePickDivHide
+{
+	visibility: 				hidden;
+	display: 				none;
+}
+
+
+.vcenter
+{
+	min-height: 				12em;
+	display: 				table-cell;
+	vertical-align: 			middle;
+}
+
+/* *************************************** Browse search box style ************************ */
+
+#browsesearch .sbox input
+{
+	float: 					left;
+	border:					1px solid;
+	border-color:				#999999;
+	border-right:				0;
+	width: 					100px;
+	height: 				14px;
+	padding-top: 				2px;
+	padding-right: 				3px;
+	padding-left: 				3px;
+	font-family:				Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-size:		 		8pt;
+	font-weight:	 			normal;
+	color:					#000000;
+}
+
+/* One set for IE */
+#browsesearch .sbox_clearIE
+{
+	background: 				white url('../search_clearblank16.gif') no-repeat top left;
+	border:					1px solid;
+	border-color:				#999999;
+	border-right:				0;
+	border-left:				0;
+	float: 					left;
+	width: 					17px;
+	height: 				19px;
+}
+
+#browsesearch .sbox_r_2IE
+{
+	background: 				white url('../search_btn17.gif') no-repeat top left;
+	float: 					left;
+	width: 					17px;
+	height: 				17px;
+	border:					1px solid;
+	border-color:				#999999;
+	border-left:				0;
+}
+
+.cellTwo
+{
+	background-color: 			#e2ebf3;
+	color: 					#666666;
+	font-family: 				Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-size: 				8pt;
+	width: 					15px;
+	height: 				16px;
+	border: 				1px solid;
+	border-color: 				#999999;
+	padding-top: 				1px;
+	padding-right: 				1px;
+}
+
+/* One set for everyone else  */
+#browsesearch .sbox_clear
+{
+	background: 				white url('../search_clearblank16.gif') no-repeat top left;
+	border:					1px solid;
+	border-color:				#999999;
+	border-right:				0;
+	border-left:				0;
+	float: 					left;
+	width: 					17px;
+	height: 				17px;
+}
+
+#browsesearch .sbox_r_2
+{
+	background: 				white url('../search_btn17.gif') no-repeat top left;
+	float: 					left;
+	width: 					17px;
+	height: 				17px;
+	border:					1px solid;
+	border-color:				#999999;
+	border-left:				0;
+}
+
+.cellTwoIE
+{
+	background-color: 			#e2ebf3;
+	color: 					#666666;
+	font-family: 				Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-size: 				8pt;
+	width: 					15px;
+	height: 				19px;
+	border: 				1px solid;
+	border-color: 				#999999;
+	margin: 				0;
+	padding-top: 				1px;
+	padding-right: 				1px;
+}
+
+.miniPageTableCell
+{
+	padding-top: 				0px;
+}
+
+.targetbrowsePager
+{
+	color: 					#666666;
+	border:					0px;
+	white-space:			nowrap;
+	font-size:				8pt;
+	padding: 				0 4px;
+	margin: 				0 4px  0 2px;
+}
+
+.targetbrowsePagerEndControls
+{
+	padding: 				0px;
+	margin: 				0px;
+}
+
+.targetbrowsePagerCell
+{
+	padding: 				0 4px;
+	border:					1px solid;
+	border-color:				#F5F5F5;
+}
+
+.targetbrowsePagerBlank
+{
+	padding: 				0 1px;
+}
+
+
+.targetbrowsePager  a, .targetbrowsePager a:hover, .targetbrowsePager a:visited
+{
+	color:					#666666;
+	text-decoration:			none;
+	font-size:				8pt;
+}
+
+.tb-title-bar {
+	background: url( '../fon-table-header-gray.gif' ) repeat-x;
+}
+
+.tb-search {
+	width: 150px;
+	border: #bccfd8 1px solid;
+	font-size: 10px;
+}
+.tb-search-dim {
+	font-style: italic;
+	color: #ccc;
+}
+.tb-search-count {
+	color: #33f;
+}
+
+tbody.tb-view {
+	width: 100%;
+	overflow-y: auto; 
+	overflow-x: hidden;
+	display: block;
+	max-height: 400px;
+}
+
+tbody.tb-view-paging {
+	width: 100%;
+	overflow-y: auto; 
+	overflow-x: hidden;
+	display: block;
+	max-height: 350px;
+}
+
+/* *************************************** Current view icon style ************************ */
+/* These styles define how the current view icons are displayed.  This makes the  */
+/* normal hover and link bordering tight to the icon being used.  */
+.currentViewButtonHref
+{	
+	border: 				1px;
+	border-style: 				hidden;
+}
+
+.currentViewButtonHref:active, .currentViewButtonHref:link, .currentViewButtonHref:visited
+{
+	outline: 				0;
+}
+
+.currentViewButtonHref img
+{
+	border:	1px solid transparent;
+	width:	15px;
+	height:	15px;
+}
+
+.currentViewButtonHref:hover img
+{
+	border:	1px dotted #b1b1b1;
+}
+
+.menuItem img
+{
+	margin-right:				.5em;
+	vertical-align: 			middle;
+}
+
+img.statusIcon
+{
+	width:					8px;
+	height:					8px;
+	border:					none;
+}
+
+img.shortcutIcon
+{
+	width:					9px;
+	height:					8px;
+	border:					none;
+}
+
+img.objectIcon
+{
+	width:					16px;
+	height:					16px;
+	border:					none;
+}
+
+img.smallIconImg
+{
+	margin-right:			6px;
+}
+
+.smallIconMap
+{
+	background:				url('../smalliconmap.png') no-repeat;
+	height:					16px;
+	padding:				2px;
+	padding-right:			4px;
+	padding-left:			12px;
+	display:				inline-block;
+	vertical-align:			middle;
+	margin-right:			.5em;
+	font-size:				12px;
+}
+
+/*
+ * 	smallIconMapOthers used for Add Item -- except the ones covered by smallIconMap(../smalliconmap.png)
+ *	For example: 
+ *			Search Administration: System Object Volume
+ */
+.smallIconMapOthers
+{
+	background-position:	0px 0px;
+	height:			16px;
+	padding:		2px;
+	padding-right:		4px;
+	padding-left:		12px;
+	display:		inline;
+	vertical-align:		middle;
+	margin-right:		.5em;
+	font-size:		12px;
+}
+
+.imgCursor
+{
+	cursor:					pointer;
+}
+
+.subtype480	/*appearance*/
+{
+	background-position:	0px 0px;
+}
+
+.subtype131	/*category*/
+{
+	background-position:	-16px 0px;
+}
+
+.subtype207	/*channel*/
+{
+	background-position:	-32px 0px;
+}
+
+.subtype298	/*collection*/
+{
+	background-position:	-48px 0px;
+}
+
+.subtype136	/*compound document*/
+{
+	background-position:	-64px 0px;
+}
+
+.subtype146	/*customview*/
+{
+	background-position:	-80px 0px;
+}
+
+.subtype215	/*discussion*/
+{
+	background-position:	-96px 0px;
+}
+
+.subtype144	/*document*/
+{
+	background-position:	-112px 0px;
+}
+
+.subtype0	/*folder*/
+{
+	background-position:	-128px 0px;
+}
+
+.subtype299	/*report*/
+{
+	background-position:	-144px 0px;
+}
+
+.subtype218	/*poll*/
+{
+	background-position:	-160px 0px;
+}
+
+.subtype202	/*project*/
+{
+	background-position:	-176px 0px;
+}
+
+.subtype384	/*prospector*/
+{
+	background-position:	-192px 0px;
+}
+
+.subtype1	/*alias*/
+{
+	background-position:	-208px 0px;
+}
+
+.subtype2	/*generation*/
+{
+	background-position:	-528px 0px;
+}
+
+.subtype204	/*tasklist*/
+{
+	background-position:	-224px 0px;
+}
+
+.subtype145	/*apptext*/
+{
+	background-position:	-240px 0px;
+}
+
+.subtype140	/*url*/
+{
+	background-position:	-256px 0px;
+}
+
+.subtype128	/*workfmp*/
+{
+	background-position:	-272px 0px;
+}
+
+.subtype190	/*wfstatus*/
+{
+	background-position:	-288px 0px;
+}
+
+.subtype335	/*dtd*/
+{
+	background-position:	-304px 0px;
+}
+
+.subtype905	/*facetfolder*/
+{
+	background-position:	-128px 0px;
+}
+
+.subtype899	/*virtualfolder*/
+{
+	background-position:	-544px 0px;
+}
+
+.subtype528 /*workbench*/
+{
+	background-position:	-560px 0px;
+}
+
+.subtype529 /*workbench folder*/
+{
+	background-position:	-576px 0px;
+}
+
+.subtype530 /*box folder*/
+{
+	background-position:	-592px 0px;
+}
+
+.subtype531 /*box*/
+{
+	background-position:	-608px 0px;
+}
+
+.mimeTypeappexel
+{
+	background-position:	-320px 0px;
+}
+
+.mimeTypeappgif
+{
+	background-position:	-336px 0px;
+}
+
+.mimeTypeappiexpl
+{
+	background-position:	-352px 0px;
+}
+
+.mimeTypeappjpeg
+{
+	background-position:	-368px 0px;
+}
+
+.mimeTypeapppdf
+{
+	background-position:	-384px 0px;
+}
+
+.mimeTypeappppoin
+{
+	background-position:	-400px 0px;
+}
+
+.mimeTypeappproj
+{
+	background-position:	-416px 0px;
+}
+
+.mimeTypeapptaro
+{
+	background-position:	-432px 0px;
+}
+
+.mimeTypeapptext
+{
+	background-position:	-448px 0px;
+}
+
+.mimeTypeappvisio
+{
+	background-position:	-464px 0px;
+}
+
+.mimeTypeappword
+{
+	background-position:	-480px 0px;
+}
+
+.mimeTypeappxml
+{
+	background-position:	-496px 0px;
+}
+
+.mimeTypeappzip
+{
+	background-position:	-512px 0px;
+}
+
+.tinyali
+{
+	background-position:	-528px 0px;
+}
+
+.tinygen
+{
+	background-position:	-537px 0px;
+}
+
+.tinylock
+{
+	background-position:	-545px 0px;
+}
+
+.tinyres
+{
+	background-position:	-554px 0px;
+}
+
+.tinywork
+{
+	background-position:	-563px 0px;
+}
+
+.8space
+{
+	background-position:	-571px 0px;
+}
+
+.quickLinksMap
+{
+	background:				url('../quicklinksmap.png') no-repeat;
+	height:					11px;
+	width:					11px;
+	padding:				1px;
+	padding-left:			10px;
+	display:				inline;
+	vertical-align:			middle;
+}
+
+.personal-workspace
+{
+	background-position:	0px 0px;
+}
+
+.personal-home
+{
+	background-position:	-11px 0px;
+}
+
+.enterprise-workspace
+{
+	background-position:	-22px 0px;
+}
+
+.enterprise-users
+{
+	background-position:	-33px 0px;
+}
+
+.tools-logout
+{
+	background-position:	-44px 0px;
+}
+
+.tools-settings
+{
+	background-position:	-55px 0px;
+}
+
+.help-contents
+{
+	background-position:	-66px 0px;
+}
+
+.help-thispage
+{
+	background-position:	-77px 0px;
+}
+
+.project-overview
+{
+	background-position:	-88px 0px;
+}
+
+.project-workspace
+{
+	background-position:	-99px 0px;
+}
+
+.personal-favorites
+{
+	background-position:	-110px 0px;
+}
+
+/* -----------------------------------------------------------------------
+	Users and Group
+----------------------------------------------------------------------- */
+
+.userlisting{
+	background:transparent url('../guy.gif') no-repeat scroll left bottom;
+	text-indent: 20px;
+	line-height: 16px;
+}
+
+.publicuserlisting{
+	background:transparent url('../publicaccess.gif') no-repeat scroll left bottom;
+	text-indent: 20px;
+	line-height: 16px;
+}
+
+/* -----------------------------------------------------------------------
+	Presentation
+----------------------------------------------------------------------- */
+
+.inheritedContainer
+{
+	color:	gray;
+}
+
+/* -----------------------------------------------------------------------
+	Column Selector
+----------------------------------------------------------------------- */
+
+.columnListing
+{
+	width:30em;
+}
+/* -----------------------------------------------------------------------
+	Admin
+----------------------------------------------------------------------- */
+.admin-location-page-title{
+	font-size:1.6em;
+	font-weight:normal;
+	margin:0.5em;
+	padding:.25em .5em .25em 2.25em;
+	background:transparent url(images/admin_icon32.png) no-repeat left center;
+}
+.location-page-title{
+	font-size:1.6em;
+	font-weight:normal;
+	margin:0.5em;
+	padding:.25em .5em .25em 2.25em;
+	background-color:Transparent;
+	background-repeat:no-repeat;
+	background-position:left center;
+}
+.adminlink{
+	font-size:1em;
+}
+
+/* -----------------------------------------------------------------------
+	Standard items
+----------------------------------------------------------------------- */
+input[type="radio"], input[type="checkbox"]{
+	margin-right:5px;
+	padding-bottom:-2px;
+	vertical-align:text-bottom;
+}
+.vtop{
+	vertical-align:top;
+}
+.footnote{
+	font-size:.8em;
+	margin-left:4px;
+}
+.formnote{
+	font-family: Tahoma;
+	font-size: 0.8em;
+	color: #666666;
+}
+/* -----------------------------------------------------------------------
+	Header
+----------------------------------------------------------------------- */
+#header{
+	clear:both;
+	height:43px;
+	background:#FFF url(images/bg_header1x43.png) repeat-x 0 bottom;
+}
+/*#header-inner{
+	background:transparent url(images/banner_right_ecmsuite320x43.png) no-repeat scroll right bottom;
+}*/
+#logo{
+	margin:0;
+}
+#logo * {
+	background:transparent url(images/logo_otcs250x43.png) no-repeat scroll left bottom;
+	display:block;
+	height:39px;
+	overflow:hidden;
+	text-indent:-200em;
+	width:250px;
+	text-decoration:none;
+	color:#000;
+}
+/* -----------------------------------------------------------------------
+	Menu
+----------------------------------------------------------------------- */
+#nav{
+	background:#C0E1F8 url(images/menu_background_sprite.png) repeat-x left top;
+	overflow:hidden;
+	border-top:1px solid #D6DFE7;
+	border-bottom:1px solid #D6DFE7;
+}
+* html #nav{
+	overflow:visible;
+	width:100%;
+	z-index:1000;
+}
+#nav a{
+	color:#000;
+	text-decoration:none;
+}
+ul.menu-horizontal{
+	height:auto;
+	margin:0;
+	padding:0;
+	width:auto;
+	display:inline;
+	list-style-image:none;
+	list-style-position:outside;
+	list-style-type:none;
+}
+.menu-horizontal li{
+	float:left;
+	background:url(images/menu_separator.png) no-repeat right center;
+	padding-right:.25em;
+}
+ul.menu-horizontal li ul li{
+	background-image:none;
+	position:relative;
+	display:block;
+	clear:both;
+	background:transparent url(images/shadow_right_b24.png) repeat-y;
+	padding:0 3px 0 0;
+	background-position:right -5px;
+}
+.menu-horizontal li:last-child{
+}
+ul.menu-horizontal li ul li a{
+	background:#FFF;
+	padding:0;
+	width:auto;
+}
+ul.menu-horizontal ul{
+	position:absolute;
+	z-index:500;
+	top:auto;
+	display:none;
+	margin:0;
+	padding:0;
+	width:auto;
+	border-top:solid 1px #CCC;
+}
+.menu-horizontal a{
+	display:block;
+	margin:0;
+	white-space:nowrap;
+	padding:1px;
+	font-size:0.8em;
+	cursor:pointer;
+}
+* html .menu-horizontal a{
+	width:1px;
+}
+.menu-horizontal a span{
+	padding:.4em .3em .15em .6em;
+	display:block;
+	font-weight:bold;
+	color:#445056;
+}
+.menu-horizontal a span .topmenu-icon{
+	background:transparent url(images/actions_sprite.png) no-repeat right center;
+	background-position:0 0;
+	height:16px;
+	width:16px;
+	display:inline-block;
+	position:relative;
+	left:.3em;
+}
+* html .menu-horizontal a span .topmenu-icon{
+	display:inline;
+}
+#nav ul li a{
+	padding-right:3px;
+}
+#nav ul li a:hover{
+	background:#F8EAC0 url(images/menu_background_sprite.png) repeat-x left top;
+	background-position:0 -80px;
+}
+.menu-horizontal a:hover span .topmenu-icon{
+	background-position:-16px 0;
+}
+#nav .menu-horizontal li ul li a span{
+	background-image:none;
+	background-color:#FFF;
+	border-left:solid 1px #CCC;
+	padding:.4em .6em;
+	font-weight:normal;
+	color:#000;
+}
+#nav .menu-horizontal li ul li a:hover, #nav .menu-horizontal li ul li a:focus{
+	background-image:none;
+}
+#nav .menu-horizontal li ul li a:hover span, #nav .menu-horizontal li ul li a:focus span{
+	background-color:#F8EAC0;
+	background-image:none;
+}
+#nav li ul li.last-menu-item{
+	background:transparent url(images/shadow_bottom_right_3x100_b24.png) no-repeat right bottom;
+}
+* html #nav li.last-menu-item{
+	padding:0 3px 3px 0;
+}
+#nav li ul li.last-menu-item a{
+	padding:0;
+	background:transparent url(images/shadow_bottom_100x3_b24.png) no-repeat left bottom;
+	padding-bottom:3px;
+	z-index:200;
+	position:relative;
+}
+* html #nav li ul li.last-menu-item a{
+	background:transparent url(images/shadow_bottom_100x3_b24.png) no-repeat left bottom;
+	padding-bottom:3px;
+	margin-bottom:-.25em;
+}
+#nav li ul li.last-menu-item a:hover{
+	background:transparent url(images/shadow_bottom_100x3_b24.png) no-repeat left bottom;
+}
+#nav li ul li.last-menu-item a span{
+	background:#FFF;
+	padding-right:0;
+}
+#nav .help-menu-item div.help-icon{
+	background:transparent url(images/help16_b24.png) no-repeat center;
+	width:16px;
+	height:16px;
+	cursor:pointer;
+	display:inline-block;
+	text-indent:-200em;
+}
+* html #nav .help-menu-item div.help-icon{
+	display:inline;
+}
+#nav ul li.help-menu-item ul li a span{
+	text-indent:0;
+	height:auto;
+	float:none;
+}
+#nav ul li ul li.menu-divider a{
+	border-top:solid 1px #CCC;
+}
+.dropshadow-bottom{
+	background:transparent url(images/shadow_bottom_b24.png) repeat-x left top;
+	height:3px;
+	clear:both;
+}
+/* -----------------------------------------------------------------------
+	Search
+----------------------------------------------------------------------- */
+.search-panel{
+	position:absolute;
+	right:1px;
+	height:auto;
+	overflow:visible;
+	white-space:nowrap;
+	padding-right:2px;
+}
+.search-panel div.search-panel-content
+{
+	border:0;
+	background:none;
+	position:relative;
+}
+.search-panel-open{
+	margin-top:-.825em;
+	margin-right:-1px;
+	position:absolute;
+	display:block;
+	background:transparent url(images/shadow_bottom_right_3x500_b24.png) no-repeat right bottom;
+	z-index:20;
+}
+.search-panel-open div.search-panel-content
+{
+	border-bottom:solid 1px #b3cbdc;
+	border-right:solid 1px #b3cbdc;
+	border-top:solid 1px #b3cbdc;
+	border-left:solid 1px #b3cbdc;
+	background:#dfe9f0;
+	padding: .75em 0 .75em 1em;
+	float:right;
+	display:block;
+}
+.search-panel-open div.search-panel-inner
+{
+	background:transparent url(images/shadow_bottom_b24.png) repeat-x left bottom;
+	float:right;
+	display:block;
+	padding-bottom:3px;
+}
+div.search-action-row{
+	margin-top:.25em;
+	float:right;
+	overflow:hidden;
+	height:1.15em;
+}
+div.search-action-row label, div.search-action-row a{
+	margin-right:.75em;
+	margin-top:.2em;
+	float:left;
+	font-size:0.7em;
+	cursor:pointer;
+	padding-bottom:0.2em;
+	vertical-align:top;
+}
+.show-search-panel{
+	background:transparent url(images/panel_buttons_sprite.png) no-repeat left center;
+	background-position:-48px 0;
+	display:block;
+	width:16px;
+	height:18px;
+	overflow:hidden;
+	text-decoration:none;
+	color:#000;
+	float:left;
+	margin-left:.3em;
+	margin-right:.3em;
+	outline:0;
+}
+.search-panel .searchBoxIsFocused .show-search-panel{
+	background-position:-32px 0;
+}
+a.show-search-panel:hover, .search-panel .searchBoxIsFocused a.show-search-panel:hover{
+	background-position:-64px 0;
+}
+.search-panel-open .show-search-panel,
+.search-panel-open .searchBoxIsFocused .show-search-panel {
+	background-position:0 0;
+}
+.search-panel-open a.show-search-panel:hover,
+.search-panel-open .searchBoxIsFocused a.show-search-panel:hover{
+	background-position:-16px 0;
+}
+.search-text-dim{
+	color:#cccccc;
+	font-style:italic;
+}
+.search-text-normal{
+	color:#000;
+	padding-left:.2em;
+}
+.searchButton{
+	height:1.85em;
+	display:block;
+	text-decoration:none;
+	float:left;
+	cursor:pointer;
+}
+.searchButtonIcon{
+	background:transparent url(images/search_small16_dim.png) no-repeat left center;
+	width:1.85em;
+	overflow:hidden;
+	text-indent:-200em;
+	border:solid 1px #BCCFD8;
+}
+.searchButtonText{
+	margin-left: 3px;
+}
+.searchBoxIsFocused .searchButtonIcon{
+	background:transparent url(images/search_small16.png) no-repeat left center;
+}
+.searchBoxIsFocused .searchButtonText{
+	color:#000;
+}
+.searchButtonIcon:hover, .searchButtonIcon-hover,
+.searchBoxIsFocused .searchButtonIcon-hover
+{
+	border-color: #FFC726;
+	background:transparent url(images/search_small16_mo.png) no-repeat left center;
+}
+.searchButtonIcon:active, .searchButtonIcon-on{
+	background:transparent url(images/search_small16_on.png) no-repeat left center;
+}
+
+#searchBarActionRow a{
+    cursor: pointer;
+    float: left;
+    font-size: 0.7em;
+    margin-right: 0.75em;
+    margin-top: 0.2em;
+    text-decoration: none;
+    color: #05447E;
+}
+#searchBarActionRow a:hover{
+    color: #D39300;
+}
+
+.search-menu-select, .search-menu-select div {
+	float:left;
+}
+.search-menu-select div a, .search-menu-select a{
+	display:block;
+	margin-left:8px;
+	padding:.3em 0 .3em 0;
+	cursor:default;
+}
+.search-menu-select div div span{
+	height:1.6em;
+	display:block;
+}
+* html .search-menu-select div div span{
+	line-height:.3em;
+	float:left;
+}
+.search-menu-select div div span a{
+	padding:.3em 0 0 0;
+}
+* html .search-menu-select div div{
+	padding-left:.6em;
+}
+* html .search-menu-select div div a{
+	margin-left:0;
+}
+.search-options{
+	padding:.5em 1.75em 0 0;
+	clear:both;
+	display:none;
+}
+* html .search-options{
+	padding-top:0;
+	padding-right:2em;
+}
+.search-options label{
+	float:left;
+	margin-right:.75em;
+	margin-top:.2em;
+	line-height:1.6em;
+}
+.search-options div.searchBut{
+	margin:1em 0 0;
+	overflow:inherit;
+	height:21px;
+	font-size:.85em;
+	color:#000;
+}
+#nav .search-panel .search-links a{
+	color:#00609e;
+	font-size:1em;
+	line-height:1.2em;
+	text-decoration:underline;
+}
+.search-menu-select{
+	background:#FFF;
+	color:#000000;
+	border:1px solid #a9b7c6;
+	white-space:nowrap;
+	text-align:left;
+	min-width: 15em;
+	width:auto;
+	width:15em;
+	float:right;
+	position:relative;
+	padding:1px;
+}
+span.select-arrow{
+	background:#FFF url(images/dropdown16.png) no-repeat 1px center;
+	height:18px;
+	width:18px;
+	display:block;
+	overflow:hidden;
+	text-indent:200em;
+	position:absolute;
+	right:0;
+	top:0;
+}
+.select-title{
+	float:none;
+	padding:.3em 0 .3em 0;
+	display:block;
+	cursor:default;
+}
+.icon-select-title{
+	display:block;
+	padding-left:2em !important;
+}
+a.left{
+	float:left;
+}
+.searchBar{
+	font-size:.8em;
+}
+.search-input{
+	border:solid 1px #BCCFD8;
+	font-size:.75em;
+	border-right:0;
+	height:1.48em;
+	width: 220px;
+	float:left;
+	padding-bottom: 1px;
+}
+.search-input-detached{
+	border-right:solid 1px #BCCFD8;
+}
+* html .search-input{
+	padding:2px;
+}
+.search-help{
+	float:left;
+}
+div.search-type{
+	border-bottom:1px solid #BCBCBC;
+	padding-bottom:1em;
+}
+.search-help{
+	float:left;
+}
+.advanced-search
+{
+	float:right;
+}
+
+/* -----------------------------------------------------------------------
+	Breadcrumbs
+----------------------------------------------------------------------- */
+
+#breadcrumbs{
+	clear:both;
+	padding:.5em 1em;
+	overflow:hidden;
+}
+* html #breadcrumbs{
+	overflow:visible;
+	width:100%;
+}
+.separatorImage{
+	background:transparent url(images/breadcrumb_separator8_b8.png) no-repeat right center;
+	padding-right:.5em;
+	margin:0 .2em;
+}
+a.locationDisplayTrailNonterminalElement,
+a.locationDisplayTrailTerminalElement{
+	color:#05447E !important;
+	text-decoration:none;
+}
+a.locationDisplayTrailNonterminalElement:hover,
+a.locationDisplayTrailTerminalElement:hover{
+	color:#05447E !important;
+	text-decoration:underline;
+}
+.breadcrumbs-trail{
+	float:left;
+}
+#DivLocationSelectTitle a
+{
+	white-space:nowrap;
+	text-decoration:none;
+	color:#000;
+	cursor:default;
+}
+.locationSelectArrow
+{
+	border-left:1px solid #999;
+}
+.divLocationMenu
+{
+	background-color:#fff;
+	color:#000000;
+	padding-left:8px;
+	padding-right:0;
+	padding-top:0;
+	border:1px solid #999;
+	white-space:nowrap;
+	text-align:left;
+	float:left;
+	width:17em;
+	margin-right:.5em;
+}
+.locationMenu .menuItem, .locationMenu .menuItemHover
+{
+	padding-right:		6px;
+}
+.navigateUpOneLevel
+{
+	background: transparent url(../webdoc/upalevel.gif) no-repeat scroll 1px center;
+	display:block;
+	width:16px;
+	height:16px;
+	overflow:hidden;
+	text-decoration:none;
+}
+/* -----------------------------------------------------------------------
+	News Ticker
+----------------------------------------------------------------------- */
+
+.newsSource
+{
+	position:				relative;
+	padding-left:			0.7em;
+}
+
+/* -----------------------------------------------------------------------
+	Page Title
+----------------------------------------------------------------------- */
+
+.locationPageTitle
+{
+	clear:both;
+	padding-left:0.9em;
+	padding-top:0.5em;
+}
+.pageTitleIcon
+{
+	float:left;
+	padding-right: 0.2em;
+}
+.pageTitleText
+{
+	margin-top:8px;
+}
+.locationPageTitle h1
+{
+	display:inline;
+	font-size:1.6em;
+	font-weight:normal;
+	margin-top:0.5em;
+	padding:0 0.2em 0 0.3em;
+}
+
+/* -----------------------------------------------------------------------
+	Browse Toolbar
+----------------------------------------------------------------------- */
+#tAddItemPane{
+	float:right;
+	border-left:solid 1px #b3cbdc;
+}
+.toolbar-additem-button{
+	display:block;
+	cursor:pointer;
+	float:left;
+	background:transparent url(../multifilebar.png) no-repeat scroll -50px -180px;
+	margin:0;
+}
+.toolbar-additem-button-mo{
+	background:transparent url(../multifilebar.png) no-repeat scroll -300px -180px;
+}
+.toolbar-additem-button span{
+	width:24px;
+	height:1.95em;
+	display:block;
+	overflow:hidden;
+	text-align:left;
+	text-indent:-200em;
+	text-decoration:none;
+	color:#000;
+	cursor:pointer;
+	background-repeat:no-repeat;
+	background-position:center center;
+}
+.ico-folder-add{
+	background:transparent url(images/ico-folder-add.gif) no-repeat scroll center center;
+}
+.ico-doc-add{
+	background:transparent url(images/ico-doc-add.gif) no-repeat scroll center center;
+}
+.add-item-menu{
+	margin-top:2.15em;
+}
+.add-item-select a{
+	background:transparent url(images/add_item.png) no-repeat .3em center;
+	display:block;
+	text-decoration:none;
+}
+.add-item-select a span{
+	background:transparent url(images/actions16.png) no-repeat right center;
+	padding:0em 1.5em 0em 2.3em;
+	display:inline;
+	line-height:1.95em;
+	overflow:visible;
+	text-indent:0;
+	text-decoration:none;
+	white-space:nowrap;
+}
+.toolbar-wrapper{
+	margin-right:.2em;
+}
+.toolbar-more-button{
+	left: -1000000000px;
+	position: absolute;
+	display:block;
+	cursor:pointer;
+	float:left;
+	background:transparent url(../multifilebar.png) no-repeat scroll -50px -180px;
+	text-decoration: none;
+}
+.toolbar-more-button-mo{
+	background:transparent url(../multifilebar.png) no-repeat scroll -300px -180px;
+}
+.toolbar-more-button span{
+	display:block;
+	overflow:hidden;
+	text-decoration:none;
+	color:#000;
+	cursor:pointer;
+}
+.toolbar-more-button a{
+	display:block;
+	text-decoration:none;
+	padding-right:.2em;
+}
+.toolbar-more-button a span{
+	background:transparent url(images/actions16.png) no-repeat right center;
+	padding:.4em 1.5em .4em .75em;
+	display:block;
+	overflow:visible;
+	text-indent:0;
+	text-decoration:none;
+	white-space:nowrap;
+	position:relative;
+}
+.hidden-toolbar {
+	position:relative;
+	margin-left:100px;
+}
+.moreMenuItem{
+	display:block;
+	float:none !important;
+}
+.toolbar-menu-item{
+	float:left;
+}
+.toolbar-menu-seperator{
+	padding-right:3px;
+	display:block;
+	overflow:hidden;
+	float:left;
+	background: transparent url(images/toolbar_separator.png) no-repeat right center;
+}
+.toolbar-select{
+	margin:0 .75em;
+}
+.toolbar-buttons label{
+	cursor:pointer;
+	display:block;
+	float:left;
+	line-height:1.8em;
+}
+.MultiDetailOperations, .toolbar-buttons{
+	background: transparent url(images/toolbar_background.png) repeat-x left top;
+	overflow:hidden;
+	float:left;
+	display:block;
+	height:1%;
+	width:auto;
+	border-right:solid 1px #b3cbdc;
+}
+.MultiDetailOperations div, .toolbar-buttons div{
+	display:block;
+	overflow:hidden;
+	float:left;
+}
+* html .MultiDetailOperations, * html .toolbar-buttons, * html #tMoreMenuPane, * html #tMoreMenuPaneBottom{
+	overflow:visible !important;
+	position:relative;
+}
+.toolbar-more-button a:active, .toolbar-additem-button a:active{
+	text-decoration:none;
+}
+.toolbar-background{
+	background: transparent url(images/toolbar_background.png) repeat-x left top;
+	overflow:hidden;
+	float:left;
+	display:block;
+	width:auto;
+}
+div.browseview-shim{
+	width:750px;
+	height:0;
+	line-height:0;
+	font-size:0;
+}
+/* -----------------------------------------------------------------------
+	Footer
+----------------------------------------------------------------------- */
+#footer
+{
+	height:28px;
+	padding:0 1em;
+	color:#666666;
+}
+.csx span.username, .csx span.date, .csx .copyright
+{
+	float:left;
+	font-size:0.7em;
+	padding:.7em 0;
+	margin-right:1em;
+}
+.csx .copyright
+{
+	float:right;
+	font-size:0.55em;
+	margin:0;
+	margin-top:3px;
+}
+
+/* -----------------------------------------------------------------------
+	Browse View Switcher
+----------------------------------------------------------------------- */
+
+.browseIcons{
+	float:right;
+	border:solid 1px #D2D2D2;
+	background-color:#FFF;
+	padding:0.2em 0.3em 0 0.2em;
+}
+#browse-view-switcher{
+	overflow:hidden;
+	margin-bottom:.5em;
+	margin-left:.75em;
+}
+*html #browse-view-switcher{
+	overflow:visible;
+	width:100%
+}
+
+/* -----------------------------------------------------------------------
+	Shadows
+----------------------------------------------------------------------- */
+
+.shadow-right{
+	padding-right:3px;
+	background:transparent url(images/shadow_right_b24.png) repeat-y right top;
+	width:100%;
+}
+*html .shadow-right{
+	width:auto;
+	clear:both;
+}
+.bottom-shadows{
+	position:relative;
+	height:3px;
+	width:100%;
+	padding-right:3px;
+}
+*html .bottom-shadows{
+	width:auto;
+	margin-right:-3px;
+}
+.shadow-bottom-inside{
+	background:transparent url(images/shadow_bottom_b24.png) repeat-x left top;
+	margin:0 0 0 3px;
+	height:3px;
+}
+.shadow-bottom-right{
+	background:transparent url(images/shadow_bottom_right_b24.png) no-repeat left top;
+	width:3px;
+	height:3px;
+	position:absolute;
+	right:0;
+	top:0;
+}
+.td-no-line-height{
+	line-height:0;
+	width:100%;
+}
+/* -----------------------------------------------------------------------
+	Sidebar Separator
+----------------------------------------------------------------------- */
+#browseAndSidebarContainer
+{
+	width:100%;
+}
+.hasSidebar .sidebarSeparator
+{
+	cursor:pointer;
+	margin:0;
+	top:0;
+	bottom:0;
+	width:.5em;
+	position:absolute;
+}
+td.browseview-wrapper{
+	position:relative;
+}
+td.browseview-wrapper-padded{
+	padding-right:.75em;
+}
+*html td.browseview-wrapper-padded{
+	padding-right:.4em;
+}
+.hasSidebar .sidebarSeparatorHover
+{
+	background-color:#F8EAC0;
+	border:1px solid #F1C741;
+	width:1em;
+}
+*body .hasSidebar .sidebarSeparatorHover
+{
+	width:1.2em;
+}
+.sidebarOnRight .sidebarSeparator
+{
+	float:right;
+	right:0;
+}
+.sidebarOnRight .sidebarOpen .sidebarSeparator
+{
+	right:.15em;
+}
+*body .sidebarOnRight .sidebarOpen .sidebarSeparator
+{
+	right:.5em;
+}
+.sidebarOnRight .sidebarOpen .sidebarSeparatorHover
+{
+	right:-.2em;
+}
+*body .sidebarOnRight .sidebarOpen .sidebarSeparatorHover
+{
+	right:.2em;
+}
+.sidebarOnLeft .sidebarSeparator
+{
+	float:left;
+	left:-.5em;
+}
+.sidebarOnLeft .sidebarOpen .sidebarSeparator
+{
+	left:.1em;
+}
+*body .sidebarOnLeft .sidebarSeparator
+{
+	left:-.3em;
+}
+*body .sidebarOnLeft .sidebarOpen .sidebarSeparator
+{
+	left:.1em;
+}
+.sidebarOnLeft .sidebarOpen .sidebarSeparatorHover
+{
+	left:-.3em;
+}
+*body .sidebarOnLeft .sidebarSeparatorHover
+{
+	left:-.5em;
+}
+*body .sidebarOnLeft .sidebarOpen .sidebarSeparatorHover
+{
+	left:-.2em;
+}
+.sidebarSeparatorArrow
+{
+	display:none;
+	width:11px;
+	height:20px;
+	position:absolute;
+	z-index:1;
+}
+.sidebarOnLeft .sidebarSeparatorArrow,
+.sidebarOnRight .sidebarOpen .sidebarSeparatorArrow
+{
+	background: transparent url(images/sidebar_arrow_right11x20_b24.png) repeat-x scroll left top;
+	right:-11px;
+	left:auto;
+}
+.sidebarOnRight .sidebarSeparatorArrow,
+.sidebarOnLeft .sidebarOpen .sidebarSeparatorArrow
+{
+	background: transparent url(images/sidebar_arrow_left11x20_b24.png) repeat-x scroll left top;
+	left:-11px;
+	right:auto;
+}
+.sidebarSeparatorHover .sidebarSeparatorArrow
+{
+	display:block;
+}
+/* -----------------------------------------------------------------------
+	Sidebar
+----------------------------------------------------------------------- */
+td.sidebar-wrapper{
+	width:0;
+}
+td.sidebar-wrapper-open{
+	width:20.4em;
+}
+.sidebar
+{
+	border:1px solid #B3CBDC;
+	border-top:0;
+	background-color:#FFF;
+	height:100%;
+}
+.sidebarOuter
+{
+	width:20em;
+	display:none;
+	position:relative;
+}
+.hasSidebar .sidebarOpen .sidebarOuter
+{
+	display:block;
+}
+.sidebarOnRight .sidebarOuter
+{
+	float:right;
+}
+.sidebarOnLeft .sidebarOuter
+{
+	float:left;
+}
+#MainTableAndPaging
+{
+	position:relative;
+	margin-right:-6px;
+}
+.hasSidebar .sidebarOnRight #MainTableAndPaging,
+*body .sidebarOnRight #MainTableAndPaging
+{
+	float:left;
+	margin-left:0;
+}
+.hasSidebar .sidebarOnRight .sidebarOpen #MainTableAndPaging
+{
+	padding-right:.25em;
+}
+*body .hasSidebar .sidebarOnRight .sidebarOpen #MainTableAndPaging
+{
+	padding-right:.75em;
+}
+/* Set Margin for browsers other than IE: */
+.hasSidebar .sidebarOnRight > .sidebarOpen > #MainTableAndPaging
+{
+	margin-right:20em;
+}
+.hasSidebar .sidebarOnLeft #MainTableAndPaging,
+*body .sidebarOnLeft #MainTableAndPaging
+{
+	float:right;
+	margin-left:0;
+}
+.hasSidebar .sidebarOnLeft .sidebarOpen #MainTableAndPaging
+{
+	padding-left:.85em;
+}
+/* Set Margin for browsers other than IE: */
+.hasSidebar .sidebarOnLeft > .sidebarOpen > #MainTableAndPaging
+{
+	margin-left:20em;
+}
+/* Remove float for main table on browsers other than IE. */
+.hasSidebar .sidebarOnLeft > * > #MainTableAndPaging,
+.hasSidebar .sidebarOnRight > * > #MainTableAndPaging
+{
+	float:none;
+}
+/* -----------------------------------------------------------------------
+	Sidebar Panels
+----------------------------------------------------------------------- */
+.sidebarTitleBar
+{
+	background:#B3CBDC url(images/sidebar_header_background.png) repeat-x scroll left top;
+	border-top:1px solid #B3CBDC;
+	padding:2px .5em;
+	height:16px;
+	clear:both;
+	cursor:default;
+}
+.sidebarHasMultiplePanels .sidebarTitleBar
+{
+	cursor:pointer;
+}
+.sidebarHasMultiplePanels .sidebarTitleBarHover
+{
+	background:#B3CBDC url(images/sidebar_header_background_mo.png) repeat-x scroll left top;
+}
+.sidebarHasMultiplePanels .sidebarTitleBarClick
+{
+	background:#B3CBDC url(images/sidebar_header_background_md.png) repeat-x scroll left top;
+}
+.sidebarPanelIsOpen .sidebarTitleBar
+{
+	border-bottom:1px solid #B3CBDC;
+}
+.sidebarTitleBar .sidebarIcon
+{
+	float:left;
+	padding-right:.5em;
+}
+.sidebarTitleBar .title
+{
+	font-family:Tahoma;
+	color:#000;
+	font-weight:bold;
+}
+.sidebarHasMultiplePanels .sidebarTitleBarHover .title,
+.sidebarHasMultiplePanels .sidebarTitleBarClick .title
+{
+	color:#FFF;
+}
+.sidebarPanel .sidebarTitleBar .sidebarPanelControl
+{
+	float:right;
+	background:transparent url(images/sidebarpanel_expand.png) no-repeat right center;
+	height:16px;
+	width:16px;
+	display:none;
+}
+.sidebarHasMultiplePanels .sidebarPanel .sidebarTitleBar .sidebarPanelControl,
+.sidebarHasMultiplePanels .sidebarTitleBar .sidebarPanelControlSeparator
+{
+	display:block;
+}
+.sidebarPanelIsOpen .sidebarTitleBar .sidebarPanelControl
+{
+	background:transparent url(images/sidebarpanel_collapse.png) no-repeat right center;
+}
+.sidebarPanel .sidebarTitleBarHover .sidebarPanelControl,
+.sidebarPanel .sidebarTitleBarClick .sidebarPanelControl
+{
+	background:transparent url(images/sidebarpanel_expand_mo.png) no-repeat right center;
+}
+.sidebarPanel.sidebarPanelIsOpen .sidebarTitleBarHover .sidebarPanelControl,
+.sidebarPanel.sidebarPanelIsOpen .sidebarTitleBarClick .sidebarPanelControl
+{
+	background:transparent url(images/sidebarpanel_collapse_mo.png) no-repeat right center;
+}
+.sidebarTitleBar .sidebarPanelControlSeparator
+{
+	float:right;
+	background:transparent url(images/sidebarpanel_titlebar_separator.png);
+	width:3px;
+	height:16px;
+	margin-right:.4em;
+	display:none;
+}
+.sidebarPanelContents
+{
+	display:none;
+}
+.sidebarPanelIsOpen .sidebarPanelContents
+{
+	display:block;
+}
+/* -----------------------------------------------------------------------
+	Facets
+----------------------------------------------------------------------- */
+fieldset.search{
+	border: 				none;
+	margin: 				0 auto;
+	background-color:		#F6F8F9;
+	padding:                0.5em;
+}
+fieldset.search input, .search input{
+	border:					1px solid;
+	border-color:			#A9B7C6;
+	float: 					left;
+}
+fieldset.search input.box{
+	color: 					#000000;
+	font-size: 				8pt;
+	width: 					180px;
+	height: 				14px;
+	background: 			white;
+	margin-right: 			0px;
+	border-right:			0px;
+}
+fieldset.search input.btn{
+	cursor: 				pointer;
+	text-indent: 			-9999px;
+	background: 			white url(../search_btn17.gif) no-repeat top center;
+	width: 					18px;
+	height: 				18px;
+	margin: 				0;
+}
+.facetStatus{
+	padding:0.5em;
+	clear:both;
+	overflow:hidden;
+}
+.facetStatus img{
+	float:left;
+	margin-right:.5em;
+}
+.dynamic-view-ops a{
+	float:right;
+	position:relative;
+}
+.view-type{
+	float:left;
+}
+.facetLimitReached{
+	background-color:#F8EAC0;
+	padding:0.5em;
+	clear:both;
+}
+.facetSelected{
+	margin:0 0 -.3em 0;
+	line-height:1.5em;
+	overflow:hidden;
+	clear:both;
+	padding:.25em 0 .4em 0;
+	width:100%;
+}
+.facetSelected .facetLineBreak{
+	border-top:solid 1px #DDD;
+	padding-top:.5em;
+	width:20em;
+	overflow:hidden;
+}
+.facetSelected a:link, .facetSelected a{
+	margin-right:.5em;
+}
+.facetSelected .facetMostRecentlySelected
+{
+	background-color:#FFFF99;
+}
+.facetSelected .facetName{
+	color:#666666;
+	word-wrap:break-word;
+	max-width:95%;
+	line-height:1.4em;
+	padding:0 .25em .5em .5em;
+}
+.facetSelected .facetValue{
+	margin:0;
+	word-wrap:break-word;
+	font-weight:bold;
+	text-align:left;
+}
+.facetSelected .displayValue{
+	word-wrap:break-word;
+	max-width:80%;
+	line-height:1.4em;
+	padding-left:2em;
+}
+.facetSelected .facetValue a{
+	text-align:left;
+}
+#facets{
+	clear:both;
+	padding-top:.3em;
+}
+.facetHead{
+	color: #000000;
+	background-color: #EAEEF5;
+	margin: 0 0 2px 0;
+	padding: 0 0 0 2px;
+	background: url(images/facet_bg.png) repeat-x;
+	border: 1px solid #C0D4E3;
+	list-style-type: none;
+	cursor: pointer;
+	white-space:nowrap;
+	overflow:hidden;
+}
+.facetHead a:link, .facetHead a:visited, .facetHead a:hover{
+	color: #000000;
+	text-decoration: none;
+}
+.facetHead img{
+	border: 0 none;
+	margin: 0;
+	padding: 0;
+	float: right;
+}
+.facetList{
+	margin:0;
+	padding:0;
+	overflow: visible;
+	height:100%;
+	padding:1em;
+}
+.facetListClosed{
+	position:absolute;
+	visibility:hidden;
+	display:block;
+	height:auto;
+}
+.facetListOpened{
+	position:static;
+	visibility:visible;
+	display:none;
+}
+*html .facetList, .facetHead{
+	width:20.4em;
+	overflow:hidden;
+}
+.facetList ul{
+	list-style: none;
+	list-style-type: none;
+	padding:0;
+	margin:0 0 1em 0;
+}
+.facetList li{
+	margin-bottom:.1em;
+	height:auto;
+	width:100%;
+	position:relative;
+}
+.facet-remove{
+	width:11px;
+	height:11px;
+	background: transparent url(images/facet_remove.png) no-repeat left top;
+	float:right;
+	margin:.25em 0 0 .4em;
+}
+.facetHighlight{
+	background-position: 0 -14px;
+}
+.facetLowlight{
+	background-position: 0 0;
+}
+.facetRight{
+	float: right;
+}
+.facetList a:link, .facetList a:visited{
+	text-decoration: none;
+	color: #000;
+}
+.facetList a:hover{
+	text-decoration: underline;
+	color: #000;
+}
+.facetList li a{
+	position:relative;
+	overflow:visible;
+	word-wrap:break-word;
+}
+.facetList li span{
+	position:relative;
+	overflow:visible;
+	word-wrap:break-word;
+}
+.facet-background{
+	width:180px;
+	float:right;
+	margin-left:auto;
+	position:absolute;
+	right:0;
+	text-align:right;
+}
+.count-indicator{
+	width:16px;
+	margin-left:1px;
+	background:#d5e4f3;
+	float:right;
+	display:block;
+}
+.facet-item-mo div.facet-background div.count-indicator{
+	background:#a4cde7;
+}
+.controlPanelLink{
+	font-weight: bold;
+	font-family: Arial,Helvetica,sans-serif;
+}
+.facetCount{
+	color: 		#8F8F8F;
+	unicode-bidi: 	embed;
+	padding-left: 	3px;
+}
+
+.facetPanelValue{
+	float: 		left;
+	max-width: 	187px;
+	white-space: 	nowrap;
+	overflow: 	hidden;
+	text-overflow: 	ellipsis;
+	-o-text-overflow: ellipsis;
+}
+
+/* -----------------------------------------------------------------------
+	Browseview
+----------------------------------------------------------------------- */
+.browseRowSelected{
+	background-color:#e8f0f7 !important;
+}
+.browseListHeader{
+	background: #ededed;
+	font-family: Tahoma;
+	font-size: 0.8em;
+	height:2em;
+}
+.browseListHeader th{
+	font-weight: normal;
+}
+.browseListHeader a{
+	text-decoration:none;
+	color: #00609E;
+}
+.browseListHeader-mo a{
+	text-decoration: Underline;
+}
+.browseMultiSelectColor{
+	background-color:#dfe9f0;
+	overflow:hidden;
+}
+.browseMultiSelectColor h2{
+	padding:0;
+	margin:0 1em;
+	float:left;
+	line-height:1.7em;
+}
+*html .browseMultiSelectColor{
+	overflow:visible;
+	width:100%;
+}
+.browseMultiSelectColor select{
+	margin-top:.3em;
+}
+.browseMultiSelectColor #selectAllTopCell{
+	float:right;
+}
+#admin-servers{
+	margin:0;
+}
+span.browseItemNameContainer{
+	padding-right:3px;
+}
+a.browseItemNameContainer{
+	word-wrap:break-word;
+}
+#showBrowsePageSize .menuItem{
+	padding:0;
+	overflow:hidden;
+}
+#showBrowsePageSize .menuItem a{
+	width:100%;
+	display:block;
+	padding:.5em;
+	cursor:pointer;
+}
+#pageFilterTable{
+	overflow:hidden;
+	margin-bottom:.5em;
+	margin-left:.75em;
+}
+.browseItem{
+	text-align:center;
+}
+.browseItemLeft{
+	text-align:left;
+}
+.browseItemRight{
+	text-align:right;
+}
+.browseBanner{
+	background-color:#0065A2;
+	border:1px solid #000000;
+	padding:.5em;
+	/* for browsers not supporting gradient without image */
+	background:url(images/browse_banner_background.png) repeat-x left top;
+	/* standard CSS */
+	background: linear-gradient(to bottom, #0065A2 0%, #1A3A67 100%);
+	/* Microsoft Internet Explorer */
+	filter: progid:DXImageTransform.Microsoft.Gradient(StartColorStr='#0065A2', EndColorStr='#1A3A67', GradientType=0);
+}
+td.browseBanner .title{	
+	font-family:Tahoma;
+	color:#FFFFFF;
+	font-weight:bold;
+	float:left;
+}
+td.browseBanner .title img{	
+	vertical-align:bottom;	
+}
+td.browseBanner  .links a{	
+	color:#FFFFFF;
+}	
+td.browseBanner  .links {	
+	font-family:Tahoma;
+	float:right;
+}
+.browseBannerSpacer{
+	height:.85em;
+}
+.browseBannerCaution{
+	background-color:#FFF200;
+	border:1px solid #000000;
+	height:2.5em;
+ 	padding:.5em;
+  /* for browsers not supporting gradient without image */
+	background:url(images/vf_edit_banner_background.png) repeat-x left top;
+	background-size: 2.5em 100%;
+	/* Mozilla Firefox 3.6 and later: */
+	background: -moz-linear-gradient(top, #F8EAC0, #F8B57E);
+    /* Chrome and Safari:*/
+    background: -webkit-gradient(linear,
+                left top, left bottom, from(#F8EAC0), to(#F8B57E));
+    /* Microsoft Internet Explorer */
+    filter: progid:DXImageTransform.Microsoft.Gradient(
+                StartColorStr='#F8EAC0', EndColorStr='#F8B57E', GradientType=0);
+}
+td.browseBannerCaution .title{	
+	font-family:Tahoma;
+	color:#000000;
+	font-weight:bold;
+	float:left;
+}
+td.browseBannerCaution  .links a{	
+	color:#000000;
+}	
+
+/* for IE use this class on parent elements to make menus appear on top */
+.on-top{
+	z-index: 10000;
+}
+
+/* -----------------------------------------------------------------------
+	Login Message
+----------------------------------------------------------------------- */
+
+.loginMessageConfigure {
+	margin:10px 0 10px 10px;
+	width:98%;
+	height:90px;
+}
+
+/* -----------------------------------------------------------------------
+	Metadata
+----------------------------------------------------------------------- */
+.metadata-widget
+{
+	line-height:1.8em;
+}
+/* -----------------------------------------------------------------------
+	Generic
+----------------------------------------------------------------------- */
+
+div.centerButton
+{
+	text-align:center;
+}
+
+.nameContainer
+{
+	float:left;
+	padding-right:5px;
+}
+
+.nameErrorMsg 
+{
+	color:#FF0000;
+	float:auto;
+	display:inline-block;
+	padding-top:2px;
+	padding-left:4px;
+}
+
+/* -----------------------------------------------------------------------
+	Help
+----------------------------------------------------------------------- */
+
+.helpTitle1
+{
+	font-size:1em;
+	font-weight:bold;
+	color: #000;
+}
+
+.helpTitle2
+{
+	font-size:1.6em;
+	font-weight:bold;
+	color: #0072AA;
+}
+
+.about-page-title{
+	font-size:1.6em;
+	font-weight:normal;
+	margin:0.5em;
+	padding:.25em .5em .25em 2.25em;
+	background:transparent url(images/app_content_server32_b8.png) no-repeat left center;
+}
+
+/* -----------------------------------------------------------------------
+	Sign In
+----------------------------------------------------------------------- */
+#signin-wrapper{
+	background:rgb(255, 255, 255);
+	text-align:center;
+	font-size:16px;
+	overflow:hidden;
+	height:100%;
+}
+#signin-wrapper-inner{
+	background:#FFFFFF url(images/sign_in_body_background.png) repeat-y left top;
+	margin:3em auto 0 auto;
+	width:705px;
+	overflow:hidden;
+	font-size:.8em;
+}
+#signin-wrapper-inner *{
+	line-height:1.6em;
+}
+#signin-wrapper-inner a{
+	font-size:1em;
+}
+#signin-wrapper-bottom{
+	background:#F1F2F2 url(images/sign_in_footer_background.png) repeat-x left top;
+	overflow:hidden;
+	height:100%;
+}
+#signin-bottom{
+	background:transparent url(images/sign_in_bottom_background.png) no-repeat left top;
+	margin:0 auto;
+	width:705px;
+	overflow:hidden;
+	font-size:.8em;
+	height:100%;
+}
+#signin-top{
+	background:transparent url(images/sign_in_top_background.png) no-repeat left top;
+}
+#signin-content{
+	background:transparent url(images/sign_in_alt_header_contentserver.png) no-repeat 2.5em 90px;
+	width:705px;
+	text-align:left;
+	padding:12.4em 0 0 0;
+}
+#signin{
+	background:transparent url(images/sign_in_alt_branding.png) no-repeat left bottom;
+	overflow:hidden;
+	padding-bottom:7em;
+}
+#signin div{
+	margin:.747em 0;
+	clear:both;
+	overflow:hidden;
+}
+#signin .leftpad-container{
+	padding-left:11.8em;
+}
+#signin p{
+	margin-left:11.8em
+}
+#signin-submit{
+	padding-top:.8em;
+}
+#signin label{
+	display:block;
+	text-align:right;
+	float:left;
+	width:10.8em;
+	margin:0em 1em 0 0;
+	word-wrap: break-word;
+	cursor:pointer;
+}
+*html #signin label{
+	margin-top:.3em;
+}
+.signin-inputfield{
+	background:#FFFFFF url(images/bg_form_input290x1.png) repeat-y right top;
+	border:1px solid #9FB5C5;
+	padding:.2em;
+	font-size:1em;
+	width:17.2em;
+	height:1.8em;
+}
+*html .signin-inputfield{
+	margin-left:-.2em;
+	padding:.1em .2em;
+}
+#signin #loginbutton{
+	font-size:1em;
+	line-height:1.4em;
+	border:1px solid #9FB5C5;
+	padding:0em 1em;
+	margin-right:1.7em;
+	cursor:pointer;
+	background:#FFFFFF url(images/bg_form_submit1x21.png) repeat-x left top;
+	float:left;
+}
+#RememberPassword{
+	float:left;
+	display:block;
+	margin:0 0 .5em 0;
+	padding:0;
+}
+#signin label.label-right{
+	width:auto;
+	text-align:left;
+	margin:.2em 0 0 .5em;
+}
+#signin-languages{
+	overflow:hidden;
+	text-align:left;
+	padding:0 4em 0 11.8em;
+	margin-bottom:.6em;
+}
+#signin-languages span, #signin-languages a{
+	margin-right:2em;
+}
+#signin-footer{
+	height:60px;
+	text-align:left;
+	padding-left:11.8em;
+}
+#signin-footer #footer{
+	padding:0;
+}
+#signin-footer #footer .copyright{
+	float:none;
+}
+#signin-footer #footer .date{
+	display:none;
+}
+#signin-messages{
+	padding:0 4em 0 11.8em;
+}
+#customLoginText, #signin-message{
+	padding:0 2em .3em 0;
+}
+
+/* -----------------------------------------------------------------------
+	Text Document
+----------------------------------------------------------------------- */
+.SpellChecker{
+	display:none;
+}
+
+/* -----------------------------------------------------------------------
+	Facet Trees
+----------------------------------------------------------------------- */
+td.facet-tree h3{
+	overflow:hidden;
+	clear:both;
+	border-bottom:solid 1px #ccc;
+	margin:0;
+	padding:.25em .5em;
+	font-weight:normal;
+	line-height:2em;
+	font-size:1em;
+	height:1%;
+}
+td.facet-tree h3 span{
+	float:left;
+}
+div.scroll-wrapper{
+	overflow:auto;
+}
+.icn-link{
+	display:block;
+	overflow:hidden;
+	text-indent:-200em;
+	text-decoration:none;
+	cursor:pointer;
+}
+.add-item-button{
+	width:16px;
+	height:16px;
+	background: transparent url(images/add_item_button.png) no-repeat left top;
+	float:left;
+	margin:.1em 0 0 .25em;
+}
+.remove-item-button{
+	width:16px;
+	height:16px;
+	background: transparent url(images/remove_item_button.png) no-repeat left top;
+	float:left;
+	margin:.1em 0 0 .25em;
+}
+ul.facet-tree select{
+	float:left;
+	line-height:1.3em;
+}
+
+ul.facet-tree, ul.facet-tree ul{
+	list-style:none;
+	background: transparent url(images/tree_line_v_1x4.png) repeat-y left top;
+	padding:.75em 0 0 0;
+	width:100%;
+	margin:0 1em;
+	overflow:hidden;
+	clear:both;
+}
+ul.facet-tree li{
+	background: transparent url(images/tree_line_h_16x1.png) no-repeat 1px 1em;
+	padding-left:1em;
+	padding:0 0 .75em 1em;
+	overflow:hidden;
+	height:1%;
+	display:block;
+	float:left;
+	clear:both;
+	width:100%;
+}
+ul.facet-tree li div.facet-tree-add-remove{
+	overflow:hidden;
+	display:block;
+	float:left;
+	padding:.4em 8em .4em .4em;
+	color:#3f6faf;
+	position:relative;
+}
+.hover-box{
+	position:absolute;
+	right:.4em;
+	width:7.5em;
+}
+.level-text{
+	float:right;
+}
+.facet-tree-add-remove-show{
+	background-image:none;
+	background:#c8d6e6;
+}
+ul.facet-tree li div.facet-tree-add-remove div{
+	float:left;
+	height:.8em;
+	overflow:visible;
+}
+ul.facet-tree li div.facet-tree-add-remove span{
+	text-align:right;
+	font-size:.7em;
+	line-height:1.4em;
+}
+ul.facet-tree li.last-child{
+	background: transparent url(images/tree_line_h_last36x50.png) no-repeat left 1em;
+	padding-bottom:0;
+}
+ul.facet-tree li.has-children{
+	background: transparent url(images/tree_line_h_w_children36x16.png) no-repeat left 1em;
+}
+ul.facet-tree li.has-children-last-child{
+	background: transparent url(images/white1x1.png) repeat-y left top;
+	padding-left:0;
+}
+ul.facet-tree li.has-children-last-child ul.first{
+	margin-left:2em;
+}
+ul.facet-tree li.has-children-last-child div.first{
+	overflow:hidden;
+	height:1%;
+	background: transparent url(images/tree_line_last_w_children36x32.png) no-repeat left 0;
+	padding-left:1em;
+}
+* html ul.facet-tree li.has-children-last-child div.first{
+	overflow:visible;
+}
+.facet-tree-wrapper
+{
+	line-height:0em;
+}
+/* -----------------------------------------------------------------------
+	Document Class
+----------------------------------------------------------------------- */
+.docClassInput{
+	float:left;
+	margin-right:.5em;
+}
+.docClassInputLabel{
+	margin-left:.5em;
+}
+#docClassNameArea{
+	margin-bottom:.5em;
+	line-height:2em;
+}
+
+/* -----------------------------------------------------------------------
+	Location selection box
+----------------------------------------------------------------------- */
+.browse-control{
+	float:left;
+	font-size: 10px;
+	padding:0.4em;
+}
+.browse-control input{
+	vertical-align:middle;
+}
+.location-ctrls  {
+	padding-top:0.65em
+}
+.location-box{
+	clear:both;
+	margin:5px 0;
+}
+
+/* -----------------------------------------------------------------------
+	Mimetype Alias
+----------------------------------------------------------------------- */
+.mimetype-shim{
+	width:75em;
+	height:0;
+	line-height:0;
+}
+.clear{
+	clear:both;
+	line-height:0;
+	height:0;
+	font-size:0;
+}
+ul.item-list {
+	width: 100%;
+	list-style: none;
+	overflow:hidden;
+	margin:0;
+	padding:0;
+	padding-top: 0.625em;
+	line-height:1.6em;
+}
+ul.item-list li.select-all{
+	clear:both;
+	overflow:hidden;
+}
+ul.item-list li img, ul.item-list li input{
+	float:left;
+}
+ul.item-list li img{
+	margin:.1em .5em 0 0;
+}
+ul.item-list li {
+	margin:0;
+	padding:0;
+	line-height:1.8em;
+}
+ul.item-list li input{
+	margin:.25em .5em 0 0;
+	padding:0;
+	width:13px;
+}
+* html ul.item-list li input{
+	margin-top:0;
+}
+ul.item-list label{
+	cursor:pointer;
+}
+ul.item-list li.mime-display{
+	float: left;
+	width: 32% !important;
+	margin-bottom: .875em;
+	word-wrap:break-word;
+	padding-right:.5em;
+}
+ul.item-list li.alias-display{
+	float: left;
+	width: 24% !important;
+	margin-bottom: .875em;
+	word-wrap:break-word;
+	padding-right:.5em;
+}
+ul.item-list li.alias-display-noWrapText{
+	float: left;
+	width: 24% !important;
+	margin-bottom: .875em;
+	word-wrap:normal;
+	padding-right:.5em;
+}
+ul.item-list li.select-all{
+	margin-bottom: .875em;
+}
+.alias-input{
+	margin:0 .5em;
+}	
+.alias-name{
+	margin-left: 0.75em;
+	font-size: 1.2em;
+}
+
+/* -----------------------------------------------------------------------
+	Facet More Menu
+----------------------------------------------------------------------- */
+div.scroll{
+	height: 447px;
+	overflow: auto;
+	border: 1px solid #AAA;
+	background-color: #fff;
+	padding: 8px;
+	font-size: 12px;
+	display: inline-block;
+	width: 700px;
+	margin-top: 8px;
+}
+* html div.scroll {
+	width: 720px;
+}
+.div.scroll.smallFootprint{
+	width: 342px;
+}
+div .scroll.smallFootprint{
+	width: 342px;
+}
+.left-more-panel{
+	overflow: hidden;
+	float: left;
+	width: 720px;
+}
+.left-more-panel.smallFootprint {
+	width: 360px;
+}
+.more-items {
+	font-size: 12px;
+}
+.more-items td{
+	line-height: 1.6em;
+	vertical-align: top;
+	padding: 0 1em .5em 0;
+}
+.more-items-shim{
+	width: 325px;
+	height: 0;
+	line-height: 0;
+}
+.more-items label{
+	cursor:pointer;
+}
+.more-item-checkbox{
+	margin: 0 .5em 0 0;
+	padding: 0;
+	width: 1.2em;
+	height: 1.2em;
+}
+.right-more-panel{
+	width: 245px;
+	float: right;
+}
+.selected-facet-display{
+	font-weight: bold;
+}
+.facetMore{
+	font-size:	12px;
+}
+.facetMore .headerArea{
+	margin: 0 0 .5em;
+	line-height: 1.8em;
+	height: 1.8em;
+}
+.facetMore .typeahead{
+	width: 300px;
+	height: 1.2em;
+}
+.facetMore .typeahead.smallFootprint{
+	display: inline-block;
+	overflow: auto;
+}
+.facetMore .typeahead.smallFootprint .typeaheadPromptText{
+	width:		130px;
+}
+.facetMore .typeaheadArea{
+	float: right;
+	display: none;
+}
+.facetMoreWithLookup .typeaheadArea{
+	display: block;
+}
+.facetMore .typeaheadPromptText{
+	color: #AAA;
+	font-style: italic;
+}
+.facetMore .sortingOptions{
+	float: right;
+}
+.facetMore .loadingArea{
+	position: absolute;
+	top: 70px;
+	text-align: center;
+	background-color: #FFF;
+}
+.facetMore .loadingMessage{
+	background-image: url("../circleecm_progmeter40x40.gif");
+	background-repeat: no-repeat;
+	background-position: 16px 17px;
+	padding-left: 40px;
+	border: 1px solid #aaa;
+	line-height: 75px;
+	width: 150px;
+	margin: 0 auto;
+}
+.facetMore .more_message{
+	font-weight: bold;
+	position: absolute;
+	bottom: 10px;
+	left: 15px;
+}   
+.selected-more-facet{
+	clear: both;
+	overflow: hidden;
+	margin-bottom: .75em;
+}
+.selected-more-facet span{
+	float: left;
+	width: 87%;
+	white-space: nowrap;
+	overflow: hidden;
+	padding-right: 16px;
+	text-overflow: ellipsis;
+	-o-text-overflow: ellipsis;
+}
+.selected-more-facet span:hover {
+	text-overflow: clip;
+	white-space: normal;
+    word-break: break-all;    
+}
+#facets .loadingArea {
+	padding: 15px 10px;
+	font-weight: bold;
+	text-align: center;
+	vertical-align: middle;
+	background: lightgrey;
+}
+#dialog-heading{
+	float:		left;
+	margin:		0;
+	font-size:	12px;
+}
+.more-items-list {
+	display: 	table;
+}
+.more-items-list ul {
+	width: 		100%;
+	padding: 	0;
+	margin: 	0;
+	list-style: 	none;
+	display: 	inline-block;
+}
+.more-items-list ul li {
+	float: 		left;
+	width: 		333px; 
+	padding: 	0;
+	margin: 	0 0 10px 0;
+	line-height: 	1.8em;
+}
+.more-items-list .element
+{
+	font-size: 	1em;
+	margin: 	0; 
+	width: 		278px; 
+	white-space: 	nowrap;
+	overflow: 	hidden;
+	text-overflow: 	ellipsis;
+	-o-text-overflow: ellipsis;
+}
+
+/* -----------------------------------------------------------------------
+	Refresh every X seconds select
+----------------------------------------------------------------------- */
+.refresh-select{
+	margin:0 .4em 1em 0;
+	text-align: right;
+}
+/* -----------------------------------------------------------------------
+	Columns tab
+----------------------------------------------------------------------- */
+ul.column-list {
+	width: 100%;
+	list-style: none;
+	overflow:hidden;
+	margin:0;
+	padding:0;
+}
+
+.pointer {
+	cursor: pointer;
+}
+
+/* -----------------------------------------------------------------------
+	Channel Styles
+----------------------------------------------------------------------- */
+.newsText {
+	line-height: 1.2em;
+}
+.news-unselectedItem {
+	padding: 0px 3px 10px 3px;
+	margin: 1px 0px 0px 2px;
+	spacing: 0px;
+	border: 3px solid Transparent;
+}
+.news-unselectedItem td {
+	padding: 1px;
+}
+.news-selectedItem {
+	background-color: #eef2f7;
+	padding: 0px 3px 10px 3px;
+	margin: 1px 0px 0px 2px;
+	spacing: 0px;
+	border: 3px solid #00b0f0;
+}
+.news-selectedItem td{
+	padding: 1px;
+}
+.newsHeaderRow {
+	background-color: #e2e2e2;
+}
+.news-headline a:link, .news-headline a:active, .news-headline a:visited {
+	font-style: Bold;
+	font-size: 1.8em;
+	line-height: 1.2em;
+	text-decoration: none;
+	color: #000;
+}
+.news-headline a:hover {
+	text-decoration: underline;
+}
+.newsEdit .viewAttachment a:link, .newsEdit .viewAttachment a:active, .newsEdit .viewAttachment a:visited {
+	text-decoration: none;
+	color: #DBDFE3;
+}
+.newsEdit .viewAttachment a:hover {
+	text-decoration: underline;
+	color: #4875AC;
+}
+.news-selectedItem .newsEdit .viewAttachment a:link, .news-selectedItem .newsEdit .viewAttachment a:active, .news-selectedItem .newsEdit .viewAttachment a:visited {
+	text-decoration: none;
+	color: #4875AC;
+}
+.news-selectedItem .newsEdit .viewAttachment a:hover {
+	text-decoration: underline;
+	color: #4875AC;
+}
+.news-border {
+	background-color: white;
+	padding: 15px;
+	margin: 0px;
+	border: 1px solid #808080;
+}
+.news-story-headline {
+	font-style: Bold;
+	font-size: 2.5em;
+	text-decoration: none;
+	color: #000;
+}
+/* -----------------------------------------------------------------------
+	Virtual Folders Styles
+----------------------------------------------------------------------- */
+#SelectedFacetsModified{
+	padding-left: .75em
+}
+/* -----------------------------------------------------------------------
+	Date Picker Styles
+----------------------------------------------------------------------- */
+.ui-datepicker-trigger { 
+	position:relative;
+	padding:2px 0 0 0;
+}
+
+/* -----------------------------------------------------------------------
+	Colour Picker Styles
+----------------------------------------------------------------------- */
+.colour-picker-preview {
+	border:1px solid lightgrey;
+	float:left;
+	margin-left:5px;
+}
+.colour-picker-area {
+	clear:both;
+	padding-top:5px;
+}
+.colour-picker-table {
+	border: 1px solid darkgrey;
+}
+.colour-picker-cell {
+	border: 1px solid darkgrey;
+	padding:0px;
+}
+
+/* -----------------------------------------------------------------------
+     Module install/mgmt pages 
+----------------------------------------------------------------------- */
+
+.webInstruction 
+{
+	display: 			block;
+}
+.webInstructionMore 
+{
+	display: 			none;
+}
+
+.webInstructionText {
+	color:				gray;
+	padding-top:			5px;
+	padding-left:			15px;
+	padding-bottom:			5px;
+}
+
+.webInstructionTextWarning{
+	color:				red;
+	padding-top:			5px;
+	padding-left:			15px;
+	padding-bottom:			5px;
+}
+
+.webInstructionText a:link, .webInstructionText a:visited{
+	padding:				0.35em;
+	text-decoration: 		none;
+	border: 				1px solid #FFFFFF;
+	background-color: 		#FFFFFF;
+}
+.webInstructionText a:hover{
+
+	text-decoration: 		underline;
+	border: 				1px solid #ECDA71;
+	background-color: 		#FFFFD9;
+}
+
+/* -----------------------------------------------------------------------
+	LiveReport Styles
+----------------------------------------------------------------------- */
+
+
+.reportConfig
+{
+	height: 493px; 
+	overflow: auto;
+	background-color: #fff;
+}
+
+* html .reportConfig 
+{
+	height:575px;
+}
+
+#reportcontainer 
+{
+	display: table;
+}
+
+#reportcontainer #row  
+{
+	display: table-row;
+
+}
+
+.outerReportContainer
+{
+		visibility: hidden;
+}
+
+
+#reportcontainer #row  #left {
+	vertical-align:top;
+	display: table-cell;
+	width:425px;
+	padding: 5px;
+}
+
+#reportcontainer #row #right {
+	vertical-align:top;
+	text-align:right; 
+	display: table-cell;
+	padding: 5px;
+}
+
+.reportSQLArea
+{
+	display: block;
+	width: 100%;
+	height: 100%;
+	font-size: 12px; 
+	font-family: monospace;
+}
+
+/* IE ONLY */
+* html #reportcontainer #row  #left  {
+	float:left;
+}
+* html #reportcontainer #row #right {
+	float:right;
+}
+* html .reportSQLArea
+{
+	height: 350px;
+}
+
+.reportsubLabel {
+	padding: 5px;
+}
+
+/* 
+	Drag and Drop Styles, moved from dndfile.css
+	The dndfile.css was breaking webdav drag and drop view
+*/
+.dnd_listingtext
+{
+    padding: 	5px 3px 3px 5px;
+}
+
+#dnd_status
+{
+	text-align:	center;
+	display:	block;
+	font-size:	12pt;
+	color: 		#BBBBB6;
+	padding: 	10px 5px 10px 5px;
+}
+
+#dnd_progresstotal
+{
+	border: 		1px solid #E6E6DC;
+	border-radius: 	4px;
+	display: 		none;
+	position:		absolute;
+	width:			50%;
+	z-index:		1000;
+}
+
+.dnd_progresstotal-label
+{
+	float: 			left;
+	margin-left:	45%;
+	margin-top: 	2px;
+	font-weight:	bold;
+}
+
+.dnd_dropWindowTarget
+{
+	float: 				left;
+	color: 				white;
+	background-color: 	#66FFFF;
+	opacity:			0.45;
+	border: 			3px dashed #136B6B;
+ 	position:			absolute;
+}
+
+.dnd_dropWindowTarget.hover
+{
+	border: 	3px solid #0099FF;
+}
+
+.dnd_dropWindowTargetText
+{
+	float: 			left;
+	font-weight:	bold;
+	font-size:		30pt;
+	color: 			white;
+	opacity:		1.0;
+ 	position:		absolute;
+ 	text-align: 	center;
+ }
+
+.ui-progressbar.otcolor .ui-progressbar-value 
+{ 
+	background: 	#00FF66; 
+}
+
+.dnd_listingtext
+{
+    	padding: 	0 3px 0 20px;
+}
+
+.dnd_listheadingtext
+{
+    	padding: 	0 3px 0 5px;
+	font-weight: 	bold;
+}
+
+.dndSkippedItems
+{
+	visibility:	hidden;
+}
+
+#dndSkippedItemsDetails
+{
+	max-height:	160px;	
+	width:		428px;
+}
+
+#dndSkippedItemsDetails.scroll
+{
+	overflow: 	auto;
+	border: 	1px solid #E4E5E6;
+	max-height:	155px;	
+	width:		430px;
+	padding: 	0;
+}
+
+#dndSkippedItemsSummary
+{
+	overflow: 	hidden;
+	max-height:	160px;	
+	width:		428px;
+}
+
+#dndSupportEnabledIndicatorDiv
+{
+	width:24px;
+	padding: 3px 0 0 5px;
+}
+
+/*
+    css styles for tabs in tabber.html 
+*/
+.cs-tabrow 
+{
+    list-style:         none;
+    padding:            0 0 0 8px;
+    margin:		0;
+    line-height:        24px;
+    overflow:           hidden;
+    position:           relative;
+    min-width:          80px;
+    font-size:          11px;
+    font-family:        Tahoma, Verdana, Geneva, Arial, Helvetica, sans-serif;;
+}
+
+.cs-tabrow li 
+{
+    border: 1px solid #AAA;
+    background: #e2e2e2;
+    display: inline-block;
+    position: relative;
+    z-index: 0;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    box-shadow: 0 3px 3px rgba(0, 0, 0, 0.4), inset 0 1px 0 #FFF;
+    margin: 0 -5px;
+    padding: 0 20px;
+    font-weight:    bold;
+}
+
+.cs-tabrow a 
+{
+    color:              #05447e;
+    text-decoration: none;
+}
+
+.cs-tabrow li.selected 
+{
+    background: #FFF;
+    color: #333;
+    z-index: 2;
+    border-bottom-color: #FFF;
+}
+
+.cs-tabrow:before 
+{
+    position: absolute;
+    content: " ";
+    width: 100%;
+    bottom: 0;
+    left: 0;
+    border-bottom: 1px solid #AAA;
+    z-index: 1;
+}
+
+.cs-tabrow li:before,
+.cs-tabrow li:after 
+{
+    border: 1px solid #AAA;
+    position: absolute;
+    bottom: -1px;
+    width: 5px;
+    height: 5px;
+    content: " ";
+}
+
+.cs-tabrow li:before 
+{
+    left: -6px;
+    border-bottom-right-radius: 6px;
+    border-width: 0 1px 1px 0;
+    box-shadow: 2px 2px 0 #D1D1D1;
+}
+
+.cs-tabrow li:after 
+{
+    right: -6px;
+    border-bottom-left-radius: 6px;
+    border-width: 0 0 1px 1px;
+    box-shadow: -2px 2px 0 #D1D1D1;
+}
+
+.cs-tabrow li.selected:before 
+{
+    box-shadow: 2px 2px 0 #FFF;
+}
+
+.cs-tabrow li.selected:after 
+{
+    box-shadow: -2px 2px 0 #FFF;
+}
+
+.discovery-mode-container
+{
+    position: absolute;
+    right: 0px;
+    background-color:#F3901D;
+    color:white;
+    padding:.5em 1em .5em 1em;
+    margin-right:1em; margin-top: .5em;
+    border-radius:4px;
+    cursor: pointer;
+}
+
+// Styles used for spinner
+.progressPopupDivPanel
+{
+                border:			1px #D8D8D8 solid; 
+                padding:		10px 15px;
+}
+
+.progressPopupInnerPanel
+{
+                height:			70px;
+}
+
+
+.progressPopupDivPanelText
+{
+                color:			#848484;
+                font-size:		16px;
+                padding-left:	80px;
+                line-height:	70px;
+}
+
+// Styles used on the reset page 
+
+.reset-blockuispinner
+{
+	left:			2%;
+	top:			10px;
+}
+
+.reset-restartMsg
+{
+	top: 			30px;
+	position: 		absolute;
+	left: 			97px;
+	padding:		7px;
+	font-size:		14px;
+	text-align: 	center;
+}
+
+.reset-restartMsgDone
+{
+	left: 			0;
+	width:			95%;
+}
+
+#reset-restartMsgContainer
+{
+	height: 		70px;
+}
+
+.reset-centerMessageText
+{
+	text-align:		center;
+	padding:		5px 10px;
+}
+
+.reset-centerMessageTextHeader
+{
+	padding:		5px 10px;
+	font-size:		14px;
+	font-weight:	bold;
+}
+
+.reset-detailsSectionEntry 
+{
+	color: 			RGB( 117, 121, 124 );
+	font-family: 	Arial, Tahoma, Verdana, Helvetica;
+	font-size: 		11px;
+	padding:		0 5px 0 0;
+}
+
+#reset-detailsSectionText
+{
+	padding: 0 0 5px 0;
+}
+
+.reset-detailsSectionDivider
+{
+	color:			RGB( 117, 121, 124 );
+	width:			70%;
+	margin:			1px auto 13px auto;
+	overflow:		hidden;
+	text-align:		center;
+}
+
+.reset-detailsSectionDivider:before, .reset-detailsSectionDivider:after
+{
+	content:		"";
+	vertical-align:	top;
+	display:		inline-block;
+	width:			50%;
+	height:			0.65em;
+	border-bottom:	1px solid #ccc;
+	margin:			0 2% 0 -55%;
+}
+.reset-detailsSectionDivider:after
+{
+	margin:			0 -55% 0 2%;
+}
+
+#userConfirmHeading 
+{
+	font-weight: bold;
+	font-size: 16px;
+	color: #660000;
+}
+
+td.lastcolumn 
+{
+	padding-right:2%;
+}
+
+td.nopadding 
+{
+	padding: 0;
+}
+
+.level2-field
+{
+	margin-left: 25px;
+	display: inline;
+}
+
+td.img-right
+{
+	padding-left:	95%;
+}

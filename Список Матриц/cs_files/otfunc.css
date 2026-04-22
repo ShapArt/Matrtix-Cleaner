@@ -1,0 +1,21 @@
+ .OTmacro_underTickerList {
+	display: inline;
+	width: 100%;
+	padding: 0 0 0 0;
+	margin: 0 0 0 0;
+	list-style-type: none;
+}
+  
+.OTmacro_underTickerList li{ 
+	float:left;
+	margin-right:1em;
+}
+
+.ot_nodelist ul{
+float:left;
+list-style-type:none;
+margin: 1em 4em 1em 0;
+padding: 0 0 0 0;
+}
+
+.ot_clear{ clear:both;}
