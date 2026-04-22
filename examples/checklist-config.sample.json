@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0.0",
+  "run": [
+    "route_failure",
+    "card_validation",
+    "counterparty_error",
+    "sum_limits",
+    "main_pattern",
+    "supp_pattern",
+    "signer_bundle_4_rows"
+  ],
+  "severityThreshold": "warning",
+  "report": {
+    "format": "human",
+    "includeRecommendations": true
+  }
+}

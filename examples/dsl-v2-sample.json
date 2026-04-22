@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "2.0.0",
+  "sourceMetadata": {
+    "requestId": "REQ-2026-04-22-001",
+    "author": "matrix-ops",
+    "createdAt": "2026-04-22T00:00:00Z",
+    "description": "Пример pipeline: doc type + legal entity + checklist"
+  },
+  "matrixQuery": {
+    "matrixName": "Договор Правовая дирекция"
+  },
+  "selection": {
+    "group": "supplemental_rows",
+    "filters": {
+      "requiredDocTypes": ["ДС"],
+      "matchMode": "all"
+    }
+  },
+  "operations": [
+    {
+      "type": "add_doc_type_to_matching_rows",
+      "payload": {
+        "rowGroup": "supplemental_rows",
+        "requiredDocTypes": ["ДС"],
+        "matchMode": "all",
+        "newDocType": "Доп. карта изменений"
+      },
+      "options": {
+        "sourceRule": "project_pattern:supplemental_rows"
+      },
+      "preview": {
+        "enabled": true,
+        "visual": true
+      },
+      "apply": {
+        "requireDraft": true
+      },
+      "rollbackHint": {
+        "strategy": "before_snapshot"
+      }
+    },
+    {
+      "type": "add_legal_entity_to_matching_rows",
+      "payload": {
+        "rowGroup": "supplemental_rows",
+        "requiredDocTypes": ["ДС"],
+        "matchMode": "all",
+        "legalEntity": "ООО Тест-ЮЛ"
+      },
+      "options": {
+        "sourceRule": "project_pattern:supplemental_rows"
+      }
+    },
+    {
+      "type": "checklist_signing_rules",
+      "payload": {}
+    }
+  ]
+}

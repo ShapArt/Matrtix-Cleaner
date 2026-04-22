@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0.0",
+  "groups": [
+    {
+      "id": "main_contract_rows",
+      "title": "Основные договоры",
+      "match": {
+        "containsAny": [
+          "договор",
+          "основной договор",
+          "main contract"
+        ]
+      }
+    },
+    {
+      "id": "supplemental_rows",
+      "title": "Доп соглашения",
+      "match": {
+        "containsAny": [
+          "дс",
+          "доп",
+          "дополнительное соглашение",
+          "supplemental"
+        ]
+      }
+    }
+  ]
+}

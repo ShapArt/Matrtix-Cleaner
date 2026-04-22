@@ -1,0 +1,19 @@
+{
+  "name": "ot-matrix-automation",
+  "version": "1.0.0",
+  "description": "Тесты и окружение для userscript автоматизации матриц OpenText (Matrix Cleaner).",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-userscript.mjs",
+    "test": "playwright test",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:all": "npm run test:unit && npm test",
+    "smoke": "npm run build && npm run test:unit && playwright test -g \"smoke|1\\. detects matrix list page|25\\. end-to-end smoke flow\""
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "ajv": "^8.17.1"
+  }
+}

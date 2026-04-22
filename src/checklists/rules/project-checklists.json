@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0.0",
+  "checklists": [
+    { "id": "route_failure", "title": "Маршрут не формируется", "severity": "error" },
+    { "id": "card_validation", "title": "Красные поля / валидация карточки", "severity": "error" },
+    { "id": "counterparty_error", "title": "Ошибка по контрагентам", "severity": "warn" },
+    { "id": "profitability_type", "title": "Тип сделки по доходности", "severity": "warn" },
+    { "id": "dfk", "title": "Проверка ДФК", "severity": "warn" },
+    { "id": "poultry_function", "title": "Птицеводство / Для целей функции", "severity": "warn" },
+    { "id": "confidentiality", "title": "Конфиденциальность / соглашение о сотрудничестве", "severity": "warn" },
+    { "id": "offer_quasi_contract", "title": "Квазидоговор / оферта", "severity": "warn" },
+    { "id": "sum_limits", "title": "Сумма / лимиты по своду", "severity": "error" },
+    { "id": "standard_form_robot", "title": "Стандартная форма / робот", "severity": "warn" },
+    { "id": "counterparty_before_list", "title": "Проверка контрагентов перед ЛС", "severity": "warn" },
+    { "id": "main_pattern", "title": "Корректность паттерна основных договоров", "severity": "error" },
+    { "id": "supp_pattern", "title": "Корректность паттерна доп соглашений", "severity": "error" },
+    { "id": "signer_bundle_4_rows", "title": "Корректность 4-строчного подписантного bundle", "severity": "error" }
+  ]
+}

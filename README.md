@@ -1,45 +1,258 @@
-# Matrix Cleaner
+# Matrix Cleaner — автоматизация матриц согласования OpenText
 
-<p align="center">
-  <a href="https://github.com/ShapArt/Matrtix-Cleaner"><img alt="Repository" src="https://img.shields.io/badge/GitHub-Matrtix--Cleaner-111111?style=for-the-badge&logo=github"></a>
-  <a href="https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/matrix-cleaner.user.js"><img alt="Install Userscript" src="https://img.shields.io/badge/Tampermonkey-Install%20Userscript-f2c94c?style=for-the-badge"></a>
-  <img alt="OpenText" src="https://img.shields.io/badge/OpenText-Approval%20Matrix-2f80ed?style=for-the-badge">
-</p>
+Пользовательский скрипт **`matrix-cleaner.user.js`** для страниц OpenText Content Suite (`/otcs/cs.exe`). Это развитие исходного «очистителя матрицы»: сохранены сценарии dry-run, запуска правок и экспорта, добавлены модульные блоки — каталог матриц, движок правил, поиск контрагента, мастер подписантов и пакетный импорт.
 
-Userscript for Tampermonkey that automates partner cleanup on OpenText approval matrix pages.
+**Репозиторий:** [github.com/ShapArt/Matrtix-Cleaner](https://github.com/ShapArt/Matrtix-Cleaner)  
+**Прямая установка (обновление скрипта):** [https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/matrix-cleaner.user.js](https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/matrix-cleaner.user.js)
 
-## What It Does
+---
 
-- applies the built-in OpenText filter for the `Контрагент` column
-- builds a deterministic plan only for filtered rows
-- removes a single partner token from a row
-- removes the whole row when the partner is the only one in it
-- supports `dry-run`, JSON export, CSV export, and error logging
-- skips risky `Исключить` rows by default to avoid broadening the rule scope
+## Что умеет скрипт
 
-## Install
+| Область | Возможности |
+|--------|-------------|
+| **Матрица** (страница открытой матрицы) | Правила (rule engine), dry-run и выполнение, стоп, экспорт JSON/CSV/логов, драйвер поиска контрагента, мастер подписантов, пакетный импорт |
+| **Список матриц** | Режим каталога: разбор таблицы, поиск по названию, быстрое открытие выбранной матрицы |
+| **Безопасность** | Проверка статуса **Черновик**, лимит затронутых строк, подтверждение опасных удалений, по умолчанию пропуск строк с условием **Исключить**, явная пометка ручной проверки для неоднозначных операций |
+| **Пакетный импорт** | Вставка TSV/CSV в поле, опционально файл `.xlsx` (первая вкладка), классификация с «уверенностью» и подсказками **Batch hints** для сомнительных строк |
+| **Отчётность** | Превью до применения, фильтр лога (все / неоднозначные), копирование в буфер (неоднозначные, пропущенные, ошибки), бейдж риска, горячие клавиши и фокус панели |
 
-1. Install Tampermonkey in your browser.
-2. Open the raw script link:
-   - `https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/matrix-cleaner.user.js`
-3. Confirm installation in Tampermonkey.
-4. Keep Tampermonkey auto-update enabled.
+Панель открывается кнопкой **MC** на странице; элементы внутри панели недоступны, пока панель не раскрыта.
 
-## Auto-Update
+---
 
-This repository is configured so that when `matrix-cleaner.user.js` changes on `main`, GitHub Actions bumps the userscript `@version` automatically. That lets Tampermonkey detect and deliver the update on every machine where the script is installed.
+## Установка для пользователя
 
-## Files
+1. Установите расширение **Tampermonkey** (или совместимый менеджер userscript) в браузер.
+2. Откройте файл `matrix-cleaner.user.js` из этого репозитория (или ссылку *raw* выше) и подтвердите установку/обновление скрипта.
+3. Зайдите на нужный сайт OpenText так, чтобы в URL был путь **`/otcs/cs.exe`** (как в `@match` скрипта).
+4. На странице матрицы или списка матриц появится плавающая кнопка **MC** — нажмите её, чтобы открыть панель инструментов.
 
-- `matrix-cleaner.user.js` — the production userscript
-- `CHANGELOG.md` — release notes
-- `.github/workflows/auto-bump-userscript-version.yml` — automatic version bump on push
-- `scripts/bump_userscript_version.py` — version bump helper
+Если кнопки нет: проверьте, что скрипт включён, домен совпадает с правилами Tampermonkey, страница полностью загрузилась.
 
-## Notes
+---
 
-The script is tightly coupled to OpenText matrix internals such as `sc_ApprovalMatrix`, `#sc_ApprovalMatrix`, row `itemid`, partner aliases, and token-input markup. If another matrix uses different aliases or a different filter DOM, those selectors and helpers may need adjustment.
+## Как пользоваться (кратко)
 
-## License
+1. Откройте матрицу в режиме редактирования (по правилам вашей организации).
+2. Нажмите **MC** → откроется панель.
+3. Для разовых операций используйте блоки **Dry-run** / **Run** (или соответствующие кнопки в UI — как подписано в панели).
+4. Для пакета: вставьте таблицу в поле **Batch Import** → **Preview batch** → при необходимости **Run batch** только для строк без «ручной проверки».
+5. Экспортируйте отчёты (JSON, CSV, логи) при необходимости передачи в Excel, Jira и т.д.
 
-MIT
+Подробности по полям импорта и типам операций — ниже в этом README.
+
+---
+
+## Режимы страницы
+
+### Режим матрицы (`objAction=OpenMatrix` и аналог)
+
+- операции движка правил;
+- dry-run и выполнение;
+- кнопка остановки;
+- экспорт JSON/CSV/логов;
+- драйвер поиска контрагента;
+- мастер подписантов;
+- пакетный импорт.
+
+### Режим каталога (страница списка матриц)
+
+- извлечение каталога из таблицы / запасной источник данных;
+- поиск по названию матрицы;
+- быстрое открытие выбранной матрицы.
+
+---
+
+## Правила безопасности (по умолчанию)
+
+- Применение критичных изменений ожидает статус матрицы **Черновик** (Draft).
+- Строки с условием **Исключить** по умолчанию пропускаются (`skipExclude` можно переопределить в API).
+- Ограничение на максимальное число затронутых строк.
+- Подтверждение перед деструктивным удалением строк.
+- Неподдерживаемые и неоднозначные операции явно помечаются; «плохой» статус running-sheet блокируется без явного override в API.
+
+Используйте скрипт в рамках политики ИБ и процессов вашей компании.
+
+---
+
+## Формат операции (Rule Engine)
+
+Пример JSON одной операции:
+
+```json
+{
+  "type": "remove_counterparty_from_rows",
+  "matrixName": "Договор Правовая дирекция",
+  "scope": {},
+  "filters": {},
+  "payload": {
+    "partnerName": "КУЗНЕЦОВСКИЙ КОМБИНАТ ООО"
+  },
+  "options": {
+    "skipExclude": true,
+    "deleteIfSingle": false
+  }
+}
+```
+
+Поддерживаемые значения поля **`type`**:
+
+- `replace_approver` — замена согласующего  
+- `remove_approver` — снятие согласующего  
+- `replace_signer` — замена подписанта  
+- `add_signer_bundle` — пакет подписанта  
+- `change_limits` — лимиты  
+- `expand_legal_entities` — юрлица  
+- `expand_sites` — площадки  
+- `patch_doc_types` — типы документов  
+- `add_doc_type_to_matching_rows` — массовое добавление типа документа по паттерну ALL/ANY  
+- `add_change_card_flag_to_matching_rows` — проставление признака изменения карточки по паттерну  
+- `add_legal_entity_to_matching_rows` — массовое добавление юрлица по паттерну  
+- `remove_counterparty_from_rows` — удаление контрагента из строк  
+- `delete_rows_if_single_counterparty` — удаление строк при единственном контрагенте  
+- `find_counterparty_everywhere` — поиск контрагента по матрице/каталогу  
+- `find_user_everywhere` — поиск пользователя/подписанта/согласующего  
+- `checklist_route_failure`, `checklist_card_validation`, `checklist_signing_rules` — диагностические чеклисты  
+- `matrix_audit` — аудитная операция формирования отчёта  
+
+**Замечание:** `replace_approver` / `remove_approver` при разрешимых ID используют нативное обновление исполнителей в колонках-функциях (не подписание). Если из данных страницы безопасно вывести план нельзя, в превью/отчёте будет **manual review required**.
+
+---
+
+## Пакетный импорт
+
+### Версия 1: вставка TSV/CSV
+
+- Вставьте текст таблицы в область **Batch Import**.
+- Нажмите **Preview batch**.
+- Строки с низкой уверенностью помечаются как `manual review required`.
+- **Run batch** запускайте только для строк, которые вы осознанно готовы применить.
+- Поддерживаются псевдонимы колонок для согласующих/подписантов (например `current_approver` / `new_approver`, `current_signer` / `new_signer`) наряду с полями контрагента.
+- В превью для ручной проверки выводятся явные причины в духе **`Batch hints`**.
+
+### Версия 2: файл XLSX
+
+- Выберите файл `.xlsx` во входе файла; скрипт подгружает парсер в браузере и читает **первый лист**.
+- Дальше тот же конвейер классификации, что и для TSV/CSV.
+
+Неизвестный тип строки в пакете не подменяется произвольной операцией: такая строка уходит в ветку «неизвестный тип» с ручной проверкой и подсказками из метаданных пакета.
+
+---
+
+## Превью, отчёты, интерфейс панели
+
+До применения в отчёте видны тип действия по строке, причина совпадения, снимки до/после (где это выводится из данных страницы).
+
+После применения и в процессе работы:
+
+- лог в панели;
+- переключатель фильтра лога: **все** / **неоднозначные**;
+- кнопки **Copy ambiguous** / **Copy skipped** / **Copy errors** (TSV в буфер);
+- блок быстрых счётчиков triage (`ambiguous` / `skipped` / `errors`);
+- бейдж **risk** в шапке (`ok` / `warn` / `error`) в соответствии с серьёзностью triage;
+- подсказка на бейдже: клик, двойной клик, Shift+клик, Alt+клик;
+- кнопка **?** рядом с бейджем — всплывающая шпаргалка (клик снаружи, **Esc**, кнопка **Close**); при открытии фокус на **Close** для клавиатуры;
+- при открытии панели фокус переходит на панель, при закрытии — обратно на **MC**;
+- **Escape**: сначала закрывает подсказку по риску, если она открыта, иначе закрывает всю панель (фокус на **MC**);
+- экспорт JSON, CSV, группированных логов;
+- в отчёте сохраняются неоднозначные, пропущенные и ошибочные строки.
+
+---
+
+## Публичный API (консоль и автотесты)
+
+Глобальный объект: **`window.__OT_MATRIX_CLEANER__`**.
+
+| Метод | Назначение |
+|--------|------------|
+| `refreshPartners()` | Обновить каталог контрагентов |
+| `getPartnerCatalog()` | Список контрагентов |
+| `getMatrixCatalog()` | Каталог матриц (режим списка) |
+| `previewRun(opts)` | Превью одной «чистки» / сценария |
+| `runCleanup(opts)` | Выполнение cleanup |
+| `previewRuleBatch(operations, opts)` | Превью массива правил |
+| `runRuleBatch(operations, opts)` | Запуск массива правил |
+| `runPartnerSearchDriver(partnerName, opts)` | Драйвер поиска контрагента |
+| `getDiagnostics()` | Снимок окружения (диагностика) |
+| `getReportBuckets()` | Группы отчёта: ok / skipped / errors / ambiguous |
+| `getReportSummary()` | Сводные счётчики |
+| `getTriageCounts()` | Счётчики triage |
+| `getTriageSeverity()` | `ok` / `warn` / `error` |
+| `getPanelSeverity()` | Уровень риска для шапки статистики |
+| `toggleRiskBadgeFilter()` | Переключение фильтра лога с бейджа |
+| `triggerRiskBadgeCopy()` | Копирование неоднозначных (TSV) |
+| `triggerRiskBadgeCopyErrors()` / `triggerRiskBadgeCopySkipped()` | Копирование ошибок / пропущенных |
+| `toggleRiskHelpPopover()` / `closeRiskHelpPopover()` / `isRiskHelpPopoverOpen()` | Попап помощи по риску |
+| `getAmbiguousReport()` | Только неоднозначные / manual |
+| `copyAmbiguousToClipboard()` / `copySkippedToClipboard()` / `copyErrorsToClipboard()` | Копирование в буфер |
+| `setLogFilter(mode)` / `getLogFilter()` | `all` или `ambiguous` |
+| `closePanel()` / `isPanelOpen()` | Панель |
+| `getLastReport()` | Последний отчёт |
+| `stopRun()` | Остановка |
+| `getConfig()` | Текущая конфигурация |
+
+---
+
+## Разработка и автотесты (Playwright)
+
+В каталоге проекта есть `package.json` и тесты в `tests/`. Команды:
+
+```powershell
+cd D:\Other\Cherkizovo\Matrix
+npm install
+npm run build
+npx playwright install
+npm test
+```
+
+### Windows: если не находится `node` / `npm` / `npx`
+
+Установите **Node.js LTS** ([nodejs.org](https://nodejs.org/) или `winget install OpenJS.NodeJS.LTS`), **перезапустите терминал**, проверьте:
+
+```powershell
+node --version
+npm --version
+npx --version
+```
+
+При необходимости добавьте в переменную среды **PATH** пользователя каталог `C:\Program Files\nodejs\`.
+
+Дополнительно:
+
+- `npm run build` — сборка userscript в `dist/matrix-cleaner.user.js`  
+- `npm run test:unit` — unit tests (schema/presets)  
+- `npm run test:headed` — тесты с окном браузера  
+- `npm run test:ui` — интерактивный UI Playwright  
+- `npm run test:all` — unit + e2e  
+- `npm run smoke` — build + unit + smoke e2e набор  
+
+История изменений по версиям — в **`CHANGELOG.md`**.
+
+---
+
+## Структура репозитория (важное)
+
+| Файл / папка | Описание |
+|--------------|----------|
+| `matrix-cleaner.user.js` | Основной userscript |
+| `tests/matrix-automation.spec.js` | E2E-сценарии |
+| `playwright.config.js` | Настройка Playwright |
+| `CONFIG_SCHEMA.json` | JSON DSL v2 schema |
+| `examples/` | Примеры данных для импорта |
+| `docs/` | Дополнительная документация |
+| `RELEASE_NOTES.md` | Итоги релиза v5 |
+| `MIGRATION_GUIDE.md` | Руководство миграции 4.x -> 5.0.0 |
+| `KNOWN_LIMITATIONS.md` | Известные ограничения и допущения |
+
+Фикстуры HTML с реальными выгрузками страниц могут весить много — их хранят в репозитории для воспроизводимых тестов.
+
+---
+
+## Ответственность
+
+Скрипт вмешивается в бизнес-данные матриц: тестируйте на копиях, соблюдайте регламенты и права доступа вашей организации. Условия распространения кода при необходимости оформите отдельным файлом лицензии в репозитории.
+
+---
+
+*Версия документа соответствует ветке разработки; номер версии скрипта указан в шапке `matrix-cleaner.user.js` (`@version`).*

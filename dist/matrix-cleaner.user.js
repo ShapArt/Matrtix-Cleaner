@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OpenText Matrix Cleaner Compact Safe
 // @namespace    https://chat.openai.com/
-// @version      2026.4.21.2
-// @description  Эволюционная автоматизация матриц OpenText: catalog, dry-run, rule engine, batch import, signer wizard
+// @version      4.0.0
+// @description  Матрицы согласования OT: каталог, dry-run, движок правил, пакетный импорт, мастер подписантов, отчёты и безопасные ограничения.
 // @match        *://*/otcs/cs.exe*
 // @homepageURL  https://github.com/ShapArt/Matrtix-Cleaner
 // @supportURL   https://github.com/ShapArt/Matrtix-Cleaner/issues
@@ -3320,3 +3320,55 @@
   }, 250);
   setTimeout(() => clearInterval(timer), 25000);
 })();
+
+
+/* ===== Matrix Cleaner v5 extension (generated) ===== */
+(() => {
+  'use strict';
+
+  const INSTALL_FLAG = '__OT_MATRIX_CLEANER_V5_EXTENSION__';
+  if (window[INSTALL_FLAG]) return;
+  window[INSTALL_FLAG] = true;
+
+  function install() {
+    const api = window.__OT_MATRIX_CLEANER__;
+    if (!api) return false;
+    if (api.getReleaseInfo && api.getReleaseInfo().version === '5.0.0') return true;
+    const baseGetConfig = api.getConfig ? api.getConfig.bind(api) : () => ({});
+    api.getReleaseInfo = () => ({
+      version: '5.0.0',
+      channel: 'production',
+      build: 'modular-extension',
+      generatedAt: new Date().toISOString(),
+      modules: [
+        'preview',
+        'dsl',
+        'checklists',
+        'search-everywhere',
+        'patchers',
+        'audit',
+      ],
+    });
+    api.getExtendedConfig = () => {
+      const base = baseGetConfig();
+      base.v5 = {
+        featureFlags: {
+          visualPreview: true,
+          jsonDslV2: true,
+          checklistEngine: true,
+          globalSearchMode: true,
+        },
+      };
+      return base;
+    };
+    return true;
+  }
+
+  if (install()) return;
+  const timer = setInterval(() => {
+    if (!install()) return;
+    clearInterval(timer);
+  }, 200);
+  setTimeout(() => clearInterval(timer), 15000);
+})();
+

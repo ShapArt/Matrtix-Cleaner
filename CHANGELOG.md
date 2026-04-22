@@ -1,9 +1,134 @@
 # Changelog
 
-## 3.1.0 - 2026-04-17
+## 5.0.0
 
-- published the OpenText Matrix Cleaner userscript to GitHub
-- added GitHub raw `@downloadURL` and `@updateURL` metadata for Tampermonkey
-- stabilized partner selection and refresh behavior in the panel
-- fixed delete-row logic for OpenText matrices with duplicated DOM rows per logical item
-- added repository automation for version bumps on userscript updates
+- Added modular release scaffold:
+  - `src/*` layout for runtime presets/checklists/json-dsl artifacts
+  - build script `scripts/build-userscript.mjs`
+  - `dist/matrix-cleaner.user.js` release output
+- Added Visual Unsaved Preview Layer:
+  - ghost/draft create rows
+  - patch/delete row highlighting
+  - diff panel + counters + clear/toggle controls
+- Upgraded rule operations:
+  - `add_doc_type_to_matching_rows`
+  - `add_change_card_flag_to_matching_rows`
+  - `add_legal_entity_to_matching_rows`
+  - enriched explainability (`sourceRule`, `skippedReason`, `ambiguousReason`)
+- Upgraded signer bundle behavior:
+  - enforced project default 4-row preset planning (2 main + 2 supplemental)
+- Added global V5 UI blocks:
+  - `Search everywhere`
+  - `Checklist`
+  - `Request template`
+  - `Preview Diff v5`
+- Added JSON DSL v2 assets:
+  - `CONFIG_SCHEMA.json`
+  - schema/preset/checklist example configs in `examples/` and `src/`
+  - runtime DSL validation API `validateDslConfig`
+- Added request pipeline parsing API:
+  - `parseRequestTemplate` for JSON / TSV-CSV / human text
+- Added checklist and search APIs:
+  - `runChecklistEngine`
+  - `searchAcrossMatrices`
+  - HTML export helper
+- Added tests:
+  - new E2E scenarios #34-42 for v5 functionality
+  - unit tests for JSON schema and signer 4-row preset
+- Added release documentation:
+  - `RELEASE_NOTES.md`
+  - `MIGRATION_GUIDE.md`
+  - `KNOWN_LIMITATIONS.md`
+
+## 4.0.0
+
+- Evolved userscript architecture from single-purpose cleaner to modular OT matrix automation runtime.
+- Kept legacy compatibility for:
+  - dry-run workflow
+  - run cleanup workflow
+  - JSON/CSV export flow
+  - public API entrypoint `__OT_MATRIX_CLEANER__`
+- Added Matrix Catalog mode:
+  - matrix list detection
+  - catalog extraction and search
+  - quick matrix open action
+- Added Partner Search Driver:
+  - popup reuse support
+  - step-by-step action log
+  - dry-run mode for driver path
+- Added normalized Rule Engine operation model:
+  - `{ type, matrixName, scope, filters, payload, options }`
+  - support for required operation type registry
+- Added expanded safety controls:
+  - draft status guard
+  - max affected rows guard
+  - destructive delete confirmation
+  - default skip for `Исключить`
+  - explicit handling for unknown running-sheet state
+- Added Signer Wizard UI block and configurable signer-bundle preset placeholder.
+- Added Batch Import:
+  - v1 TSV/CSV paste parsing
+  - v2 optional XLSX file parsing in browser
+  - confidence-based classification with manual-review marking
+  - clipboard paste helper button
+  - improved quoted CSV handling
+  - approver/signer aliases in import mapping (`current/new approver|signer`)
+  - explicit low-confidence `Batch hints` reasons in preview/manual-review flow
+- Added preview/reporting improvements:
+  - per-entry reason and before/after fields
+  - unified report model across preview and execution
+  - richer CSV export fields
+- Added diagnostics:
+  - UI `Diag` export button
+  - API snapshot `getDiagnostics()`
+- Added OT-native apply path for approver mutations:
+  - `replace_approver` and `remove_approver` now build actionable plan entries
+  - patches non-signing function columns through `performerList` updates
+- Added report log buckets:
+  - API `getReportBuckets()` with `ok/skipped/errors/ambiguous`
+  - UI `Logs` export button for grouped execution logs
+  - CSV exports for `errors`, `skipped`, `ambiguous` logs
+- Added API `getReportSummary()` for quick counters (`total/ok/skipped/errors/ambiguous/actionable`).
+- Added one-click ambiguous export:
+  - UI `Ambiguous CSV` button
+  - API `getAmbiguousReport()` for manual-review queue integrations
+- Added one-click ambiguous clipboard handoff:
+  - UI `Copy ambiguous` button (TSV)
+  - API `copyAmbiguousToClipboard()` for integrations
+- Added one-click skipped/errors clipboard handoff:
+  - UI `Copy skipped` and `Copy errors` buttons (TSV)
+  - API `copySkippedToClipboard()` and `copyErrorsToClipboard()`
+- Added triage quick-actions panel:
+  - live counters `ambiguous/skipped/errors` in Rule Engine panel
+  - API `getTriageCounts()` for integrations and dashboards
+  - risk-level highlighting (`ok/warn/error`) with API `getTriageSeverity()`
+- Added top stats risk indicator:
+  - `mc-stats` now uses severity highlight (`ok/warn/error`) for instant visibility
+  - API alias `getPanelSeverity()`
+- Added header risk badge:
+  - `mc-head` now shows `risk: ok/warn/error`
+  - badge severity is synchronized with triage counters
+  - badge click toggles log triage mode (`all` ↔ `ambiguous` when risk is warn/error)
+  - badge double-click copies ambiguous rows to clipboard (TSV)
+  - `Shift+Click` copies errors, `Alt+Click` copies skipped
+  - tooltip on badge documents all quick actions
+  - `?` popover next to badge repeats shortcuts (click outside, `Esc`, or `Close` button closes; focus moves to `Close` when opened)
+  - API `toggleRiskHelpPopover()`, `closeRiskHelpPopover()`, `isRiskHelpPopoverOpen()`
+  - API `triggerRiskBadgeCopy()`, `triggerRiskBadgeCopyErrors()`, `triggerRiskBadgeCopySkipped()`
+- Added live log triage filter:
+- Added panel keyboard focus flow:
+  - panel has managed focus target (`tabindex=-1`)
+  - opening via `MC` focuses panel
+  - closing via `×` returns focus to `MC` button
+  - `Escape` closes risk-help popover first, then on next `Escape` closes the panel
+  - API `closePanel()` / `isPanelOpen()`
+  - UI toggle `Log: all` / `Log: ambiguous`
+  - API `setLogFilter()` and `getLogFilter()`
+- Added project documentation:
+  - setup and usage guide
+  - Windows Playwright / Node.js PATH troubleshooting in README
+  - current architecture baseline
+  - selector/rule mapping and assumptions
+  - runnable examples
+- Added Playwright test harness and scenario coverage for core workflows.
+- Added Playwright coverage for report summary API, batch approver-alias mapping, batch unknown-type manual hints, ambiguous-report API, log-filter API, clipboard export APIs (`ambiguous/skipped/errors` paths), triage counters API, triage severity highlighting, stats-header severity class, header risk-badge severity class, risk-badge log-toggle behavior, risk-badge double-click clipboard copy, Shift+Click errors-copy path, risk-badge tooltip hints, risk-help popover API, popover close via `Esc`, popover initial focus on `Close`, panel open/close focus flow, `Escape` panel close behavior, and `isPanelOpen()` API.

@@ -1,0 +1,132 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/ShapArt/Matrtix-Cleaner/schema/config-v2.json",
+  "title": "Matrix Cleaner DSL v2",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "sourceMetadata",
+    "operations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^2\\.[0-9]+\\.[0-9]+$"
+    },
+    "sourceMetadata": {
+      "type": "object",
+      "required": [
+        "requestId",
+        "author",
+        "createdAt"
+      ],
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "author": {
+          "type": "string",
+          "minLength": 1
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "matrixQuery": {
+      "type": "object",
+      "properties": {
+        "matrixName": {
+          "type": "string"
+        },
+        "matrixId": {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "selection": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "type": "string"
+        },
+        "filters": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "payload"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "replace_approver",
+              "remove_approver",
+              "replace_signer",
+              "add_signer_bundle",
+              "change_limits",
+              "expand_legal_entities",
+              "expand_sites",
+              "patch_doc_types",
+              "add_doc_type_to_matching_rows",
+              "add_change_card_flag_to_matching_rows",
+              "add_legal_entity_to_matching_rows",
+              "remove_counterparty_from_rows",
+              "delete_rows_if_single_counterparty",
+              "find_counterparty_everywhere",
+              "find_user_everywhere",
+              "checklist_route_failure",
+              "checklist_card_validation",
+              "checklist_signing_rules",
+              "matrix_audit"
+            ]
+          },
+          "selection": {
+            "type": "object"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "options": {
+            "type": "object"
+          },
+          "preview": {
+            "type": "object"
+          },
+          "apply": {
+            "type": "object"
+          },
+          "checklist": {
+            "type": "object"
+          },
+          "report": {
+            "type": "object"
+          },
+          "rollbackHint": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

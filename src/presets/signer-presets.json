@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0.0",
+  "defaultPreset": "project_default_4_rows",
+  "presets": [
+    {
+      "id": "project_default_4_rows",
+      "title": "Обязательный проектный 4-строчный набор",
+      "requiredRows": 4,
+      "description": "2 строки для основных договоров и 2 строки для доп. соглашений/подчиненных документов с разделением по ЭДО и LIMIT/AMOUNT.",
+      "rows": [
+        {
+          "id": "main_limit_edo",
+          "group": "main_contract_rows",
+          "edoMode": "edo",
+          "valueMode": "limit",
+          "required": true
+        },
+        {
+          "id": "main_limit_non_edo",
+          "group": "main_contract_rows",
+          "edoMode": "non_edo",
+          "valueMode": "limit",
+          "required": true
+        },
+        {
+          "id": "supp_amount_edo",
+          "group": "supplemental_rows",
+          "edoMode": "edo",
+          "valueMode": "amount",
+          "required": true
+        },
+        {
+          "id": "supp_amount_non_edo",
+          "group": "supplemental_rows",
+          "edoMode": "non_edo",
+          "valueMode": "amount",
+          "required": true
+        }
+      ]
+    }
+  ]
+}
