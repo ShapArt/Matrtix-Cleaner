@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenText Matrix Cleaner Compact Safe
 // @namespace    https://chat.openai.com/
-// @version      2026.4.22.6
+// @version      2026.4.23.2
 // @description  Эволюционная автоматизация матриц OpenText: catalog, dry-run, rule engine, batch import, signer wizard
 // @match        *://*/otcs/cs.exe*
 // @homepageURL  https://github.com/ShapArt/Matrtix-Cleaner
@@ -12,6 +12,11 @@
 // @grant        GM_addStyle
 // @grant        unsafeWindow
 // ==/UserScript==
+
+/** Tampermonkey sandbox: `window` !== `unsafeWindow`; API и страница — на host window. */
+function __otMatrixCleanerHost() {
+  return typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+}
 
 (function () {
   'use strict';
@@ -117,6 +122,7 @@
     columnIdx: null,
     mode: 'matrix',
     booted: false,
+    runningSheetsGuardHintLogged: false,
     xlsxLoaderPromise: null,
     signerPresetConfig: {
       presetName: 'configurable_4_row_bundle',
@@ -1391,6 +1397,15 @@
     log(`Preview построен: ${plan.length} записей.`, 'ok');
     plan.slice(0, 40).forEach(entry => log(`${entry.actionType}: ${entry.reason || ''}`, entry.actionType === CONFIG.actionTypes.MANUAL_REVIEW ? 'warn' : 'info'));
     if (plan.length > 40) log(`Показаны первые 40 записей из ${plan.length}.`, 'warn');
+    const addRowPlan = plan.filter(e => e.actionType === CONFIG.actionTypes.ADD_ROW);
+    if (addRowPlan.length && isMatrixPage()) {
+      const templateRow = document.querySelector(`${CONFIG.selectors.matrixTable} tbody tr[itemid], ${CONFIG.selectors.matrixTable} tbody tr[itemID]`);
+      if (!templateRow) {
+        log('Визуальное превью новых строк: в таблице нет ни одной строки-шаблона — ghost-строки не могут быть нарисованы.', 'warn');
+      } else {
+        log(`Визуальное превью: ожидается ${addRowPlan.length} ghost-строк внизу таблицы матрицы (прокрутите вниз). Если не видно — откройте Advanced и блок «Визуальный diff v5», проверьте что включён preview.`, 'ok');
+      }
+    }
     return report;
   }
 
@@ -1409,7 +1424,12 @@
     if (isMatrixPage()) {
       const runningSheetsState = detectRunningSheetsState();
       if (!(opts.allowRunningSheetsUnknown || safety.allowUnknownRunning) && runningSheetsState.known === false && CONFIG.safety.defaultFailOnUnknownRunningSheets) {
-        log(runningSheetsState.message, 'warn');
+        if (!state.runningSheetsGuardHintLogged) {
+          state.runningSheetsGuardHintLogged = true;
+          log(`${runningSheetsState.message} Для применения включите чекбокс «Разрешить apply, если статус запущенных листов неизвестен» или пользуйтесь только «Превью (без сохранения)».`, 'warn');
+        } else {
+          log('Применение остановлено: статус запущенных листов неизвестен (см. сообщение выше или включите чекбокс).', 'warn');
+        }
         return [];
       }
       await waitForReady();
@@ -2170,7 +2190,7 @@
     }).join('');
     section.innerHTML = `
       <h4>Основные операции (полный ввод)</h4>
-      <p class="mc-core-hint">Повседневные сценарии — в блоке «Рабочий режим» выше. Здесь: все типы, экспорт, JSON и тесты.</p>
+      <p class="mc-core-hint">Повседневные сценарии — в блоке «Рабочий режим» выше. Здесь: все типы, экспорт, JSON и тесты. Замена подписанта (replace_signer) в превью часто только manual-review — смотрите лог и отчёт.</p>
       <label>Тип операции
         <select class="mc-select" data-field="operation-type">
           ${opOptions}
@@ -2266,12 +2286,25 @@
       const dl = section.querySelector('#mc-partner-datalist');
       if (!dl) return;
       dl.innerHTML = '';
-      (state.partnerCatalog || []).forEach(p => {
-        if (!p || !p.name) return;
+      const seen = new Set();
+      const pushVal = (v) => {
+        const s = String(v || '').trim();
+        if (!s || seen.has(s.toLowerCase())) return;
+        seen.add(s.toLowerCase());
         const o = document.createElement('option');
-        o.value = p.name;
+        o.value = s;
         dl.appendChild(o);
+      };
+      (state.partnerCatalog || []).forEach(p => {
+        if (p && p.name) pushVal(p.name);
       });
+      const apiRef = __otMatrixCleanerHost().__OT_MATRIX_CLEANER__;
+      if (apiRef && typeof apiRef.getHumanDictionaries === 'function') {
+        try {
+          const dict = apiRef.getHumanDictionaries();
+          (dict.signersAndApprovers || []).forEach(pushVal);
+        } catch (_) { /* human UI ещё не смонтирован */ }
+      }
     };
     section.querySelector('[data-role="refresh"]').addEventListener('click', async () => {
       await waitForReady();
@@ -2331,6 +2364,7 @@
       await copyErrorsToClipboard();
     });
     renderTriageCounters();
+    state.refillPartnerDatalist = fillPartnerDatalist;
   }
 
   function buildUI() {
@@ -2392,6 +2426,19 @@
       root.querySelectorAll('section[data-module]').forEach(section => {
         section.style.display = (selected === 'all' || section.getAttribute('data-module') === selected) ? '' : 'none';
       });
+      const modSel = root.querySelector('[data-role="compact-module-select"]');
+      if (modSel && modSel.querySelector(`option[value="${selected}"]`)) modSel.value = selected;
+      const navHint = root.querySelector('[data-role="compact-module-hint"]');
+      if (navHint) {
+        if (selected === 'all') {
+          navHint.hidden = true;
+        } else {
+          navHint.hidden = false;
+          navHint.textContent = selected === 'signer'
+            ? 'Открыт только «Мастер подписантов». Чтобы вернуть остальные блоки: кнопка «Все разделы» или пункт «Показать все разделы» в списке.'
+            : 'Показан один раздел панели. Вернитесь: кнопка «Все разделы» или «Показать все разделы» в списке.';
+        }
+      }
       log(`Активный интерфейс: ${selected === 'all' ? 'все функции' : selected}.`, 'info');
     };
 
@@ -2400,16 +2447,28 @@
     compactSection.innerHTML = `
       <h4>Режим интерфейса</h4>
       <p class="mc-core-hint" style="margin-top:0">Сценарии — в human-first блоке. Здесь можно открыть отдельный раздел.</p>
-      <select class="mc-select" data-role="compact-module-select">
-        <option value="all" selected>Показать все разделы</option>
-        <option value="core">Основные операции (детально)</option>
-        <option value="batch">Пакетный импорт</option>
-        <option value="signer">Мастер подписантов</option>
-        <option value="catalog">Каталог матриц</option>
-        <option value="compact">Только «режим интерфейса»</option>
-      </select>
+      <div class="mc-compact-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px;">
+        <select class="mc-select" data-role="compact-module-select" style="min-width:160px;flex:1">
+          <option value="all" selected>Показать все разделы</option>
+          <option value="core">Основные операции (детально)</option>
+          <option value="batch">Пакетный импорт</option>
+          <option value="signer">Мастер подписантов</option>
+          <option value="catalog">Каталог матриц</option>
+          <option value="compact">Только «режим интерфейса»</option>
+        </select>
+        <button type="button" data-role="compact-show-all">Все разделы</button>
+      </div>
+      <p class="mc-core-hint" data-role="compact-module-hint" hidden style="margin:0 0 6px"></p>
     `;
     root.appendChild(compactSection);
+    const compactShowAllBtn = compactSection.querySelector('[data-role="compact-show-all"]');
+    if (compactShowAllBtn) {
+      compactShowAllBtn.addEventListener('click', () => {
+        const sel = compactSection.querySelector('[data-role="compact-module-select"]');
+        if (sel) sel.value = 'all';
+        setCompactModule('all');
+      });
+    }
 
     if (isMatrixCatalogPage() && !isMatrixPage()) {
       state.mode = 'catalog';
@@ -2932,6 +2991,11 @@
       if (typeof w.__otHumanReinstall === 'function') {
         try { w.__otHumanReinstall(); } catch (e) { void 0; }
       }
+      setTimeout(() => {
+        if (typeof state.refillPartnerDatalist === 'function') {
+          try { state.refillPartnerDatalist(); } catch (e2) { void 0; }
+        }
+      }, 0);
     }());
   }
 
@@ -2982,7 +3046,7 @@
   };
 
   function getApi() {
-    return window.__OT_MATRIX_CLEANER__;
+    return __otMatrixCleanerHost().__OT_MATRIX_CLEANER__;
   }
 
   function getMatrixTable() {
@@ -3312,7 +3376,7 @@
   ];
 
   function getApi() {
-    return window.__OT_MATRIX_CLEANER__;
+    return __otMatrixCleanerHost().__OT_MATRIX_CLEANER__;
   }
 
   function normalize(value) {
@@ -3687,7 +3751,7 @@
   ];
 
   function getApi() {
-    return window.__OT_MATRIX_CLEANER__;
+    return __otMatrixCleanerHost().__OT_MATRIX_CLEANER__;
   }
 
   function getRows() {
@@ -4021,7 +4085,11 @@
     shell.querySelector('[data-role="hf-signer-preview"]').addEventListener('click', async () => {
       const report = await api.previewRuleBatch([buildOperation(shell, 'add_signer_bundle')], {});
       const rows = (report || []).filter(item => item.actionType === 'add-row');
-      shell.querySelector('[data-role="hf-signer-result"]').textContent = `Сгенерировано строк: ${rows.length} (ожидается 4).`;
+      const tpl = document.querySelector('#sc_ApprovalMatrix tbody tr[itemid], #sc_ApprovalMatrix tbody tr[itemID]');
+      const ghostHint = tpl && rows.length
+        ? ' Внизу таблицы матрицы должны появиться подсвеченные строки-превью (прокрутите).'
+        : (rows.length ? ' Если таблица пуста — ghost-строки не рисуются; см. лог панели.' : '');
+      shell.querySelector('[data-role="hf-signer-result"]').textContent = `Сгенерировано записей плана: ${rows.length} из 4 ожидаемых.${ghostHint}`;
     });
     shell.querySelector('[data-role="hf-signer-apply"]').addEventListener('click', () => api.runRuleBatch([buildOperation(shell, 'add_signer_bundle')], {}));
 

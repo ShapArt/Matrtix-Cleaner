@@ -939,3 +939,19 @@ test('52. parseFreeformRequestText returns draft operations', async ({ page }) =
   expect(r.operations.length).toBeGreaterThan(0);
   expect(r.confidence).toBeGreaterThan(0.4);
 });
+
+test('53. canonical API exposes runAllHumanTests (Tampermonkey host window)', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const ok = await page.evaluate(() => {
+    const host = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+    const api = host.__OT_MATRIX_CLEANER__;
+    return Boolean(
+      api
+      && typeof api.runAllHumanTests === 'function'
+      && typeof api.runAllUiDiagnostics === 'function'
+      && api === (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).__OT_MATRIX_CLEANER__
+    );
+  });
+  expect(ok).toBeTruthy();
+});
