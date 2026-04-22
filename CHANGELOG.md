@@ -1,5 +1,28 @@
 # Changelog
 
+## 5.1.0
+
+- Added human-first operator UI shell (Russian by default):
+  - guided tabs: Work, Bulk, Search, Signers, Checklist, Test contour, Reports;
+  - onboarding flow "scenario -> data -> preview -> apply";
+  - author attribution in panel header.
+- Moved compact/core technical UX out of default route:
+  - legacy/DSL blocks now hidden by default and opened from Advanced mode.
+- Added form-first operation pipeline:
+  - scenario forms normalize into the operation model with `sourceRule=human_first_ui`;
+  - JSON remains available as advanced mode.
+- Added matrix-driven dictionaries:
+  - runtime extraction for counterparties/doc types/legal entities and row groups;
+  - datalist-based hints for operator forms.
+- Hardened business rules in human flows:
+  - forced affiliation `Группа Черкизово` in scenario payloads and synthetic contour.
+- Extended signer workflow and synthetic diagnostics:
+  - strict 4-row signer preset check in `runAllHumanTests`;
+  - `preview_only` and `real_insert` synthetic test modes.
+- Extended tests and fixtures:
+  - added Playwright tests #46-49 for human-first APIs and UI blocks;
+  - added deterministic fixture `tests/fixtures/synthetic-matrix-rows.json`.
+
 ## 5.0.0
 
 - Added modular release scaffold:

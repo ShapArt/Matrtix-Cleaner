@@ -1,0 +1,26 @@
+[
+  {
+    "id": "synthetic-001",
+    "rowGroup": "main_contract_rows",
+    "docTypes": ["Договор"],
+    "legalEntities": ["ООО Тестовое ЮЛ"],
+    "edoMode": "edo",
+    "counterparty": "ООО Тестовый Контрагент 1"
+  },
+  {
+    "id": "synthetic-002",
+    "rowGroup": "supplemental_rows",
+    "docTypes": ["ДС"],
+    "legalEntities": ["ООО Тестовое ЮЛ"],
+    "edoMode": "non_edo",
+    "counterparty": "ООО Тестовый Контрагент 2"
+  },
+  {
+    "id": "synthetic-003",
+    "rowGroup": "supplemental_rows",
+    "docTypes": ["ДС", "Приложение"],
+    "legalEntities": ["ООО Второе ЮЛ"],
+    "edoMode": "external",
+    "counterparty": "ООО Тестовый Контрагент 3"
+  }
+]
