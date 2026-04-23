@@ -2,3 +2,14 @@ node_modules/
 test-results/
 playwright-report/
 *.xlsx
+*.xls
+*.xlsm
+
+# Private OpenText fixtures and exports (keep local only)
+Матрица согласования_ Договор Правовая дирекция.html
+Матрица согласования_ Договор Правовая дирекция_files/
+Список Матриц/
+поиск контр агентов/
+__edge_*.html
+__edge_*_out.html
+__edge_*_err.txt

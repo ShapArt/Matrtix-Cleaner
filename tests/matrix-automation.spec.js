@@ -1,4 +1,5 @@
 const fs = require('node:fs/promises');
+const fsSync = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { test, expect } = require('@playwright/test');
@@ -7,6 +8,7 @@ const ROOT = path.resolve(__dirname, '..');
 const SCRIPT_PATH = path.join(ROOT, 'matrix-cleaner.user.js');
 const MATRIX_HTML = path.join(ROOT, 'Матрица согласования_ Договор Правовая дирекция.html');
 const LIST_HTML = path.join(ROOT, 'Список Матриц', 'cs.htm');
+const HAS_PRIVATE_FIXTURES = fsSync.existsSync(MATRIX_HTML) && fsSync.existsSync(LIST_HTML);
 
 async function loadUserscript(page) {
   await page.addScriptTag({ path: SCRIPT_PATH });
@@ -38,6 +40,8 @@ async function openCleanerPanel(page) {
     }
   });
 }
+
+test.skip(!HAS_PRIVATE_FIXTURES, 'Private OpenText fixtures are excluded from public repository.');
 
 test('1. detects matrix list page', async ({ page }) => {
   await page.goto(pathToFileURL(LIST_HTML).href);
