@@ -1,5 +1,8 @@
 # Matrtix-Cleaner
 
+![Social Preview](https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/.github/social-preview.png)
+
+
 [![Stars](https://img.shields.io/github/stars/ShapArt/=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/stargazers)
 [![Last Commit](https://img.shields.io/github/last-commit/ShapArt/=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/commits/main)
 [![License](https://img.shields.io/github/license/ShapArt/=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/blob/main/LICENSE)
@@ -36,3 +39,5 @@ See .github/CONTRIBUTING.md and open a focused PR.
 
 ## License / Лицензия
 See LICENSE.
+
+
