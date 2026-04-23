@@ -2,46 +2,40 @@
 
 ![Social Preview](https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/.github/social-preview.png)
 
-[![Stars](https://img.shields.io/github/stars/ShapArt/Matrtix-Cleaner?style=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/stargazers)
-[![Last Commit](https://img.shields.io/github/last-commit/ShapArt/Matrtix-Cleaner?style=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/commits/main)
-[![License](https://img.shields.io/github/license/ShapArt/Matrtix-Cleaner?style=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/blob/main/LICENSE)
-
-## EN
-Matrix cleanup utility with practical automation workflows.
+[![Stars](https://img.shields.io/github/stars/ShapArt/=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/stargazers)
+[![Last Commit](https://img.shields.io/github/last-commit/ShapArt/=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/commits/main)
+[![License](https://img.shields.io/github/license/ShapArt/=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/blob/main/LICENSE)
 
 ## RU
 Matrix cleanup utility with practical automation workflows.
 
-## Why this project matters / Зачем нужен проект
-- Built as a practical engineering project with clear delivery goals.
-- Prioritizes maintainability and explicit documentation.
-- Designed to evolve with CI/testing and production constraints.
+### Зачем этот проект
+- Практичный инженерный проект с упором на качество
+- Ориентирован на практическое использование, а не «учебный шаблон».
+- Поддерживает единый стандарт качества профиля и репозиториев.
 
-## Best for / Для кого
-- Engineers shipping API + app products end-to-end.
-- Teams validating architecture for scalable MVP delivery.
+### Быстрый старт
+- Установи зависимости backend и frontend
+- Запусти сервисы по структуре директорий
 
-## Quick Run / Быстрый запуск
+### Для кого
+- Разработчики backend/automation решений.
+- Команды, которым нужна понятная архитектура и предсказуемый запуск.
+
+## EN
+Matrix cleanup utility with practical automation workflows.
+
+### Why this project
+- Практичный инженерный проект с упором на качество
+- Built for practical delivery, not just a demo.
+- Follows a consistent engineering quality standard.
+
+### Quick start
 - Install backend and frontend dependencies
-- Start services according to folder-level docs
+- Run services by folder docs
 
-## Repository Compass / Навигация
-- README.md - product context and run flow.
-- .github/ - contribution standards, templates, CI policy.
-- Source directories - core implementation and assets.
+## Contribution
+See .github/CONTRIBUTING.md.
 
-## Topics / Темы
-$topics
-
-## Contribution / Вклад
-See .github/CONTRIBUTING.md and open a focused PR.
-
-## License / Лицензия
+## License
 See LICENSE.
-
-
-
-
-
-
-
