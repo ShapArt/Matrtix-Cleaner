@@ -1,16 +1,9 @@
-## Что сделано
+## Summary
+- 
 
-- [ ] Описание изменения
-- [ ] Почему это нужно
+## Changes
+- 
 
-## Проверки
-
-- [ ] `npm run build`
-- [ ] `npm run test:unit`
-- [ ] `npm test` или релевантный поднабор
-- [ ] Обновлены документы при изменении поведения
-
-## Риски
-
-- [ ] Нет деструктивных изменений без guardrails
-- [ ] Для массовых операций есть preview и explainability
+## Verification
+- [ ] Local checks passed
+- [ ] Docs updated if needed
