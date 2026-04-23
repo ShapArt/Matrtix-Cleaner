@@ -1,267 +1,52 @@
-# Matrix Cleaner — автоматизация матриц согласования OpenText
+# Matrtix-Cleaner
 
-Пользовательский скрипт **`matrix-cleaner.user.js`** для страниц OpenText Content Suite (`/otcs/cs.exe`). Это развитие исходного «очистителя матрицы»: сохранены сценарии dry-run, запуска правок и экспорта, добавлены модульные блоки — каталог матриц, движок правил, поиск контрагента, мастер подписантов и пакетный импорт.
+![License](https://img.shields.io/github/license/ShapArt/Matrtix-Cleaner)
+![Last Commit](https://img.shields.io/github/last-commit/ShapArt/Matrtix-Cleaner)
+![Language](https://img.shields.io/github/languages/top/ShapArt/Matrtix-Cleaner)
 
-**Репозиторий:** [github.com/ShapArt/Matrtix-Cleaner](https://github.com/ShapArt/Matrtix-Cleaner)  
-**Прямая установка (обновление скрипта):** [https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/matrix-cleaner.user.js](https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/matrix-cleaner.user.js)
+## EN Overview
+Project maintained by ShapArt.
 
----
+## RU Описание
+Project maintained by ShapArt.
 
-## Что умеет скрипт
+## EN Features
+- Clear project purpose and maintainable structure.
+- Standardized community and contribution files.
+- Consistent documentation style across account repositories.
 
-| Область | Возможности |
-|--------|-------------|
-| **Матрица** (страница открытой матрицы) | Правила (rule engine), превью и выполнение, стоп, экспорт JSON/CSV/логов, драйвер поиска контрагента, мастер подписантов, пакетный импорт |
-| **Список матриц** | Режим каталога: разбор таблицы, поиск по названию, быстрое открытие выбранной матрицы |
-| **Безопасность** | Проверка статуса **Черновик**, лимит затронутых строк, подтверждение опасных удалений, по умолчанию пропуск строк с условием **Исключить**, обязательная аффилированность контрагентов **Группа Черкизово**, явная пометка ручной проверки для неоднозначных операций |
-| **Пакетный импорт** | Вставка TSV/CSV в поле, опционально файл `.xlsx` (первая вкладка), классификация с «уверенностью» и подсказками **Batch hints** для сомнительных строк |
-| **Отчётность** | Превью до применения, фильтр лога (все / неоднозначные), копирование в буфер (неоднозначные, пропущенные, ошибки), бейдж риска, горячие клавиши и фокус панели |
+## RU Возможности
+- Понятная цель проекта и поддерживаемая структура.
+- Стандартизированные файлы сообщества и вклада.
+- Единый стиль документации во всех репозиториях аккаунта.
 
-Панель открывается кнопкой **MC** на странице; элементы внутри панели недоступны, пока панель не раскрыта.
+## EN Quick Start
+See package.json and requirements.txt for backend/frontend startup commands.
 
----
+## RU Быстрый старт
+See package.json and requirements.txt for backend/frontend startup commands.
 
-## Установка для пользователя
+## EN Project Structure
+- .github/ - templates, policy files, CI config.
+- Source files and assets are stored in repository root or feature directories.
 
-1. Установите расширение **Tampermonkey** (или совместимый менеджер userscript) в браузер.
-2. Откройте файл `matrix-cleaner.user.js` из этого репозитория (или ссылку *raw* выше) и подтвердите установку/обновление скрипта.
-3. Зайдите на нужный сайт OpenText так, чтобы в URL был путь **`/otcs/cs.exe`** (как в `@match` скрипта).
-4. На странице матрицы или списка матриц появится плавающая кнопка **MC** — нажмите её, чтобы открыть панель инструментов.
+## RU Структура проекта
+- .github/ - шаблоны, policy-файлы, конфиг CI.
+- Исходники и ресурсы находятся в корне или профильных директориях.
 
-Если кнопки нет: проверьте, что скрипт включён, домен совпадает с правилами Tampermonkey, страница полностью загрузилась.
+## EN Roadmap
+- Improve test coverage and automation.
+- Keep docs aligned with actual project behavior.
 
-**Tampermonkey (sandbox):** глобальный API скрипта (`__OT_MATRIX_CLEANER__`, в т.ч. `runAllHumanTests`, обёртка визуального превью) вешается на **`unsafeWindow`**, то же окно, что и страница OpenText. Превью новых строк (ghost) появляется **внизу таблицы матрицы** — при необходимости прокрутите. Если в панели скрыты все блоки кроме одного раздела, используйте **«Все разделы»** или пункт «Показать все разделы».
+## RU Планы
+- Расширять покрытие тестами и автоматизацией.
+- Поддерживать документацию в актуальном состоянии.
 
----
+## EN Contributing
+See .github/CONTRIBUTING.md.
 
-## Как пользоваться (кратко)
+## RU Вклад
+См. .github/CONTRIBUTING.md.
 
-1. Откройте матрицу в режиме редактирования (по правилам вашей организации).
-2. Нажмите **MC** → откроется **Рабочий режим Matrix Cleaner** (русский guided UI).
-3. Двигайтесь по шагам: **сценарий → данные из списков → превью → применение**.
-4. Для массовых патчей используйте вкладку **Массовые изменения** (ALL/ANY, anti-duplicate, preview/apply).
-5. Кнопка **Тест всего** (в «Рабочем» и в legacy) сначала прогоняет synthetic-контур в выбранном режиме, затем проверяет превью по видимым строкам и при необходимости резервный bundle; итог и детали — в логе панели.
-6. Вкладка **Подписанты** фиксирует обязательный 4-row preset (2 main + 2 supplemental, LIMIT/AMOUNT, EDO split).
-7. Вкладки **Поиск** / **Чек-лист** / **Отчёты** дают рабочий цикл анализа и выгрузки результатов.
-
-JSON/DSL и legacy-технические секции оставлены в **Advanced** и не являются default-маршрутом.
-
----
-
-## Режимы страницы
-
-### Режим матрицы (`objAction=OpenMatrix` и аналог)
-
-- операции движка правил;
-- dry-run и выполнение;
-- кнопка остановки;
-- экспорт JSON/CSV/логов;
-- драйвер поиска контрагента;
-- мастер подписантов;
-- пакетный импорт.
-
-### Режим каталога (страница списка матриц)
-
-- извлечение каталога из таблицы / запасной источник данных;
-- поиск по названию матрицы;
-- быстрое открытие выбранной матрицы.
-
----
-
-## Правила безопасности (по умолчанию)
-
-- Применение критичных изменений ожидает статус матрицы **Черновик** (Draft).
-- Строки с условием **Исключить** по умолчанию пропускаются (`skipExclude` можно переопределить в API).
-- Ограничение на максимальное число затронутых строк.
-- Подтверждение перед деструктивным удалением строк.
-- Неподдерживаемые и неоднозначные операции явно помечаются; «плохой» статус running-sheet блокируется без явного override в API.
-
-Используйте скрипт в рамках политики ИБ и процессов вашей компании.
-
----
-
-## Формат операции (Rule Engine)
-
-Пример JSON одной операции:
-
-```json
-{
-  "type": "remove_counterparty_from_rows",
-  "matrixName": "Договор Правовая дирекция",
-  "scope": {},
-  "filters": {},
-  "payload": {
-    "partnerName": "КУЗНЕЦОВСКИЙ КОМБИНАТ ООО"
-  },
-  "options": {
-    "skipExclude": true,
-    "deleteIfSingle": false
-  }
-}
-```
-
-Поддерживаемые значения поля **`type`**:
-
-- `replace_approver` — замена согласующего  
-- `remove_approver` — снятие согласующего  
-- `replace_signer` — замена подписанта  
-- `add_signer_bundle` — пакет подписанта  
-- `change_limits` — лимиты  
-- `expand_legal_entities` — юрлица  
-- `expand_sites` — площадки  
-- `patch_doc_types` — типы документов  
-- `add_doc_type_to_matching_rows` — массовое добавление типа документа по паттерну ALL/ANY  
-- `add_change_card_flag_to_matching_rows` — проставление признака изменения карточки по паттерну  
-- `add_legal_entity_to_matching_rows` — массовое добавление юрлица по паттерну  
-- `remove_counterparty_from_rows` — удаление контрагента из строк  
-- `delete_rows_if_single_counterparty` — удаление строк при единственном контрагенте  
-- `find_counterparty_everywhere` — поиск контрагента по матрице/каталогу  
-- `find_user_everywhere` — поиск пользователя/подписанта/согласующего  
-- `checklist_route_failure`, `checklist_card_validation`, `checklist_signing_rules` — диагностические чеклисты  
-- `matrix_audit` — аудитная операция формирования отчёта  
-
-**Замечание:** `replace_approver` / `remove_approver` при разрешимых ID используют нативное обновление исполнителей в колонках-функциях (не подписание). Если из данных страницы безопасно вывести план нельзя, в превью/отчёте будет **manual review required**.
-
----
-
-## Пакетный импорт
-
-### Версия 1: вставка TSV/CSV
-
-- Вставьте текст таблицы в область **Batch Import**.
-- Нажмите **Preview batch**.
-- Строки с низкой уверенностью помечаются как `manual review required`.
-- **Run batch** запускайте только для строк, которые вы осознанно готовы применить.
-- Поддерживаются псевдонимы колонок для согласующих/подписантов (например `current_approver` / `new_approver`, `current_signer` / `new_signer`) наряду с полями контрагента.
-- В превью для ручной проверки выводятся явные причины в духе **`Batch hints`**.
-
-### Версия 2: файл XLSX
-
-- Выберите файл `.xlsx` во входе файла; скрипт подгружает парсер в браузере и читает **первый лист**.
-- Дальше тот же конвейер классификации, что и для TSV/CSV.
-
-Неизвестный тип строки в пакете не подменяется произвольной операцией: такая строка уходит в ветку «неизвестный тип» с ручной проверкой и подсказками из метаданных пакета.
-
----
-
-## Превью, отчёты, интерфейс панели
-
-До применения в отчёте видны тип действия по строке, причина совпадения, снимки до/после (где это выводится из данных страницы).
-
-После применения и в процессе работы:
-
-- лог в панели;
-- переключатель фильтра лога: **все** / **неоднозначные**;
-- кнопки **Copy ambiguous** / **Copy skipped** / **Copy errors** (TSV в буфер);
-- блок быстрых счётчиков triage (`ambiguous` / `skipped` / `errors`);
-- бейдж **risk** в шапке (`ok` / `warn` / `error`) в соответствии с серьёзностью triage;
-- подсказка на бейдже: клик, двойной клик, Shift+клик, Alt+клик;
-- кнопка **?** рядом с бейджем — всплывающая шпаргалка (клик снаружи, **Esc**, кнопка **Close**); при открытии фокус на **Close** для клавиатуры;
-- при открытии панели фокус переходит на панель, при закрытии — обратно на **MC**;
-- **Escape**: сначала закрывает подсказку по риску, если она открыта, иначе закрывает всю панель (фокус на **MC**);
-- экспорт JSON, CSV, группированных логов;
-- в отчёте сохраняются неоднозначные, пропущенные и ошибочные строки.
-
----
-
-## Публичный API (консоль и автотесты)
-
-Глобальный объект: **`window.__OT_MATRIX_CLEANER__`**.
-
-| Метод | Назначение |
-|--------|------------|
-| `refreshPartners()` | Обновить каталог контрагентов |
-| `getPartnerCatalog()` | Список контрагентов |
-| `getMatrixCatalog()` | Каталог матриц (режим списка) |
-| `previewRun(opts)` | Превью одной «чистки» / сценария |
-| `runCleanup(opts)` | Выполнение cleanup |
-| `previewRuleBatch(operations, opts)` | Превью массива правил |
-| `runRuleBatch(operations, opts)` | Запуск массива правил |
-| `runPartnerSearchDriver(partnerName, opts)` | Драйвер поиска контрагента |
-| `getDiagnostics()` | Снимок окружения (диагностика) |
-| `getReportBuckets()` | Группы отчёта: ok / skipped / errors / ambiguous |
-| `getReportSummary()` | Сводные счётчики |
-| `getTriageCounts()` | Счётчики triage |
-| `getTriageSeverity()` | `ok` / `warn` / `error` |
-| `getPanelSeverity()` | Уровень риска для шапки статистики |
-| `toggleRiskBadgeFilter()` | Переключение фильтра лога с бейджа |
-| `triggerRiskBadgeCopy()` | Копирование неоднозначных (TSV) |
-| `triggerRiskBadgeCopyErrors()` / `triggerRiskBadgeCopySkipped()` | Копирование ошибок / пропущенных |
-| `toggleRiskHelpPopover()` / `closeRiskHelpPopover()` / `isRiskHelpPopoverOpen()` | Попап помощи по риску |
-| `getAmbiguousReport()` | Только неоднозначные / manual |
-| `copyAmbiguousToClipboard()` / `copySkippedToClipboard()` / `copyErrorsToClipboard()` | Копирование в буфер |
-| `setLogFilter(mode)` / `getLogFilter()` | `all` или `ambiguous` |
-| `closePanel()` / `isPanelOpen()` | Панель |
-| `getLastReport()` | Последний отчёт |
-| `stopRun()` | Остановка |
-| `getConfig()` | Текущая конфигурация |
-| `getHumanDictionaries()` | Автособранные словари из матрицы (контрагенты, типы документов, юрлица и др.) |
-| `runAllHumanTests({ mode })` | Synthetic тест-контур (`preview_only` / `real_insert`) |
-| `runAllUiDiagnostics({ humanTestMode })` | Полный «Тест всего»: synthetic + превью по матрице + fallback; `humanTestMode` как у `runAllHumanTests` |
-| `parseFreeformRequestText(text)` | Черновик операций из свободного текста заявки (без JSON) |
-| `getOperationLabels()` | Словарь русских подписей к внутренним типам операций |
-
----
-
-## Разработка и автотесты (Playwright)
-
-В каталоге проекта есть `package.json` и тесты в `tests/`. Команды:
-
-```powershell
-cd D:\Other\Cherkizovo\Matrix
-npm install
-npm run build
-npx playwright install
-npm test
-```
-
-### Windows: если не находится `node` / `npm` / `npx`
-
-Установите **Node.js LTS** ([nodejs.org](https://nodejs.org/) или `winget install OpenJS.NodeJS.LTS`), **перезапустите терминал**, проверьте:
-
-```powershell
-node --version
-npm --version
-npx --version
-```
-
-При необходимости добавьте в переменную среды **PATH** пользователя каталог `C:\Program Files\nodejs\`.
-
-Дополнительно:
-
-- `npm run build` — сборка userscript в `dist/matrix-cleaner.user.js`  
-- `npm run test:unit` — unit tests (schema/presets)  
-- `npm run test:headed` — тесты с окном браузера  
-- `npm run test:ui` — интерактивный UI Playwright  
-- `npm run test:all` — unit + e2e  
-- `npm run smoke` — build + unit + smoke e2e набор  
-
-История изменений по версиям — в **`CHANGELOG.md`**.
-
----
-
-## Структура репозитория (важное)
-
-| Файл / папка | Описание |
-|--------------|----------|
-| `matrix-cleaner.user.js` | Основной userscript |
-| `tests/matrix-automation.spec.js` | E2E-сценарии |
-| `playwright.config.js` | Настройка Playwright |
-| `CONFIG_SCHEMA.json` | JSON DSL v2 schema |
-| `examples/` | Примеры данных для импорта |
-| `docs/` | Дополнительная документация |
-| `RELEASE_NOTES.md` | Итоги релиза v5 |
-| `MIGRATION_GUIDE.md` | Руководство миграции 4.x -> 5.0.0 |
-| `KNOWN_LIMITATIONS.md` | Известные ограничения и допущения |
-
-Фикстуры HTML с реальными выгрузками страниц могут весить много — их хранят в репозитории для воспроизводимых тестов.
-
----
-
-## Ответственность
-
-Скрипт вмешивается в бизнес-данные матриц: тестируйте на копиях, соблюдайте регламенты и права доступа вашей организации. Условия распространения кода при необходимости оформите отдельным файлом лицензии в репозитории.
-
----
-
-*Версия документа соответствует ветке разработки; номер версии скрипта указан в шапке `matrix-cleaner.user.js` (`@version`).*
+## License / Лицензия
+See LICENSE.
