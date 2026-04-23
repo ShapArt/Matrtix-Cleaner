@@ -3750,6 +3750,55 @@ function __otMatrixCleanerHost() {
     { key: 'add_legal_entity_to_matching_rows', label: 'Добавить юрлицо' },
   ];
 
+  const QUICK_PRESETS = {
+    signer_smoke: {
+      label: 'Подписант: быстрый smoke 4 строки',
+      values: {
+        'hf-scenario': 'add_signer_bundle',
+        'hf-limit': '1000',
+        'hf-amount': '500',
+      },
+    },
+    bulk_doc_ds: {
+      label: 'Массово: тип документа для ДС',
+      values: {
+        'hf-row-group': 'supplemental_rows',
+        'hf-required-doc-types': 'ДС',
+        'hf-match-mode': 'all',
+        'hf-doc-type': 'Тестовый тип',
+      },
+    },
+    bulk_legal_main: {
+      label: 'Массово: юрлицо для основных',
+      values: {
+        'hf-row-group': 'main_contract_rows',
+        'hf-match-mode': 'any',
+        'hf-legal-entity': 'ООО Тестовое ЮЛ',
+      },
+    },
+    replace_approver_demo: {
+      label: 'Замена согласующего: заготовка полей',
+      values: {
+        'hf-scenario': 'replace_approver',
+        'hf-current-user': '',
+        'hf-new-user': '',
+      },
+    },
+  };
+
+  function applyQuickPreset(root, presetId) {
+    const preset = QUICK_PRESETS[presetId];
+    if (!preset) return false;
+    Object.keys(preset.values || {}).forEach(role => {
+      const el = root.querySelector(`[data-role="${role}"]`);
+      if (!el) return;
+      el.value = preset.values[role];
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    return true;
+  }
+
   function getApi() {
     return __otMatrixCleanerHost().__OT_MATRIX_CLEANER__;
   }
@@ -3970,13 +4019,24 @@ function __otMatrixCleanerHost() {
       <div class="mc-hf-panel" data-panel="work">
         <p class="mc-hf-guide">Шаг 1: тип сценария. Шаг 2: выберите значения из списков (после «Обновить» внизу в разделе «Основные») или введите вручную. Шаг 3: «Показать превью».</p>
         <label>Сценарий <select class="mc-select" data-role="hf-scenario"></select></label>
+        <label>Быстрая заготовка
+          <select class="mc-select" data-role="hf-quick-preset">
+            <option value="">Без заготовки</option>
+            <option value="signer_smoke">Подписант: быстрый smoke 4 строки</option>
+            <option value="bulk_doc_ds">Массово: тип документа для ДС</option>
+            <option value="bulk_legal_main">Массово: юрлицо для основных</option>
+            <option value="replace_approver_demo">Замена согласующего: заготовка полей</option>
+          </select>
+        </label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-apply-preset">Применить заготовку</button><button type="button" data-role="hf-preview">Показать превью</button></div>
+        <div class="mc-hf-result" data-role="hf-preset-result">Подсказка: заготовка заполняет поля, затем можно сразу запускать превью.</div>
         <label>Контрагент <input class="mc-input" list="hf-counterparty-list" data-role="hf-counterparty" title="Список из каталога матрицы"></label>
         <datalist id="hf-counterparty-list"></datalist>
         <label>Текущий пользователь <input class="mc-input" list="hf-actors-list" data-role="hf-current-user" title="Подсказки из токенов в строках"></label>
         <label>Новый пользователь <input class="mc-input" list="hf-actors-list" data-role="hf-new-user" title="Кого поставить вместо текущего"></label>
         <datalist id="hf-actors-list"></datalist>
         <label>Группа строк <select class="mc-select" data-role="hf-row-group"><option value="all">Все</option><option value="main_contract_rows">Основные</option><option value="supplemental_rows">Доп соглашения</option><option value="custom">Custom</option></select></label>
-        <div class="mc-hf-actions"><button type="button" data-role="hf-preview">Показать превью</button><button type="button" data-role="hf-apply">Применить</button></div>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-apply">Применить</button></div>
       </div>
       <div class="mc-hf-panel" data-panel="ticket" hidden>
         <p class="mc-hf-guide">Вставьте текст письма или заявки. Скрипт предложит черновик операций (без JSON). Проверьте поля и нажмите «Превью черновика».</p>
@@ -4012,7 +4072,7 @@ function __otMatrixCleanerHost() {
         <div data-role="hf-checklist-result"></div>
       </div>
       <div class="mc-hf-panel" data-panel="test" hidden>
-        <p class="mc-hf-guide">Сначала прогоняется тестовый контур (превью операций), затем проверка превью по видимым строкам и резервный bundle. Результаты — в логе панели.</p>
+        <p class="mc-hf-guide">Сначала прогоняется тестовый контур (превью операций), затем проверка превью по видимым строкам и резервный bundle. Важно: «Тест всего» не сохраняет изменения в матрице, это диагностический прогон.</p>
         <label>Режим контура <select class="mc-select" data-role="hf-test-mode"><option value="preview_only">Только превью (без записи в таблицу)</option><option value="real_insert">С проверками для реальной вставки</option></select></label>
         <div class="mc-hf-actions"><button type="button" data-role="hf-test-all">Тест всего</button></div>
         <div class="mc-hf-result" data-role="hf-test-result">Тест не запускался.</div>
@@ -4044,6 +4104,18 @@ function __otMatrixCleanerHost() {
     hideLegacySections(root);
 
     shell.querySelector('[data-role="hf-show-legacy"]').addEventListener('click', () => showLegacySections(root));
+    shell.querySelector('[data-role="hf-apply-preset"]').addEventListener('click', () => {
+      const presetId = shell.querySelector('[data-role="hf-quick-preset"]').value;
+      const info = shell.querySelector('[data-role="hf-preset-result"]');
+      if (!presetId) {
+        info.textContent = 'Выберите заготовку из списка.';
+        return;
+      }
+      const ok = applyQuickPreset(shell, presetId);
+      info.textContent = ok
+        ? `Заготовка применена: ${QUICK_PRESETS[presetId].label}. Дальше нажмите «Показать превью».`
+        : 'Не удалось применить заготовку.';
+    });
     shell.querySelector('[data-role="hf-preview"]').addEventListener('click', () => api.previewRuleBatch([buildOperation(shell)], {}));
     shell.querySelector('[data-role="hf-apply"]').addEventListener('click', () => api.runRuleBatch([buildOperation(shell)], {}));
     shell.querySelector('[data-role="hf-preview-bulk"]').addEventListener('click', () => api.previewRuleBatch([
@@ -4141,7 +4213,7 @@ function __otMatrixCleanerHost() {
         return;
       }
       const diag = await api.runAllUiDiagnostics({ humanTestMode: mode });
-      shell.querySelector('[data-role="hf-test-result"]').textContent = `Проверок: ${diag.checks.length}, сбоев: ${diag.failed}. Режим контура: ${diag.humanTestMode}. Подробности в логе.`;
+      shell.querySelector('[data-role="hf-test-result"]').textContent = `Проверок: ${diag.checks.length}, сбоев: ${diag.failed}. Режим контура: ${diag.humanTestMode}. Тест не вносит постоянные изменения, это проверка перед реальным apply.`;
     });
 
     shell.querySelector('[data-role="hf-report-json"]').addEventListener('click', () => {
