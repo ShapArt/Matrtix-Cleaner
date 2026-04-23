@@ -1,45 +1,38 @@
 # Matrtix-Cleaner
 
-[![Stars](https://img.shields.io/github/stars/ShapArt/Matrtix-Cleaner?style=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/stargazers)
-[![Last Commit](https://img.shields.io/github/last-commit/ShapArt/Matrtix-Cleaner?style=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/commits/main)
-[![License](https://img.shields.io/github/license/ShapArt/Matrtix-Cleaner?style=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/blob/main/LICENSE)
+[![Stars](https://img.shields.io/github/stars/ShapArt/=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/stargazers)
+[![Last Commit](https://img.shields.io/github/last-commit/ShapArt/=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/commits/main)
+[![License](https://img.shields.io/github/license/ShapArt/=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/blob/main/LICENSE)
 
 ## EN
-Matrtix-Cleaner — practical engineering project by ShapArt.
-
-This repository is part of a modern, portfolio-grade GitHub standard: strong structure, clear onboarding, and predictable contribution flow.
+Matrix cleanup utility with practical automation workflows.
 
 ## RU
-Matrtix-Cleaner — practical engineering project by ShapArt.
+Matrix cleanup utility with practical automation workflows.
 
-Этот репозиторий оформлен в современном portfolio-стиле: сильная структура, понятный старт и прозрачный процесс вклада.
+## Why this project matters / Зачем нужен проект
+- Built as a practical engineering project with clear delivery goals.
+- Prioritizes maintainability and explicit documentation.
+- Designed to evolve with CI/testing and production constraints.
 
-## Highlights / Что важно
-- Fast onboarding with clear usage entry points.
-- Standardized `.github` health files and contribution rules.
-- Ready for scaling with CI, tests, and roadmap growth.
+## Best for / Для кого
+- Engineers shipping API + app products end-to-end.
+- Teams validating architecture for scalable MVP delivery.
 
-## Tech Stack / Технологии
-- Python + JavaScript/TypeScript
-- API + app architecture
-- Scalable codebase structure
-
-## Quick Start / Быстрый старт
+## Quick Run / Быстрый запуск
 - Install backend and frontend dependencies
-- Run services per repository structure
+- Start services according to folder-level docs
 
-## Structure / Структура
-- `README.md` - overview and usage entry point.
-- `.github/` - policies, templates, workflow config.
-- Source directories - implementation and assets.
+## Repository Compass / Навигация
+- README.md - product context and run flow.
+- .github/ - contribution standards, templates, CI policy.
+- Source directories - core implementation and assets.
 
-## Roadmap / Планы
-- Improve verification and automation coverage.
-- Expand examples and practical scenarios.
-- Keep docs synchronized with real behavior.
+## Topics / Темы
+$topics
 
-## Contributing / Вклад
-See `.github/CONTRIBUTING.md`.
+## Contribution / Вклад
+See .github/CONTRIBUTING.md and open a focused PR.
 
 ## License / Лицензия
-See `LICENSE`.
+See LICENSE.
