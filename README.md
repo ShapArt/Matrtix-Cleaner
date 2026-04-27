@@ -1,44 +1,125 @@
 # Matrtix-Cleaner
 
-![Social Preview](https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/.github/social-preview.png)
+Tampermonkey-based operator tool for **previewing, auditing, and applying guarded bulk changes** in OpenText approval matrices.
 
-[![Stars](https://img.shields.io/github/stars/ShapArt/Matrtix-Cleaner?style=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/stargazers)
-[![Last Commit](https://img.shields.io/github/last-commit/ShapArt/Matrtix-Cleaner?style=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/commits/main)
-[![License](https://img.shields.io/github/license/ShapArt/Matrtix-Cleaner?style=for-the-badge)](https://github.com/ShapArt/Matrtix-Cleaner/blob/main/LICENSE)
+## Why this project exists
 
-## RU
-**Слоган:** Чистые данные без рутины
+Approval matrices are one of those systems where small manual edits can create very large operational problems.
 
-Утилита для быстрой очистки и приведения данных к рабочему виду без ручной боли.
+Changing signers, approvers, counterparties, document rules, or legal-entity bindings row by row is slow, error-prone, and hard to review after the fact. This project exists to make that work more repeatable without pretending it should be a blind one-click automation.
 
-### Что даёт проект
-- Быстрый запуск и понятный вход в задачу.
-- Практичный сценарий использования, а не «игрушечный» демо-кейс.
-- Поддерживаемая структура для роста и автоматизации.
+## What it does
 
-### Быстрый старт
-- Открой README/структуру проекта.
-- Запусти команды из текущего репозитория.
-- Используй шаблоны в .github/ для стандартизированного вклада.
+`Matrtix-Cleaner` is implemented as a browser userscript that augments OpenText matrix pages with an operator panel.
 
-### Для кого
-- Инженеры, которым важен результат, а не шум.
-- Команды, ценящие скорость внедрения и качество кода.
+The script works directly against the page DOM and existing OpenText client-side objects, then builds a controlled workflow around common matrix operations:
 
-## EN
-**Tagline:** Чистые данные без рутины
+- inspect and catalog matrix data;
+- preview changes before applying them;
+- batch-process matching rows;
+- surface ambiguous cases for manual review;
+- keep safety checks close to the action layer.
 
-Data cleanup utility for fast, repeatable preprocessing workflows.
+## Key capabilities
 
-### Value proposition
-- Fast onboarding and clear project intent.
-- Production-minded structure for scaling and automation.
-- Consistent contribution and quality standards.
+The current script exposes domain-specific operations such as:
 
-## Contribution
-See .github/CONTRIBUTING.md.
+- replacing or removing approvers;
+- replacing signers;
+- adding a signer bundle across multiple rows;
+- changing limits;
+- expanding legal entities and sites;
+- patching or adding document types to matching rows;
+- adding change-card flags to matching rows;
+- removing or locating counterparties across rows;
+- locating user references across the matrix;
+- running matrix audit and checklist-style diagnostics.
+
+## Architecture overview
+
+This is **not** a backend service. It is a browser-side operator tool.
+
+### Runtime model
+
+- **Distribution format:** Tampermonkey userscript
+- **Main file:** `matrix-cleaner.user.js`
+- **Execution model:** injected into OpenText pages after document load
+- **Host integration:** `unsafeWindow` / existing page context
+- **UI model:** custom panel rendered on top of the OpenText interface
+
+### Load-bearing integrations
+
+The script relies on:
+
+- OpenText page selectors such as `#sc_ApprovalMatrix`
+- the host page's jQuery instance
+- OpenText client-side matrix objects such as `sc_ApprovalMatrix`
+- row-level DOM inspection and mutation
+
+That means the tool is powerful, but intentionally coupled to the target environment.
+
+## Safety model
+
+The most important part of the project is not that it can change matrices. It is that it tries to do so **with guardrails**.
+
+The current codebase includes signals for:
+
+- dry-run style planning before execution;
+- default limits on the number of affected rows;
+- draft-oriented workflow assumptions;
+- ambiguity handling and manual-review states;
+- separate action types such as patch, add, delete, skip, and manual review;
+- risk-oriented logging and triage UI elements.
+
+In other words, this repository is closer to **operator tooling with controlled mutation paths** than to a raw mass-edit script.
+
+## Technical highlights
+
+- One-file delivery keeps installation simple for browser userscript workflows
+- Domain operations are explicit instead of hidden behind generic “apply magic” behavior
+- The script maintains internal planning/reporting state rather than mutating blindly
+- Logging, risk badges, and ambiguity buckets help the operator inspect outcomes before trusting them
+- The code reflects real OpenText constraints such as draft state, row filtering, partner resolution, and matrix-specific selectors
+
+## Repository structure
+
+```text
+Matrtix-Cleaner/
+  matrix-cleaner.user.js
+  README.md
+```
+
+## How it works in practice
+
+1. Install the userscript in Tampermonkey.
+2. Open the relevant OpenText matrix or related catalog page.
+3. Let the script detect matrix context and available rows.
+4. Choose the required operation from the operator panel.
+5. Preview the plan, inspect ambiguous cases, and verify the affected scope.
+6. Apply the change only after the planned result looks correct.
+
+## Where this repo is strongest
+
+This repository is most valuable as an example of:
+
+- workflow automation in a hostile / legacy browser environment;
+- domain-specific batch editing with safety rails;
+- practical operator UX on top of an existing enterprise interface;
+- balancing speed of change against risk of destructive edits.
+
+## Constraints and trade-offs
+
+- The tool is tightly coupled to the target OpenText DOM and client-side internals
+- Selector drift or host-side UI changes can break behavior
+- It is not a generic matrix library or external API wrapper
+- Some workflows still require operator judgment, which is a feature rather than a defect
+
+## Documentation gaps still worth filling later
+
+- screenshots of the panel and preview flow
+- a short before/after example for a real matrix operation
+- a tiny glossary of matrix-specific terms for readers outside the domain
 
 ## License
-See LICENSE.
 
-
+See `LICENSE` if present in the repository.
