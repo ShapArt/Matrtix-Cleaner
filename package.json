@@ -5,12 +5,20 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build-userscript.mjs",
+    "preflight": "node scripts/preflight.mjs",
+    "bootstrap": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap-node.ps1",
+    "inventory": "node scripts/inventory-open-text-assets.mjs",
+    "inventory:smoke": "node scripts/inventory-smoke.mjs",
+    "schema:validate": "node scripts/validate-schema.mjs",
+    "verify:dist": "node scripts/verify-dist-parity.mjs",
     "test": "playwright test",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
-    "test:all": "npm run test:unit && npm test",
-    "smoke": "npm run build && npm run test:unit && playwright test -g \"smoke|1\\. detects matrix list page|25\\. end-to-end smoke flow\""
+    "verify:core": "npm run preflight && npm run test:unit && npm run schema:validate && npm run inventory:smoke && npm run build && npm run verify:dist",
+    "verify": "npm run verify:core && npm test",
+    "test:all": "npm run verify",
+    "smoke": "npm run verify:core && playwright test -g \"smoke|1\\. detects matrix list page|25\\. end-to-end smoke flow\""
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",

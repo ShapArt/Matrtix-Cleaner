@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "7.0.0",
+  "sourceMetadata": {
+    "requestId": "ITCM-V7-EXAMPLE-1",
+    "author": "first-line",
+    "createdAt": "2026-04-27",
+    "description": "Preview-first limit patch with v7 snapshot/report guard fields."
+  },
+  "matrixQuery": {
+    "matrixName": "Matrix name from OpenText",
+    "system": "OpenText"
+  },
+  "selection": {
+    "rowGroup": "main_contract_rows",
+    "filters": {
+      "requiredDocTypes": ["Contract"],
+      "matchMode": "all"
+    }
+  },
+  "operations": [
+    {
+      "type": "change_limits",
+      "selection": {
+        "rowGroup": "main_contract_rows"
+      },
+      "payload": {
+        "rowGroup": "main_contract_rows",
+        "requiredDocTypes": ["Contract"],
+        "matchMode": "all",
+        "target": "limit",
+        "value": "1000000"
+      },
+      "options": {
+        "sourceRule": "v7-sample",
+        "requireSnapshot": true
+      }
+    }
+  ],
+  "safety": {
+    "previewFirst": true,
+    "requireDraft": true,
+    "maxAffectedRows": 25,
+    "blockWhenRunningSheetsDetected": true
+  },
+  "preview": {
+    "visualDiff": true
+  },
+  "apply": {
+    "requiresConfirmation": true,
+    "snapshotBeforeApply": true
+  },
+  "checklists": {
+    "routeFailure": true,
+    "cardValidation": true
+  },
+  "reporting": {
+    "formats": ["json", "csv"],
+    "includeApplyMode": true,
+    "includeRollbackHint": true
+  },
+  "rollbackHint": {
+    "strategy": "restore before.limit from the apply snapshot/report or OpenText version history"
+  }
+}

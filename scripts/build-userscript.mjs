@@ -16,7 +16,7 @@ async function main() {
     extensionSource = '';
   }
   const merged = extensionSource
-    ? `${legacySource}\n\n/* ===== Matrix Cleaner v5 extension (generated) ===== */\n${extensionSource}\n`
+    ? `${legacySource}\n\n/* ===== Matrix Cleaner v7 extension (generated) ===== */\n${extensionSource}\n`
     : legacySource;
   await fs.mkdir(outDir, { recursive: true });
   await fs.writeFile(outPath, merged, 'utf8');

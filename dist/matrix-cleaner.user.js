@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OpenText Matrix Cleaner Compact Safe
 // @namespace    https://chat.openai.com/
-// @version      4.0.0
-// @description  Матрицы согласования OT: каталог, dry-run, движок правил, пакетный импорт, мастер подписантов, отчёты и безопасные ограничения.
+// @version      2026.4.27.7
+// @description  Эволюционная автоматизация матриц OpenText: catalog, dry-run, rule engine, batch import, signer wizard
 // @match        *://*/otcs/cs.exe*
 // @homepageURL  https://github.com/ShapArt/Matrtix-Cleaner
 // @supportURL   https://github.com/ShapArt/Matrtix-Cleaner/issues
@@ -13,11 +13,17 @@
 // @grant        unsafeWindow
 // ==/UserScript==
 
+/** Tampermonkey sandbox: `window` !== `unsafeWindow`; API и страница — на host window. */
+function __otMatrixCleanerHost() {
+  return typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+}
+
 (function () {
   'use strict';
 
   const CONFIG = {
-    version: '4.0.0',
+    version: '7.0.0',
+    requiredAffiliation: 'Группа Черкизово',
     partnerAliases: ['partner_id', 'partners_internal_id'],
     operationTypes: {
       REPLACE_APPROVER: 'replace_approver',
@@ -68,6 +74,12 @@
       matrixForm: '#sc_approvalForm',
       matrixSaveBtn: 'button[onclick*="sc_submitMatrix"]',
       matrixFilterCell: '#sc_ApprovalMatrix thead .sc_filter.partner, #sc_ApprovalMatrix thead .sc_filter',
+      matrixPartnerFilterCell: '#sc_ApprovalMatrix thead td.sc_filter.partner',
+      matrixFilterPopup: '.sc_tableFilter',
+      matrixFilterSearch: '#sc_filterForFilterValues',
+      matrixFilterOptions: '.sc_filterPropsList li',
+      matrixFilterCheckboxes: '.sc_filterPropsList input[type="checkbox"]',
+      matrixFilterApplyButtons: '.sc_tableFilter .sc_filterButton button',
       listTable: '#browseViewCoreTable',
       listRows: '#browseViewCoreTable tr.browseRow1, #browseViewCoreTable tr.browseRow2',
       listName: 'a.browseItemNameContainer[data-otname="itemContainer"]',
@@ -78,6 +90,21 @@
       popupGridRows: '#reportGrid tr.BrowseRow1, #reportGrid tr.BrowseRow2',
       popupPartnerCheckbox: 'input.partneritem',
       popupSelectBtn: '#selectpartners',
+    },
+    operationLabels: {
+      remove_counterparty_from_rows: 'Удаление контрагента из строк',
+      delete_rows_if_single_counterparty: 'Удаление строки при единственном контрагенте',
+      replace_approver: 'Замена согласующего',
+      remove_approver: 'Снятие согласующего',
+      replace_signer: 'Замена подписанта',
+      add_signer_bundle: 'Добавление подписанта (4 строки)',
+      change_limits: 'Изменение лимитов',
+      expand_legal_entities: 'Расширение юрлиц',
+      expand_sites: 'Расширение площадок',
+      patch_doc_types: 'Правка типов документов (legacy)',
+      add_doc_type_to_matching_rows: 'Массово: добавить тип документа',
+      add_change_card_flag_to_matching_rows: 'Массово: признак карточки',
+      add_legal_entity_to_matching_rows: 'Массово: добавить юрлицо',
     },
   };
 
@@ -99,8 +126,11 @@
     selectedPartnerName: '',
     selectedMatrixName: '',
     columnIdx: null,
+    filterDiagnostics: null,
+    lastApplySnapshot: null,
     mode: 'matrix',
     booted: false,
+    runningSheetsGuardHintLogged: false,
     xlsxLoaderPromise: null,
     signerPresetConfig: {
       presetName: 'configurable_4_row_bundle',
@@ -432,6 +462,145 @@
     throw new Error('Не удалось определить колонку «Контрагент».');
   }
 
+  function getPartnerColumnAlias(columnIdx) {
+    const matrix = ensureMatrixInit();
+    const col = matrix.cols && matrix.cols[columnIdx] ? matrix.cols[columnIdx] : null;
+    return col && col.alias ? String(col.alias) : CONFIG.partnerAliases[0];
+  }
+
+  function findPartnerFilterCell(columnIdx) {
+    const idx = String(columnIdx);
+    const direct = document.querySelector(`${CONFIG.selectors.matrixPartnerFilterCell}[itemcolidx="${idx}"], ${CONFIG.selectors.matrixPartnerFilterCell}[itemColIdx="${idx}"]`);
+    if (direct) return direct;
+    const partnerCells = Array.from(document.querySelectorAll(CONFIG.selectors.matrixPartnerFilterCell));
+    const byIdx = partnerCells.find(cell => String(cell.getAttribute('itemcolidx') || cell.getAttribute('itemColIdx') || '') === idx);
+    if (byIdx) return byIdx;
+    const generic = Array.from(document.querySelectorAll(`${CONFIG.selectors.matrixTable} thead td.sc_filter[itemcolidx="${idx}"], ${CONFIG.selectors.matrixTable} thead td.sc_filter[itemColIdx="${idx}"]`));
+    return generic.find(cell => !cell.classList.contains('condition')) || generic[0] || null;
+  }
+
+  function getFilterPopup() {
+    return document.querySelector(CONFIG.selectors.matrixFilterPopup);
+  }
+
+  function openNativePartnerFilter(columnIdx) {
+    const matrix = ensureMatrixInit();
+    const jq = $();
+    const cell = findPartnerFilterCell(columnIdx);
+    if (!cell) throw new Error('Partner filter header cell was not found.');
+    let popup = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (typeof matrix.filterHide === 'function') {
+        try { matrix.filterHide(); } catch (error) { lastError = error; }
+      }
+      cell.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      popup = getFilterPopup();
+      if (popup) break;
+      if (typeof matrix.filterShow === 'function' && typeof jq === 'function') {
+        try {
+          hostWindow().event = { target: cell };
+          matrix.filterShow(jq(cell));
+          popup = getFilterPopup();
+          if (popup) break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+    }
+    if (!popup) {
+      const suffix = lastError && lastError.message ? ` ${lastError.message}` : '';
+      throw new Error(`Native OpenText filter popup was not opened.${suffix}`);
+    }
+    return { cell, popup };
+  }
+
+  function setNativeFilterSearch(popup, query) {
+    const input = popup.querySelector(CONFIG.selectors.matrixFilterSearch) || document.querySelector(CONFIG.selectors.matrixFilterSearch);
+    if (!input) return false;
+    input.value = String(query || '');
+    ['input', 'change', 'keyup'].forEach(type => {
+      input.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+    });
+    return true;
+  }
+
+  function choosePartnerFilterCheckboxes(popup, partnerEntry) {
+    const wantedIds = new Set((partnerEntry.ids || []).map(id => String(Math.abs(Number(id)))));
+    const wantedName = normalize(partnerEntry.name || '');
+    const checkboxes = Array.from((popup || document).querySelectorAll(CONFIG.selectors.matrixFilterCheckboxes));
+    const selectedValues = [];
+    checkboxes.forEach(input => {
+      if (!input.value) {
+        input.checked = false;
+        return;
+      }
+      const label = input.closest('label');
+      const labelText = normalize(label ? label.textContent : '');
+      const value = String(input.value || '');
+      const byId = wantedIds.has(String(Math.abs(Number(value))));
+      const byExactName = wantedName && labelText === wantedName;
+      const checked = byId || byExactName;
+      input.checked = checked;
+      if (checked) selectedValues.push(value);
+    });
+    return unique(selectedValues);
+  }
+
+  function verifyPartnerFilterSelection(popup, selectedValues) {
+    const selected = new Set((selectedValues || []).map(String));
+    const checked = Array.from((popup || document).querySelectorAll(CONFIG.selectors.matrixFilterCheckboxes))
+      .filter(input => input.checked && input.value)
+      .map(input => String(input.value || ''));
+    const unexpected = checked.filter(value => !selected.has(value));
+    const missing = Array.from(selected).filter(value => checked.indexOf(value) < 0);
+    return {
+      ok: selected.size > 0 && !unexpected.length && !missing.length,
+      checkedValues: checked,
+      unexpected,
+      missing,
+    };
+  }
+
+  function clickNativeFilterApply(popup) {
+    const matrix = ensureMatrixInit();
+    const buttons = Array.from((popup || document).querySelectorAll(CONFIG.selectors.matrixFilterApplyButtons));
+    const applyText = normalize(matrix.lang && matrix.lang.apply ? matrix.lang.apply : 'apply');
+    const button = buttons.find(btn => normalize(btn.textContent || '') === applyText)
+      || buttons.find(btn => /apply|примен/i.test(String(btn.textContent || '')))
+      || buttons[0];
+    if (button) {
+      button.click();
+      return 'button';
+    }
+    if (typeof matrix.filterApply === 'function') {
+      if (typeof matrix.filterHide === 'function') matrix.filterHide();
+      matrix.filterApply();
+      return 'api';
+    }
+    throw new Error('Native filter Apply button was not found.');
+  }
+
+  function applyPartnerFilterInternal(partnerEntry, reason) {
+    const matrix = ensureMatrixInit();
+    const columnIdx = state.columnIdx != null ? state.columnIdx : getPartnerColumnIdx();
+    matrix.filter.colsFilterArray[columnIdx] = partnerEntry.ids.map(String);
+    matrix.filterItems();
+    const diagnostics = {
+      mode: 'internal_fallback',
+      reason: reason || '',
+      columnIdx,
+      columnAlias: getPartnerColumnAlias(columnIdx),
+      matchedIds: partnerEntry.ids.map(String),
+      popupOpened: false,
+      searched: false,
+      appliedBy: 'filterItems',
+      visibleRows: visibleRows().length,
+    };
+    state.filterDiagnostics = diagnostics;
+    return { rows: visibleRows(), diagnostics };
+  }
+
   function getPartnerIdsByItemId(itemId, columnIdx) {
     const raw = sc().items && sc().items[itemId] ? sc().items[itemId][columnIdx] : null;
     if (!Array.isArray(raw)) return [];
@@ -464,7 +633,7 @@
         const name = matrix.partnerCacheObject && matrix.partnerCacheObject[absId] ? matrix.partnerCacheObject[absId] : String(absId);
         if (!absId || !name) return;
         const key = normalize(name);
-        if (!bucket[key]) bucket[key] = { key, name: String(name).trim(), ids: [] };
+        if (!bucket[key]) bucket[key] = { key, name: String(name).trim(), ids: [], affiliation: CONFIG.requiredAffiliation };
         bucket[key].ids.push(absId);
       });
     });
@@ -474,7 +643,7 @@
         const name = String(item.name || item.title || '').trim();
         if (!absId || !name) return;
         const key = normalize(name);
-        if (!bucket[key]) bucket[key] = { key, name, ids: [] };
+        if (!bucket[key]) bucket[key] = { key, name, ids: [], affiliation: CONFIG.requiredAffiliation };
         bucket[key].ids.push(absId);
       });
     }
@@ -482,6 +651,7 @@
       key: bucket[key].key,
       name: bucket[key].name,
       ids: unique(bucket[key].ids).sort((a, b) => a - b),
+      affiliation: bucket[key].affiliation || CONFIG.requiredAffiliation,
     })).sort((l, r) => l.name.localeCompare(r.name, 'ru'));
     return state.partnerCatalog;
   }
@@ -491,12 +661,184 @@
     return state.partnerCatalog.find(entry => entry.key === key) || null;
   }
 
+  /** Первый контрагент из каталога, чьё имя встречается в тексте видимых строк (не «первый в списке»). */
+  function pickPartnerEntryVisibleInMatrix(catalog) {
+    if (!Array.isArray(catalog) || !catalog.length) return null;
+    const rows = visibleRows();
+    if (!rows.length) return null;
+    const blob = normalize(rows.map(r => String(r.textContent || '')).join('\n'));
+    for (let i = 0; i < catalog.length; i += 1) {
+      const name = String(catalog[i].name || '').trim();
+      if (!name) continue;
+      const key = normalize(name);
+      if (key && blob.indexOf(key) >= 0) return catalog[i];
+    }
+    return null;
+  }
+
+  function operationTypeLabel(type) {
+    return (CONFIG.operationLabels && CONFIG.operationLabels[type]) ? CONFIG.operationLabels[type] : String(type || '');
+  }
+
+  /** Черновик операций из свободного текста заявки (без JSON). */
+  function parseFreeformRequestText(rawText) {
+    const text = String(rawText || '').trim();
+    if (!text) {
+      return { confidence: 0, operations: [], reasons: ['Пустой текст.'] };
+    }
+    const lower = text.toLowerCase();
+    const operations = [];
+    const reasons = [];
+    const pickName = (re) => {
+      const m = text.match(re);
+      return m && m[1] ? m[1].replace(/\s+/g, ' ').trim() : '';
+    };
+    if (/замен[а-я]*\s+подписант|подписант[а-я]*\s+с|replace.*signer/i.test(text)) {
+      operations.push({
+        type: CONFIG.operationTypes.REPLACE_SIGNER,
+        matrixName: document.title,
+        scope: {},
+        filters: {},
+        payload: { currentSigner: pickName(/текущ[а-я]*\s*[:]?\s*([^\n,;]+)/i) || pickName(/с\s+([^\n,]+?)\s+на/i), newSigner: pickName(/на\s+([^\n,;]+?)(?:\s|$|\.)/i) || pickName(/нов[а-я]*\s*[:]?\s*([^\n,;]+)/i) },
+        options: { sourceRule: 'freeform_text' },
+      });
+      reasons.push('Найден сценарий замены подписанта.');
+    }
+    if (/добавить\s+тип|тип\s+документ|add\s+doc/i.test(text)) {
+      const doc = pickName(/тип[а-я]*\s*[:]?\s*([^\n,;]+)/i) || pickName(/«([^»]+)»/);
+      operations.push({
+        type: CONFIG.operationTypes.ADD_DOC_TYPE_TO_MATCHING_ROWS,
+        matrixName: document.title,
+        scope: {},
+        filters: { rowGroup: lower.indexOf('доп') >= 0 ? 'supplemental_rows' : 'all' },
+        payload: { newDocType: doc || 'Уточнить тип', rowGroup: lower.indexOf('доп') >= 0 ? 'supplemental_rows' : 'all', matchMode: 'any', requiredDocTypes: [], affiliation: CONFIG.requiredAffiliation },
+        options: { sourceRule: 'freeform_text' },
+      });
+      reasons.push('Найдено добавление типа документа (проверь поле вручную).');
+    }
+    if (/юр[а-я]*\s*лиц|legal\s*ent/i.test(text)) {
+      operations.push({
+        type: CONFIG.operationTypes.ADD_LEGAL_ENTITY_TO_MATCHING_ROWS,
+        matrixName: document.title,
+        scope: {},
+        filters: { rowGroup: 'all' },
+        payload: { legalEntity: pickName(/ооо[а-яa-z0-9«»\s-]{3,60}/i) || 'Уточнить юрлицо', matchMode: 'any', requiredDocTypes: [], affiliation: CONFIG.requiredAffiliation },
+        options: { sourceRule: 'freeform_text' },
+      });
+      reasons.push('Найдено упоминание юрлица (проверь название).');
+    }
+    const conf = operations.length ? 0.55 + Math.min(0.35, text.length / 2000) : 0.2;
+    if (!operations.length) reasons.push('Мало явных сигналов. Вставь тикет целиком или выбери сценарий вручную.');
+    return { confidence: conf, operations, reasons };
+  }
+
+  function buildRequestDraft(rawText, options) {
+    const opts = options || {};
+    const parsed = parseFreeformRequestText(rawText);
+    const text = normalize(rawText || '');
+    const requiredMissingFields = [];
+    let operation = parsed.operations[0] || null;
+    if (!operation) {
+      const hasCounterpartySignal = /контрагент|counterparty|partner/.test(text);
+      const hasRemoveSignal = /удал|убра|remove/.test(text);
+      const hasRouteSignal = /маршрут|лист согласования|не стро|route/.test(text);
+      if (hasCounterpartySignal && hasRemoveSignal) {
+        operation = normalizeOperation({
+          type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
+          payload: { partnerName: opts.partnerName || '', affiliation: CONFIG.requiredAffiliation },
+          options: { skipExclude: true },
+        });
+        if (!operation.payload.partnerName) requiredMissingFields.push('counterparty name');
+      } else if (hasRouteSignal) {
+        operation = normalizeOperation({
+          type: CONFIG.operationTypes.CHECKLIST_ROUTE_FAILURE,
+          payload: { rawText: rawText || '' },
+        });
+      }
+    }
+    if (!operation) {
+      if (/контрагент|counterparty|partner/.test(text) && /удал|убра|remove/.test(text)) {
+        operation = normalizeOperation({
+          type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
+          payload: { partnerName: opts.partnerName || '', affiliation: CONFIG.requiredAffiliation },
+          options: { skipExclude: true },
+        });
+        if (!operation.payload.partnerName) requiredMissingFields.push('counterparty name');
+      } else if (/маршрут|route|лист согласования|не стро/.test(text)) {
+        operation = normalizeOperation({
+          type: CONFIG.operationTypes.CHECKLIST_ROUTE_FAILURE,
+          payload: { rawText: rawText || '' },
+        });
+      }
+    }
+    if (!operation) requiredMissingFields.push('operation type');
+    const confidence = requiredMissingFields.length ? Math.min(parsed.confidence || 0.3, 0.49) : Math.max(parsed.confidence || 0.5, 0.55);
+    return {
+      confidence,
+      reasons: (parsed.reasons || []).concat(requiredMissingFields.length ? ['missing_required_fields'] : []),
+      requiredMissingFields,
+      operation,
+      autoApplyAllowed: false,
+      suggestedFirstLineResponse: requiredMissingFields.length
+        ? `Запросить недостающие данные: ${requiredMissingFields.join(', ')}.`
+        : 'Построить preview в Matrix Cleaner и приложить JSON/CSV отчёт перед apply.',
+    };
+  }
+
   function applyPartnerFilter(partnerEntry) {
     const matrix = ensureMatrixInit();
     const columnIdx = state.columnIdx != null ? state.columnIdx : getPartnerColumnIdx();
-    matrix.filter.colsFilterArray[columnIdx] = partnerEntry.ids.map(String);
-    matrix.filterItems();
-    return visibleRows();
+    if (String(window.location.protocol || '').toLowerCase() === 'file:') {
+      return applyPartnerFilterInternal(partnerEntry, 'fixture/offline page: native UI filter skipped');
+    }
+    const diagnostics = {
+      mode: 'ui_first',
+      reason: '',
+      columnIdx,
+      columnAlias: getPartnerColumnAlias(columnIdx),
+      matchedIds: [],
+      popupOpened: false,
+      searched: false,
+      appliedBy: '',
+      visibleRows: 0,
+    };
+    try {
+      const opened = openNativePartnerFilter(columnIdx);
+      diagnostics.popupOpened = true;
+      diagnostics.searched = setNativeFilterSearch(opened.popup, partnerEntry.name);
+      diagnostics.matchedIds = choosePartnerFilterCheckboxes(opened.popup, partnerEntry);
+      if (!diagnostics.matchedIds.length) {
+        throw new Error('Partner was not found in native filter checkbox list.');
+      }
+      const selectionCheck = verifyPartnerFilterSelection(opened.popup, diagnostics.matchedIds);
+      diagnostics.selectionCheck = selectionCheck;
+      if (!selectionCheck.ok) {
+        throw new Error(`Native filter checkbox selection mismatch: ${JSON.stringify(selectionCheck)}`);
+      }
+      diagnostics.appliedBy = clickNativeFilterApply(opened.popup);
+      diagnostics.visibleRows = visibleRows().length;
+      state.filterDiagnostics = diagnostics;
+      return { rows: visibleRows(), diagnostics };
+    } catch (error) {
+      log(`Counterparty column filter fallback: ${error.message}`, 'warn');
+      return applyPartnerFilterInternal(partnerEntry, error.message);
+    }
+  }
+
+  function clearMatrixFilters() {
+    const matrix = ensureMatrixInit();
+    if (typeof matrix.filterHide === 'function') {
+      try { matrix.filterHide(); } catch (_) {}
+    }
+    if (typeof matrix.initFilters === 'function') matrix.initFilters();
+    if (matrix.element && typeof matrix.element.find === 'function') {
+      matrix.element.find('.sc_filterHasCondition').removeClass('sc_filterHasCondition');
+    } else {
+      document.querySelectorAll(`${CONFIG.selectors.matrixTable} .sc_filterHasCondition`).forEach(node => node.classList.remove('sc_filterHasCondition'));
+    }
+    if (typeof matrix.filterItems === 'function') matrix.filterItems();
+    state.filterDiagnostics = null;
+    return { cleared: true, visibleRows: visibleRows().length };
   }
 
   function switchRowMode(rowOrJq, dontSave) {
@@ -614,11 +956,46 @@
   }
 
   function detectRunningSheetsState() {
+    const statusSelect = document.querySelector(CONFIG.selectors.matrixStatus);
+    const statusValue = normalize(statusSelect ? statusSelect.value || '' : '');
+    const statusText = normalize(statusSelect && statusSelect.options && statusSelect.selectedIndex >= 0 ? statusSelect.options[statusSelect.selectedIndex].text || '' : '');
+    const bodyText = normalize(document.body ? document.body.textContent || '' : '');
+    const approvalLinks = Array.from(document.querySelectorAll('a[href]'))
+      .map(link => String(link.getAttribute('href') || ''))
+      .filter(href => /approvallist|openapprovallist|approvalid|approval/i.test(href));
+    const runningTextSignals = [
+      'лист согласования',
+      'запущен',
+      'запущенные листы',
+      'на согласовании',
+      'approvallist',
+      'approval id',
+    ].filter(signal => bodyText.indexOf(normalize(signal)) >= 0);
+    const activeStatus = Boolean(statusValue && statusValue !== 'draft' && statusValue !== 'черновик');
+    const hasRunningSheets = approvalLinks.length > 0 || runningTextSignals.length > 0 || activeStatus;
     return {
-      known: false,
-      hasRunningSheets: null,
-      message: 'Признак уже запущенных листов недоступен в текущем DOM/API. Требуется явный override.',
+      known: true,
+      hasRunningSheets,
+      statusValue,
+      statusText,
+      evidence: {
+        approvalLinks: approvalLinks.slice(0, 10),
+        runningTextSignals,
+        activeStatus,
+      },
+      message: hasRunningSheets
+        ? 'Найдены признаки уже запущенных листов/маршрута. Apply требует override.'
+        : 'Признаков уже запущенных листов в текущем DOM не найдено.',
     };
+  }
+
+  function isLikelyLiveOpenTextPage() {
+    const protocol = String(window.location.protocol || '').toLowerCase();
+    if (protocol === 'file:' || protocol === 'about:' || protocol === 'data:') return false;
+    const href = String(window.location.href || '');
+    if (/otcs|cs\.exe|opentext/i.test(href)) return true;
+    const win = hostWindow();
+    return Boolean(win.sc && win.sc.urlPrefix && /^https?:/i.test(String(win.sc.urlPrefix || '')));
   }
 
   function normalizeOperation(raw) {
@@ -633,13 +1010,104 @@
     };
   }
 
+  function cleanCellText(value) {
+    return String(value == null ? '' : value)
+      .replace(/\u00a0/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/;+\s*$/g, '')
+      .trim();
+  }
+
+  function getRowCellText(row, aliases) {
+    const list = Array.isArray(aliases) ? aliases : [aliases];
+    for (const alias of list) {
+      const cells = Array.from(row.querySelectorAll(`td.attrAlias_${alias}`));
+      const text = cleanCellText(cells.map(cell => cell.textContent || '').join('; '));
+      if (text && text !== '*' && !/^(пустое значение|empty value)$/i.test(text)) return text;
+    }
+    return '';
+  }
+
+  function countRowNarrowingSignals(row) {
+    if (!row) return { score: 0, signals: [] };
+    const signalDefs = [
+      ['document_type', ['document_type']],
+      ['legal_entity', ['legal_entity', 'entity', 'juridical_person']],
+      ['direction', ['direction']],
+      ['function', ['functions']],
+      ['category', ['category']],
+      ['amount', ['sum_rub']],
+      ['limit', ['limit_contract']],
+      ['edo_mode', ['eds']],
+      ['change', ['change']],
+      ['partner_op', ['partner_op']],
+      ['affiliation', ['affiliation']],
+    ];
+    const signals = [];
+    signalDefs.forEach(([name, aliases]) => {
+      if (getRowCellText(row, aliases)) signals.push(name);
+    });
+    return { score: signals.length, signals };
+  }
+
+  function evaluateBroadnessRisk(row, remainingPartners, options) {
+    const opts = options || {};
+    const minimumSignals = Number.isFinite(Number(opts.minimumNarrowingSignals))
+      ? Number(opts.minimumNarrowingSignals)
+      : 2;
+    const remaining = Array.isArray(remainingPartners) ? remainingPartners.filter(Boolean) : [];
+    if (!remaining.length) {
+      return {
+        level: 'manual_review',
+        reason: 'Counterparty removal would leave the row without a counterparty condition.',
+        signals: [],
+        score: 0,
+      };
+    }
+    if (remaining.some(name => normalize(name) === '*' || /пустое значение|empty value|null/i.test(String(name)))) {
+      return {
+        level: 'manual_review',
+        reason: 'Remaining counterparty condition looks empty or wildcard-like.',
+        signals: [],
+        score: 0,
+      };
+    }
+    const counted = countRowNarrowingSignals(row);
+    if (counted.score < minimumSignals) {
+      return {
+        level: 'manual_review',
+        reason: `Too few narrowing conditions after counterparty removal (${counted.score}/${minimumSignals}).`,
+        signals: counted.signals,
+        score: counted.score,
+      };
+    }
+    return {
+      level: 'ok',
+      reason: '',
+      signals: counted.signals,
+      score: counted.score,
+    };
+  }
+
   function planCounterpartyMutation(op, context) {
     const partnerName = op.payload.partnerName || op.payload.currentPartner || '';
+    const requiredAffiliation = CONFIG.requiredAffiliation;
+    const providedAffiliation = String(op.payload.affiliation || '').trim();
+    if (providedAffiliation && normalize(providedAffiliation) !== normalize(requiredAffiliation)) {
+      return [{
+        operationType: op.type,
+        actionType: CONFIG.actionTypes.MANUAL_REVIEW,
+        status: CONFIG.status.MANUAL_REVIEW,
+        reason: `Аффилированность контрагента должна быть "${requiredAffiliation}". Передано: "${providedAffiliation}".`,
+      }];
+    }
     const entry = resolvePartnerByName(partnerName);
     if (!entry) {
       return [{ actionType: CONFIG.actionTypes.MANUAL_REVIEW, status: CONFIG.status.MANUAL_REVIEW, reason: `Контрагент «${partnerName}» не найден в каталоге матрицы.` }];
     }
-    const rows = applyPartnerFilter(entry);
+    const filterResult = applyPartnerFilter(entry);
+    const rows = filterResult.rows || [];
+    const filterDiagnostics = filterResult.diagnostics || state.filterDiagnostics || {};
     const skipExclude = op.options.skipExclude !== undefined ? Boolean(op.options.skipExclude) : CONFIG.safety.defaultSkipExclude;
     const actions = [];
     rows.forEach(row => {
@@ -650,17 +1118,28 @@
       const uniqueIds = unique(signedIds.map(v => Math.abs(Number(v))).filter(Boolean));
       const matchedIds = uniqueIds.filter(id => entry.ids.indexOf(id) >= 0);
       const beforePartners = unique(getPartnerNamesFromSignedIds(signedIds));
+      const remainingPartners = beforePartners.filter(name => normalize(name) !== normalize(entry.name));
       const condition = getConditionBySignedIds(signedIds);
       const base = {
+        matrixName: op.matrixName || document.title || '',
         operationType: op.type,
+        affiliation: requiredAffiliation,
         itemId,
         recId,
+        recordId: recId,
         rowNo,
         condition,
         before: { partners: beforePartners.slice() },
         after: {},
         matchedIds,
         matchedPartnerName: entry.name,
+        remainingPartners,
+        filterMode: filterDiagnostics.mode || '',
+        filterColumnAlias: filterDiagnostics.columnAlias || getPartnerColumnAlias(state.columnIdx),
+        filterMatchedIds: (filterDiagnostics.matchedIds || []).slice ? filterDiagnostics.matchedIds.slice() : [],
+        whyMatched: matchedIds.length
+          ? `Counterparty filter matched ids: ${matchedIds.join(', ')}`
+          : 'Counterparty filter returned the row, but partner ids did not match after re-check.',
       };
       if (!matchedIds.length) {
         actions.push(Object.assign(base, {
@@ -682,9 +1161,10 @@
       if (op.type === CONFIG.operationTypes.DELETE_IF_SINGLE_COUNTERPARTY && onlyThisPartner) {
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.DELETE_ROW,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
           reason: 'Удаление строки: единственный контрагент в строке.',
           after: { deleted: true },
+          applyMode: 'ot_native_delete_row',
         }));
         return;
       }
@@ -692,9 +1172,10 @@
         if (onlyThisPartner && op.options.deleteIfSingle) {
           actions.push(Object.assign(base, {
             actionType: CONFIG.actionTypes.DELETE_ROW,
-            status: CONFIG.status.SKIPPED,
+            status: CONFIG.status.OK,
             reason: 'Удаление строки: режим deleteIfSingle.',
             after: { deleted: true },
+            applyMode: 'ot_native_delete_row',
           }));
           return;
         }
@@ -706,12 +1187,24 @@
           }));
           return;
         }
+        const broadnessRisk = evaluateBroadnessRisk(row, remainingPartners, op.options && op.options.broadnessGuard);
+        if (broadnessRisk.level !== 'ok') {
+          actions.push(Object.assign(base, {
+            actionType: CONFIG.actionTypes.MANUAL_REVIEW,
+            status: CONFIG.status.MANUAL_REVIEW,
+            reason: broadnessRisk.reason,
+            broadnessRisk,
+          }));
+          return;
+        }
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.REMOVE_TOKEN,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
+          broadnessRisk,
           reason: 'Будет удален контрагент из строки.',
+          applyMode: 'ot_native_row_edit_token',
           after: {
-            partners: beforePartners.filter(name => normalize(name) !== normalize(entry.name)),
+            partners: remainingPartners.slice(),
           },
         }));
       }
@@ -745,10 +1238,14 @@
     const text = String(row ? row.textContent || '' : '');
     const itemId = Number(row && (row.getAttribute('itemid') || row.getAttribute('itemID')) || 0);
     const rowNo = getRowNo(row);
-    const docTypes = parseSemiList((text.match(/(?:типы?\s*документов?|doc\s*types?)[:\s-]*([^\n]+)/i) || [])[1] || text);
-    const legalEntities = parseSemiList((text.match(/(?:юр\.?\s*лиц[а]?|legal\s*entities?)[:\s-]*([^\n]+)/i) || [])[1] || '');
+    const docTypeText = row ? getRowCellText(row, ['document_type']) : '';
+    const legalEntityText = row ? getRowCellText(row, ['legal_entity', 'legal_entities', 'legal_entity_id', 'legal_entities_id']) : '';
+    const limitText = row ? getRowCellText(row, ['limit_contract']) : '';
+    const amountText = row ? getRowCellText(row, ['sum_rub']) : '';
+    const docTypes = parseSemiList(docTypeText || (text.match(/(?:типы?\s*документов?|doc\s*types?)[:\s-]*([^\n]+)/i) || [])[1] || text);
+    const legalEntities = parseSemiList(legalEntityText || (text.match(/(?:юр\.?\s*лиц[а]?|legal\s*entities?)[:\s-]*([^\n]+)/i) || [])[1] || '');
     const hasChangeCard = /ранее\s+подписан|change\s*card|карточк/i.test(text);
-    return { row, text, itemId, rowNo, docTypes, legalEntities, hasChangeCard };
+    return { row, text, itemId, rowNo, docTypes, legalEntities, limitText, amountText, hasChangeCard };
   }
 
   function matchRowGroup(facts, rowGroup) {
@@ -773,6 +1270,25 @@
 
   function patchRowText(row, beforeValue, afterValue) {
     if (!row) return false;
+    const aliasesByKind = {
+      docType: ['document_type'],
+      legalEntity: ['legal_entity', 'legal_entities', 'legal_entity_id', 'legal_entities_id'],
+      changeCard: ['change', 'note'],
+      limits: ['limit_contract', 'sum_rub'],
+      amount: ['sum_rub'],
+    };
+    const kind = arguments.length > 3 ? arguments[3] : '';
+    const aliases = aliasesByKind[kind] || [];
+    for (const alias of aliases) {
+      const cell = row.querySelector(`td.attrAlias_${alias}`);
+      if (!cell) continue;
+      cell.innerHTML = String(afterValue || '')
+        .split(/\s*;\s*/)
+        .filter(Boolean)
+        .map(value => `${value};`)
+        .join('<br>');
+      return true;
+    }
     const direct = row.querySelector('[data-field="doc-types"], [data-field="legal-entities"], [data-field="change-card-flag"]');
     if (direct) {
       const source = 'value' in direct ? String(direct.value || '') : String(direct.textContent || '');
@@ -848,10 +1364,12 @@
         }
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.PATCH_ROW,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
           reason: `Будет добавлен тип документа "${newDocType}".`,
           after: { docTypes: facts.docTypes.concat([newDocType]) },
           domPatch: { kind: 'docType', beforeValue: facts.docTypes.join('; '), afterValue: facts.docTypes.concat([newDocType]).join('; ') },
+          applyMode: 'fixture_dom_patch',
+          rollbackHint: 'Remove the added document type from this row or restore before.docTypes from the report.',
         }));
         return;
       }
@@ -874,10 +1392,12 @@
         }
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.PATCH_ROW,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
           reason: `Будет добавлено юрлицо "${legalEntity}".`,
           after: { legalEntities: facts.legalEntities.concat([legalEntity]) },
           domPatch: { kind: 'legalEntity', beforeValue: facts.legalEntities.join('; '), afterValue: facts.legalEntities.concat([legalEntity]).join('; ') },
+          applyMode: 'fixture_dom_patch',
+          rollbackHint: 'Remove the added legal entity from this row or restore before.legalEntities from the report.',
         }));
         return;
       }
@@ -892,12 +1412,83 @@
         }
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.PATCH_ROW,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
           reason: `Будет проставлен флаг "${changeCardFlag}".`,
           after: { changeCardFlag },
           domPatch: { kind: 'changeCard', beforeValue: '', afterValue: changeCardFlag },
+          applyMode: 'fixture_dom_patch',
+          rollbackHint: 'Remove the added change-card flag or restore the row from the before snapshot.',
         }));
       }
+    });
+    return actions;
+  }
+
+  function planLimitPatch(op) {
+    const requestedLimit = Number(op.payload.limitRows || op.payload.maxRows || op.options.maxRows || 0);
+    const rows = requestedLimit > 0 ? visibleRows().slice(0, requestedLimit) : visibleRows();
+    const group = op.payload.rowGroup || op.filters.rowGroup || 'all';
+    const requiredDocTypes = parseSemiList(op.payload.requiredDocTypes || op.filters.requiredDocTypes || '');
+    const matchMode = String(op.payload.matchMode || op.filters.matchMode || 'all').toLowerCase();
+    const target = String(op.payload.target || op.payload.valueMode || 'limit').toLowerCase();
+    const nextValue = String(op.payload.value || op.payload.limit || op.payload.amount || '').trim();
+    const kind = target.indexOf('amount') >= 0 || target.indexOf('sum') >= 0 ? 'amount' : 'limit';
+    const actions = [];
+    rows.forEach(row => {
+      const facts = getRowFacts(row);
+      const beforeValue = kind === 'amount' ? facts.amountText : facts.limitText;
+      const base = {
+        matrixName: op.matrixName || document.title || '',
+        operationType: op.type,
+        itemId: facts.itemId,
+        recId: getRecIdByItemId(facts.itemId),
+        recordId: getRecIdByItemId(facts.itemId),
+        rowNo: facts.rowNo,
+        before: { limit: facts.limitText, amount: facts.amountText, docTypes: facts.docTypes.slice() },
+        sourceRule: op.options.sourceRule || op.payload.sourceRule || '',
+        whyMatched: `rowGroup=${group}, docTypeMatch=${matchMode}, target=${kind}`,
+      };
+      if (!matchRowGroup(facts, group)) {
+        actions.push(Object.assign(base, {
+          actionType: CONFIG.actionTypes.SKIP,
+          status: CONFIG.status.SKIPPED,
+          reason: `Строка не входит в выбранный group=${group}.`,
+        }));
+        return;
+      }
+      if (!hasTypesByMode(facts.docTypes, requiredDocTypes, matchMode)) {
+        actions.push(Object.assign(base, {
+          actionType: CONFIG.actionTypes.SKIP,
+          status: CONFIG.status.SKIPPED,
+          reason: `Не выполнен doc type match (${matchMode.toUpperCase()}).`,
+        }));
+        return;
+      }
+      if (!nextValue) {
+        actions.push(Object.assign(base, {
+          actionType: CONFIG.actionTypes.MANUAL_REVIEW,
+          status: CONFIG.status.MANUAL_REVIEW,
+          reason: 'Не указано новое значение лимита/суммы.',
+        }));
+        return;
+      }
+      if (normalize(beforeValue) === normalize(nextValue)) {
+        actions.push(Object.assign(base, {
+          actionType: CONFIG.actionTypes.SKIP,
+          status: CONFIG.status.SKIPPED,
+          reason: `Значение ${kind} уже равно "${nextValue}".`,
+        }));
+        return;
+      }
+      actions.push(Object.assign(base, {
+        actionType: CONFIG.actionTypes.PATCH_ROW,
+        status: CONFIG.status.OK,
+        reason: `Будет изменено поле ${kind}: "${beforeValue || '(пусто)'}" -> "${nextValue}".`,
+        after: kind === 'amount' ? { amount: nextValue } : { limit: nextValue },
+        domPatch: { kind: kind === 'amount' ? 'amount' : 'limits', beforeValue, afterValue: nextValue },
+        applyMode: 'fixture_dom_patch',
+        rollbackHint: `Restore ${kind} from before.${kind} in the apply snapshot/report.`,
+      }));
     });
     return actions;
   }
@@ -934,13 +1525,15 @@
     return rows.map((rowPayload, idx) => ({
       operationType: op.type,
       actionType: CONFIG.actionTypes.ADD_ROW,
-      status: CONFIG.status.SKIPPED,
+      status: CONFIG.status.OK,
       rowNo: `new-${idx + 1}`,
       reason: `Signer bundle row ${idx + 1}/4 (${rowPayload.rowKey}).`,
       sourceRule: op.options.sourceRule || 'project_default_4_rows',
       before: {},
       after: rowPayload,
       generatedRow: rowPayload,
+      applyMode: 'fixture_generated_row',
+      rollbackHint: 'Remove the generated signer row if apply was incorrect.',
     }));
   }
 
@@ -1018,6 +1611,8 @@
         newId,
         columns,
       },
+      applyMode: 'ot_native_performer_list',
+      rollbackHint: 'Restore performerList values from the before snapshot or rerun the inverse approver operation.',
     }];
   }
 
@@ -1034,6 +1629,7 @@
       case CONFIG.operationTypes.REPLACE_SIGNER:
         return planGenericManualReview(op, 'Для replace_signer auto-apply отключен: требуется отдельный signer mapping/подтверждение.');
       case CONFIG.operationTypes.CHANGE_LIMITS:
+        return planLimitPatch(op);
       case CONFIG.operationTypes.EXPAND_LEGAL_ENTITIES:
       case CONFIG.operationTypes.EXPAND_SITES:
       case CONFIG.operationTypes.PATCH_DOC_TYPES:
@@ -1131,9 +1727,15 @@
     }
 
     if (entry.actionType === CONFIG.actionTypes.PATCH_ROW && entry.domPatch) {
+      if (isLikelyLiveOpenTextPage() && !(options && options.allowDomPatchOnLive)) {
+        return {
+          status: CONFIG.status.MANUAL_REVIEW,
+          message: 'Live DOM-only patch blocked: no confirmed OpenText native writer for this field yet. Use preview/report or pass allowDomPatchOnLive only in an explicit test profile.',
+        };
+      }
       const row = getRowByItemId(entry.itemId, { preferEdit: false });
       if (!row) return { status: CONFIG.status.SKIPPED, message: `Строка itemid=${entry.itemId} не найдена для patch.` };
-      const ok = patchRowText(row, entry.domPatch.beforeValue || '', entry.domPatch.afterValue || '');
+      const ok = patchRowText(row, entry.domPatch.beforeValue || '', entry.domPatch.afterValue || '', entry.domPatch.kind || '');
       if (!ok) return { status: CONFIG.status.SKIPPED, message: `DOM patch для itemid=${entry.itemId} не применен.` };
       return { status: CONFIG.status.OK, message: `DOM patch применен (itemid=${entry.itemId}, ${entry.domPatch.kind}).` };
     }
@@ -1159,17 +1761,33 @@
     return { status: CONFIG.status.SKIPPED, message: 'Тип действия пока не исполняется автоматически.' };
   }
 
+  function resolveApplyMode(entry) {
+    if (!entry) return '';
+    if (entry.applyMode) return entry.applyMode;
+    if (entry.nativePatch) return 'ot_native_performer_list';
+    if (entry.domPatch) return 'fixture_dom_patch';
+    if (entry.generatedRow) return 'fixture_generated_row';
+    if (entry.actionType === CONFIG.actionTypes.REMOVE_TOKEN) return 'ot_native_row_edit_token';
+    if (entry.actionType === CONFIG.actionTypes.DELETE_ROW) return 'ot_native_delete_row';
+    return '';
+  }
+
   function toReportEntry(entry, result, dryRun) {
     const beforePartners = entry.before && Array.isArray(entry.before.partners) ? entry.before.partners.slice() : [];
     const matchedPartnerName = entry.matchedPartnerName || '';
     return {
+      matrixName: entry.matrixName || document.title || '',
       operationType: entry.operationType || '',
+      itemId: entry.itemId != null ? entry.itemId : '',
       itemid: entry.itemId != null ? entry.itemId : '',
       recId: entry.recId != null ? entry.recId : '',
+      recordId: entry.recordId != null ? entry.recordId : (entry.recId != null ? entry.recId : ''),
       rowNo: entry.rowNo || '',
       actionType: entry.actionType,
       status: result && result.status ? result.status : entry.status || CONFIG.status.SKIPPED,
       reason: entry.reason || '',
+      whyMatched: entry.whyMatched || entry.reason || '',
+      affiliation: entry.affiliation || CONFIG.requiredAffiliation,
       sourceRule: entry.sourceRule || '',
       skippedReason: (result && result.status === CONFIG.status.SKIPPED) ? (result.message || entry.reason || '') : '',
       ambiguousReason: ((result && String(result.status || '').indexOf('manual') >= 0) || String(entry.status || '').indexOf('manual') >= 0) ? (entry.reason || result.message || '') : '',
@@ -1178,6 +1796,14 @@
       after: entry.after || {},
       condition: entry.condition || '',
       matchedPartnerName,
+      remainingPartners: Array.isArray(entry.remainingPartners) ? entry.remainingPartners.slice() : ((entry.after && Array.isArray(entry.after.partners)) ? entry.after.partners.slice() : []),
+      filterMode: entry.filterMode || '',
+      filterColumnAlias: entry.filterColumnAlias || '',
+      filterMatchedIds: Array.isArray(entry.filterMatchedIds) ? entry.filterMatchedIds.slice() : [],
+      broadnessRisk: entry.broadnessRisk || null,
+      applyMode: resolveApplyMode(entry),
+      rollbackHint: entry.rollbackHint || buildRollbackHint(entry),
+      error: result && result.status === CONFIG.status.ERROR ? (result.message || '') : '',
       // Legacy compatibility fields.
       originalPartners: beforePartners,
       removedPartner: matchedPartnerName,
@@ -1185,24 +1811,37 @@
   }
 
   function reportToCsv(report) {
-    const headers = ['operationType', 'itemid', 'recId', 'rowNo', 'actionType', 'status', 'reason', 'sourceRule', 'skippedReason', 'ambiguousReason', 'message', 'condition', 'matchedPartnerName', 'before', 'after'];
+    const headers = ['matrixName', 'operationType', 'itemId', 'itemid', 'recId', 'recordId', 'rowNo', 'actionType', 'status', 'reason', 'whyMatched', 'affiliation', 'sourceRule', 'skippedReason', 'ambiguousReason', 'message', 'condition', 'matchedPartnerName', 'remainingPartners', 'filterMode', 'filterColumnAlias', 'filterMatchedIds', 'broadnessRisk', 'applyMode', 'rollbackHint', 'error', 'before', 'after'];
     const escape = value => `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
     const lines = [headers.join(',')];
     report.forEach(row => {
       lines.push([
+        row.matrixName,
         row.operationType,
+        row.itemId,
         row.itemid,
         row.recId,
+        row.recordId,
         row.rowNo,
         row.actionType,
         row.status,
         row.reason,
+        row.whyMatched,
+        row.affiliation,
         row.sourceRule,
         row.skippedReason,
         row.ambiguousReason,
         row.message,
         row.condition,
         row.matchedPartnerName,
+        JSON.stringify(row.remainingPartners || []),
+        row.filterMode,
+        row.filterColumnAlias,
+        JSON.stringify(row.filterMatchedIds || []),
+        JSON.stringify(row.broadnessRisk || null),
+        row.applyMode,
+        row.rollbackHint,
+        row.error,
         JSON.stringify(row.before || {}),
         JSON.stringify(row.after || {}),
       ].map(escape).join(','));
@@ -1241,7 +1880,7 @@
       }
     }
     const sourceRule = opts.sourceRule || (sourceRuleInput ? sourceRuleInput.value : '');
-    return normalizeOperation({
+    const op = normalizeOperation({
       type,
       matrixName: document.title,
       scope: { pageMode: state.mode },
@@ -1255,6 +1894,9 @@
         sourceRule: sourceRule || (payloadJson && payloadJson.sourceRule) || '',
       },
     });
+    const requiredAff = CONFIG.requiredAffiliation;
+    if (!op.payload.affiliation) op.payload.affiliation = requiredAff;
+    return op;
   }
 
   function collectSafetyOptions() {
@@ -1287,6 +1929,15 @@
     log(`Preview построен: ${plan.length} записей.`, 'ok');
     plan.slice(0, 40).forEach(entry => log(`${entry.actionType}: ${entry.reason || ''}`, entry.actionType === CONFIG.actionTypes.MANUAL_REVIEW ? 'warn' : 'info'));
     if (plan.length > 40) log(`Показаны первые 40 записей из ${plan.length}.`, 'warn');
+    const addRowPlan = plan.filter(e => e.actionType === CONFIG.actionTypes.ADD_ROW);
+    if (addRowPlan.length && isMatrixPage()) {
+      const templateRow = document.querySelector(`${CONFIG.selectors.matrixTable} tbody tr[itemid], ${CONFIG.selectors.matrixTable} tbody tr[itemID]`);
+      if (!templateRow) {
+        log('Визуальное превью новых строк: в таблице нет ни одной строки-шаблона — ghost-строки не могут быть нарисованы.', 'warn');
+      } else {
+        log(`Визуальное превью: ожидается ${addRowPlan.length} ghost-строк внизу таблицы матрицы (прокрутите вниз). Если не видно — откройте Advanced и блок «Визуальный diff v5», проверьте что включён preview.`, 'ok');
+      }
+    }
     return report;
   }
 
@@ -1304,9 +1955,17 @@
     }
     if (isMatrixPage()) {
       const runningSheetsState = detectRunningSheetsState();
-      if (!(opts.allowRunningSheetsUnknown || safety.allowUnknownRunning) && runningSheetsState.known === false && CONFIG.safety.defaultFailOnUnknownRunningSheets) {
-        log(runningSheetsState.message, 'warn');
+      if (!(opts.allowRunningSheetsUnknown || safety.allowUnknownRunning) && runningSheetsState.hasRunningSheets === true && CONFIG.safety.defaultFailOnUnknownRunningSheets) {
+        if (!state.runningSheetsGuardHintLogged) {
+          state.runningSheetsGuardHintLogged = true;
+          log(`${runningSheetsState.message} Для применения включите override или пользуйтесь только превью.`, 'warn');
+        } else {
+          log('Применение остановлено: найдены признаки уже запущенных листов/маршрута.', 'warn');
+        }
         return [];
+      }
+      if (runningSheetsState.hasRunningSheets === false) {
+        log(runningSheetsState.message, 'info');
       }
       await waitForReady();
       ensureMatrixInit();
@@ -1314,7 +1973,7 @@
     }
 
     const plan = buildRulePlan(operations, {});
-    const actionable = plan.filter(entry => [CONFIG.actionTypes.DELETE_ROW, CONFIG.actionTypes.REMOVE_TOKEN, CONFIG.actionTypes.PATCH_ROW].includes(entry.actionType));
+    const actionable = plan.filter(entry => isActionableAction(entry.actionType));
     if (actionable.length > safety.maxRows && !opts.overrideMaxRows) {
       log(`Превышен лимит затронутых строк (${actionable.length} > ${safety.maxRows}).`, 'error');
       return [];
@@ -1325,6 +1984,13 @@
         log('Операция отменена пользователем.', 'warn');
         return [];
       }
+    }
+    if (actionable.length) {
+      state.lastApplySnapshot = buildApplySnapshot(plan, operations);
+      if (!opts.skipSnapshotDownload) {
+        downloadText(`ot-matrix-apply-snapshot-${timestamp()}.json`, JSON.stringify(state.lastApplySnapshot, null, 2), 'application/json;charset=utf-8');
+      }
+      log(`Apply snapshot сохранён: ${state.lastApplySnapshot.entries.length} действий.`, 'ok');
     }
 
     setRunning(true);
@@ -1345,7 +2011,8 @@
             log(result.message, 'ok');
           } else {
             skippedCount += 1;
-            log(result.message, entry.actionType === CONFIG.actionTypes.MANUAL_REVIEW ? 'warn' : 'info');
+            const statusText = String(result.status || '');
+            log(result.message, entry.actionType === CONFIG.actionTypes.MANUAL_REVIEW || statusText.indexOf('manual') >= 0 ? 'warn' : 'info');
           }
         } catch (error) {
           report.push(toReportEntry(entry, { status: CONFIG.status.ERROR, message: error.message }, false));
@@ -1632,6 +2299,49 @@
         partnerAliases: CONFIG.partnerAliases.slice(),
         safety: Object.assign({}, CONFIG.safety),
       },
+      filterDiagnostics: state.filterDiagnostics ? Object.assign({}, state.filterDiagnostics) : null,
+      runningSheetsState: isMatrixPage() ? detectRunningSheetsState() : null,
+      lastApplySnapshot: state.lastApplySnapshot
+        ? { generatedAt: state.lastApplySnapshot.generatedAt, entries: state.lastApplySnapshot.entries.length }
+        : null,
+    };
+  }
+
+  function isActionableAction(actionType) {
+    return [CONFIG.actionTypes.DELETE_ROW, CONFIG.actionTypes.REMOVE_TOKEN, CONFIG.actionTypes.PATCH_ROW, CONFIG.actionTypes.ADD_ROW].includes(actionType);
+  }
+
+  function buildRollbackHint(entry) {
+    if (!entry) return '';
+    if (entry.actionType === CONFIG.actionTypes.DELETE_ROW) return 'Restore the deleted row from the exported before snapshot or OpenText version history.';
+    if (entry.actionType === CONFIG.actionTypes.REMOVE_TOKEN) return 'Re-add the removed counterparty token using the originalPartners report field.';
+    if (entry.actionType === CONFIG.actionTypes.PATCH_ROW) return 'Restore the before value from this snapshot/report for the patched row.';
+    if (entry.actionType === CONFIG.actionTypes.ADD_ROW) return 'Remove the generated row if apply was incorrect.';
+    return 'No rollback action required.';
+  }
+
+  function buildApplySnapshot(plan, operations) {
+    const entries = (plan || []).filter(entry => isActionableAction(entry.actionType)).map(entry => ({
+      matrixName: entry.matrixName || document.title || '',
+      operationType: entry.operationType || '',
+      actionType: entry.actionType,
+      itemId: entry.itemId != null ? entry.itemId : '',
+      itemid: entry.itemId != null ? entry.itemId : '',
+      recId: entry.recId != null ? entry.recId : '',
+      recordId: entry.recordId != null ? entry.recordId : (entry.recId != null ? entry.recId : ''),
+      rowNo: entry.rowNo || '',
+      before: entry.before || {},
+      plannedAfter: entry.after || {},
+      reason: entry.reason || '',
+      applyMode: resolveApplyMode(entry),
+      rollbackHint: entry.rollbackHint || buildRollbackHint(entry),
+    }));
+    return {
+      generatedAt: new Date().toISOString(),
+      href: window.location.href,
+      matrixName: document.title || '',
+      operations: (operations || []).map(op => normalizeOperation(op)),
+      entries,
     };
   }
 
@@ -1672,7 +2382,102 @@
       skipped: buckets.skipped.length,
       errors: buckets.errors.length,
       ambiguous: buckets.ambiguous.length,
-      actionable: rows.filter(row => [CONFIG.actionTypes.DELETE_ROW, CONFIG.actionTypes.REMOVE_TOKEN, CONFIG.actionTypes.PATCH_ROW].indexOf(row.actionType) >= 0).length,
+      actionable: rows.filter(row => isActionableAction(row.actionType)).length,
+    };
+  }
+
+  function diagnoseCurrentCard() {
+    const text = normalize(document.body ? document.body.textContent || '' : '');
+    const title = document.title || '';
+    const href = window.location.href;
+    const links = Array.from(document.querySelectorAll('a[href]')).map(link => ({
+      href: link.href || link.getAttribute('href') || '',
+      text: String(link.textContent || '').replace(/\s+/g, ' ').trim(),
+    })).slice(0, 50);
+    const fieldHints = [
+      [/тип\s+документ|document\s+type/, 'documentType'],
+      [/юр\.?\s*лиц|legal\s+entity/, 'legalEntity'],
+      [/контрагент|counterparty|partner/, 'counterparty'],
+      [/сумм|amount/, 'amount'],
+      [/лимит|limit/, 'limit'],
+      [/эдо|edo|эп|eds/, 'edoMode'],
+      [/матриц|matrix/, 'matrixName'],
+      [/этап|stage|лист\s+согласования|approvallist/, 'approvalStage'],
+      [/согласующ|подписант|approver|signer/, 'stuckApprover'],
+    ].filter(([pattern]) => pattern.test(text)).map(([, id]) => id);
+    const currentStageMatch = text.match(/(?:этап|stage|статус|status)\s*[:\-]?\s*([^.;]{3,80})/);
+    const stuckApproverMatch = text.match(/(?:согласующ|подписант|approver|signer)\s*[:\-]?\s*([^.;]{3,80})/);
+    const currentStage = currentStageMatch ? currentStageMatch[1].trim() : '';
+    const stuckApprover = stuckApproverMatch ? stuckApproverMatch[1].trim() : '';
+    const checks = [
+      {
+        id: 'approval_list',
+        status: /approvallist|лист согласования|approval/.test(`${text} ${href}`) ? 'pass' : 'warn',
+        reason: 'Approval list signals in current page.',
+      },
+      {
+        id: 'route_not_built',
+        status: /маршрут|route/.test(text) && /не\s*стро|не\s*форм|ошиб/.test(text) ? 'fail' : 'warn',
+        reason: 'Route build failure text signals.',
+      },
+      {
+        id: 'card_required_fields',
+        status: /обязат|красн|required|validation/.test(text) ? 'fail' : 'pass',
+        reason: 'Required card field / validation signals.',
+      },
+      {
+        id: 'matrix_match',
+        status: /матриц/.test(text) ? 'warn' : 'warn',
+        reason: 'Matrix match needs matrix preview/search cross-check.',
+      },
+      {
+        id: 'signer_checklist',
+        status: /подпис|согласующ|sign/.test(text) ? 'warn' : 'pass',
+        reason: 'Signer/checklist signals.',
+      },
+    ];
+    const requiredFields = [
+      'document type',
+      'legal entity',
+      'counterparty + affiliation',
+      'amount/limit',
+      'EDO mode',
+      'route stage / approval list screenshot',
+    ];
+    const missingFields = requiredFields.filter(field => {
+      if (/document type/i.test(field)) return fieldHints.indexOf('documentType') < 0;
+      if (/legal entity/i.test(field)) return fieldHints.indexOf('legalEntity') < 0;
+      if (/counterparty/i.test(field)) return fieldHints.indexOf('counterparty') < 0;
+      if (/amount\/limit/i.test(field)) return fieldHints.indexOf('amount') < 0 && fieldHints.indexOf('limit') < 0;
+      if (/EDO/i.test(field)) return fieldHints.indexOf('edoMode') < 0;
+      if (/route stage/i.test(field)) return fieldHints.indexOf('approvalStage') < 0;
+      return false;
+    });
+    return {
+      generatedAt: new Date().toISOString(),
+      title,
+      href,
+      detectedSystem: /assyst|itcm|incident|инцидент/.test(text) ? 'ITCM/assyst' : 'OpenText',
+      checks,
+      requiredFields,
+      missingFields,
+      extracted: {
+        fieldHints,
+        currentStage,
+        stuckApprover,
+        links,
+        matrixMatchHints: links.filter(link => /matrix|матриц|openmatrix/i.test(`${link.href} ${link.text}`)).slice(0, 10),
+      },
+      escalationReason: checks.some(item => item.status === 'fail') ? 'Route/card validation failure detected.' : '',
+      suggestedFirstLineScript: 'Ask for card link, matrix name, document type, legal entity, counterparty affiliation, amount/limit, EDO mode, and approval-list screenshot.',
+      selfCheckScript: 'Open the card, check required red fields, compare card values with Matrix Cleaner preview, then open approval list and identify the stuck stage/approver.',
+      escalationWhen: 'Escalate when required fields are present, Matrix Cleaner preview has no matching safe row, or approval list shows a failed/stuck stage after route rebuild.',
+      suggestedDslDraft: {
+        schemaVersion: '7.0.0',
+        operation: /approvallist|лист согласования|approval/.test(`${text} ${href}`)
+          ? { type: CONFIG.operationTypes.CHECKLIST_ROUTE_FAILURE, payload: { currentStage, stuckApprover } }
+          : { type: CONFIG.operationTypes.CHECKLIST_CARD_VALIDATION, payload: { missingFields } },
+      },
     };
   }
 
@@ -1804,10 +2609,110 @@
     log('Остановка запрошена. Скрипт остановится после текущего шага.', 'warn');
   }
 
+  async function runAllUiDiagnostics(options) {
+    const opts = options || {};
+    const humanTestMode = opts.humanTestMode === 'real_insert' ? 'real_insert' : 'preview_only';
+    const checks = [];
+    const push = (name, ok, details) => {
+      const det = details || '';
+      checks.push({ name, ok, details: det });
+      const tail = det ? ` (${det})` : '';
+      log(`[Тест всего] ${name}: ${ok ? 'OK' : 'FAIL'}${tail}`, ok ? 'ok' : 'error');
+    };
+    const pushInfo = (name, details) => {
+      checks.push({ name, ok: true, details: details || '' });
+      log(`[Тест всего] ${name}: ${details || ''}`, 'info');
+    };
+    const pushSkip = (name, details) => {
+      checks.push({ name, ok: true, details: `ПРОПУСК: ${details || ''}` });
+      log(`[Тест всего] ${name}: пропуск — ${details || ''}`, 'warn');
+    };
+    try {
+      log(`[Тест всего] Старт: synthetic-контур (${humanTestMode}) и проверка превью по матрице.`, 'ok');
+      const ready = Boolean(document.querySelector(CONFIG.selectors.matrixRows));
+      push('Матрица загружена', ready);
+      await waitForReady(5000).then(() => push('waitForReady', true)).catch(err => push('waitForReady', false, err.message));
+      try {
+        ensureMatrixInit();
+        push('sc_ApprovalMatrix доступен', true);
+      } catch (error) {
+        push('sc_ApprovalMatrix доступен', false, error.message);
+      }
+      const diag = collectDiagnostics();
+      push('jQuery доступен', Boolean(diag.env && diag.env.hasJquery));
+      const hasDraftGuard = collectSafetyOptions().requireDraft;
+      push('Draft guard включен', hasDraftGuard, hasDraftGuard ? '' : 'Рекомендуется включить');
+      const catalog = collectPartnerCatalog();
+      push('Каталог контрагентов', Array.isArray(catalog) && catalog.length > 0, `count=${catalog ? catalog.length : 0}`);
+
+      const api = hostWindow().__OT_MATRIX_CLEANER__;
+      if (api && typeof api.runAllHumanTests === 'function') {
+        try {
+          const syn = await api.runAllHumanTests({ mode: humanTestMode });
+          const synOk = syn && Number(syn.fail) === 0;
+          push('Synthetic-контур (preview)', synOk, syn ? `OK=${syn.ok} FAIL=${syn.fail} всего=${syn.total}` : '');
+          if (api.getLastReport) {
+            const last = api.getLastReport() || [];
+            pushInfo('После synthetic отчёт', `записей в последнем preview=${Array.isArray(last) ? last.length : 0}`);
+          }
+        } catch (e) {
+          push('Synthetic-контур (preview)', false, e.message || String(e));
+        }
+      } else {
+        pushSkip('Synthetic-контур', 'API runAllHumanTests недоступен (перезагрузите страницу или откройте панель позже).');
+      }
+
+      let hadPreviewRows = false;
+      if (catalog && catalog.length > 0) {
+        const picked = pickPartnerEntryVisibleInMatrix(catalog);
+        if (picked) {
+          const report = await previewOperations([normalizeOperation({
+            type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
+            matrixName: document.title,
+            payload: { partnerName: picked.name, affiliation: CONFIG.requiredAffiliation },
+            options: { skipExclude: true, deleteIfSingle: false, sourceRule: 'test-all' },
+          })], {});
+          const n = Array.isArray(report) ? report.length : 0;
+          hadPreviewRows = n > 0;
+          push('Preview: контрагент в видимых строках', hadPreviewRows, `rows=${n} «${String(picked.name).slice(0, 48)}»`);
+        } else {
+          pushSkip('Preview: контрагент', 'ни одно имя из каталога не найдено в видимых строках (фильтр/срез).');
+        }
+      } else {
+        pushSkip('Preview: контрагент', 'пустой каталог.');
+      }
+      if (!hadPreviewRows) {
+        const bundle = await previewOperations([normalizeOperation({
+          type: CONFIG.operationTypes.ADD_SIGNER_BUNDLE,
+          matrixName: document.title,
+          scope: {},
+          filters: {},
+          payload: { currentSigner: 'TEST_CURRENT', newSigner: 'TEST_NEW', limit: '1', amount: '1', affiliation: CONFIG.requiredAffiliation },
+          options: { sourceRule: 'test-all-bundle-fallback' },
+        })], {});
+        const bn = Array.isArray(bundle) ? bundle.length : 0;
+        hadPreviewRows = bn > 0;
+        push('Preview: резерв (4-строчный bundle)', hadPreviewRows, `rows=${bn}`);
+      }
+      if (!hadPreviewRows) {
+        log('[Тест всего] Превью по-прежнему 0 записей: проверьте фильтры матрицы и статус черновика.', 'warn');
+        push('Итог preview (не пусто)', false, 'rows=0 после контрагент+rescue bundle');
+      } else {
+        push('Итог preview (не пусто)', true, 'ok');
+      }
+    } catch (error) {
+      push('Внутренняя ошибка тестов', false, error.message);
+    }
+    const failed = checks.filter(item => !item.ok).length;
+    log(`[Тест всего] Завершено: ${checks.length - failed} OK / ${failed} FAIL.`, failed ? 'error' : 'ok');
+    return { checks, failed, humanTestMode };
+  }
+
   function buildMatrixCatalogSection(root) {
     const section = document.createElement('section');
+    section.setAttribute('data-module', 'catalog');
     section.innerHTML = `
-      <h4>Matrix Catalog</h4>
+      <h4>Каталог матриц</h4>
       <input class="mc-input" data-field="matrix-search" placeholder="Поиск матрицы по названию">
       <select class="mc-select" data-field="matrix-select"></select>
       <button data-role="open-matrix" type="button">Открыть матрицу</button>
@@ -1845,8 +2750,9 @@
 
   function buildSignerWizardSection(root) {
     const section = document.createElement('section');
+    section.setAttribute('data-module', 'signer');
     section.innerHTML = `
-      <h4>Signer Wizard</h4>
+      <h4>Мастер подписантов</h4>
       <input class="mc-input" data-signer="currentSigner" placeholder="Текущий подписант">
       <input class="mc-input" data-signer="newSigner" placeholder="Новый подписант">
       <input class="mc-input" data-signer="direction" placeholder="Дирекция">
@@ -1863,8 +2769,8 @@
       </select>
       <input class="mc-input" data-signer="limits" placeholder="Лимиты">
       <input class="mc-input" data-signer="amounts" placeholder="Суммы">
-      <input class="mc-input" data-signer="label" placeholder="Комментарий/label">
-      <button type="button" data-role="signer-preview">Preview signer bundle</button>
+      <input class="mc-input" data-signer="label" placeholder="Комментарий/метка">
+      <button type="button" data-role="signer-preview">Показать bundle (4 строки)</button>
     `;
     root.appendChild(section);
     section.querySelector('[data-role="signer-preview"]').addEventListener('click', async () => {
@@ -1882,14 +2788,15 @@
 
   function buildBatchSection(root) {
     const section = document.createElement('section');
+    section.setAttribute('data-module', 'batch');
     section.innerHTML = `
-      <h4>Batch Import</h4>
+      <h4>Пакетный импорт</h4>
       <textarea class="mc-input" data-field="batch-text" rows="6" placeholder="Вставь TSV/CSV из Excel"></textarea>
       <input type="file" data-field="batch-xlsx" accept=".xlsx,.xls" />
       <div class="mc-actions mc-actions--single">
-        <button type="button" data-role="batch-paste">Paste from clipboard</button>
-        <button type="button" data-role="batch-preview">Preview batch</button>
-        <button type="button" data-role="batch-run">Run batch</button>
+        <button type="button" data-role="batch-paste">Вставить из буфера</button>
+        <button type="button" data-role="batch-preview">Показать превью пакета</button>
+        <button type="button" data-role="batch-run">Применить пакет</button>
       </div>
     `;
     root.appendChild(section);
@@ -1942,67 +2849,153 @@
 
   function buildMainMatrixSection(root) {
     const section = document.createElement('section');
+    section.setAttribute('data-module', 'core');
+    const opList = [
+      CONFIG.operationTypes.REMOVE_COUNTERPARTY,
+      CONFIG.operationTypes.DELETE_IF_SINGLE_COUNTERPARTY,
+      CONFIG.operationTypes.REPLACE_APPROVER,
+      CONFIG.operationTypes.REMOVE_APPROVER,
+      CONFIG.operationTypes.REPLACE_SIGNER,
+      CONFIG.operationTypes.ADD_SIGNER_BUNDLE,
+      CONFIG.operationTypes.CHANGE_LIMITS,
+      CONFIG.operationTypes.EXPAND_LEGAL_ENTITIES,
+      CONFIG.operationTypes.EXPAND_SITES,
+      CONFIG.operationTypes.PATCH_DOC_TYPES,
+      CONFIG.operationTypes.ADD_DOC_TYPE_TO_MATCHING_ROWS,
+      CONFIG.operationTypes.ADD_CHANGE_CARD_FLAG_TO_MATCHING_ROWS,
+      CONFIG.operationTypes.ADD_LEGAL_ENTITY_TO_MATCHING_ROWS,
+    ];
+    const opOptions = opList.map((t, idx) => {
+      const lab = operationTypeLabel(t);
+      return `<option value="${t}"${idx === 0 ? ' selected' : ''}>${lab}</option>`;
+    }).join('');
     section.innerHTML = `
-      <h4>Rule Engine</h4>
-      <select class="mc-select" data-field="operation-type">
-        <option value="${CONFIG.operationTypes.REMOVE_COUNTERPARTY}" selected>remove_counterparty_from_rows</option>
-        <option value="${CONFIG.operationTypes.DELETE_IF_SINGLE_COUNTERPARTY}">delete_rows_if_single_counterparty</option>
-        <option value="${CONFIG.operationTypes.REPLACE_APPROVER}">replace_approver</option>
-        <option value="${CONFIG.operationTypes.REMOVE_APPROVER}">remove_approver</option>
-        <option value="${CONFIG.operationTypes.REPLACE_SIGNER}">replace_signer</option>
-        <option value="${CONFIG.operationTypes.ADD_SIGNER_BUNDLE}">add_signer_bundle</option>
-        <option value="${CONFIG.operationTypes.CHANGE_LIMITS}">change_limits</option>
-        <option value="${CONFIG.operationTypes.EXPAND_LEGAL_ENTITIES}">expand_legal_entities</option>
-        <option value="${CONFIG.operationTypes.EXPAND_SITES}">expand_sites</option>
-        <option value="${CONFIG.operationTypes.PATCH_DOC_TYPES}">patch_doc_types</option>
-        <option value="${CONFIG.operationTypes.ADD_DOC_TYPE_TO_MATCHING_ROWS}">add_doc_type_to_matching_rows</option>
-        <option value="${CONFIG.operationTypes.ADD_CHANGE_CARD_FLAG_TO_MATCHING_ROWS}">add_change_card_flag_to_matching_rows</option>
-        <option value="${CONFIG.operationTypes.ADD_LEGAL_ENTITY_TO_MATCHING_ROWS}">add_legal_entity_to_matching_rows</option>
-      </select>
-      <input class="mc-input" data-field="partner-name" placeholder="Контрагент / текущий подписант / текущий согласующий">
-      <textarea class="mc-input" data-field="operation-payload-json" rows="4" placeholder="Доп. payload JSON (опционально), напр. {&quot;rowGroup&quot;:&quot;supplemental_rows&quot;,&quot;newDocType&quot;:&quot;ДС&quot;,&quot;requiredDocTypes&quot;:[&quot;Соглашение&quot;],&quot;matchMode&quot;:&quot;all&quot;}"></textarea>
-      <input class="mc-input" data-field="source-rule" placeholder="sourceRule / ticket / request id">
+      <h4>Основные операции (полный ввод)</h4>
+      <p class="mc-core-hint">Повседневные сценарии — в блоке «Рабочий режим» выше. Здесь: все типы, экспорт, JSON и тесты. Замена подписанта (replace_signer) в превью часто только manual-review — смотрите лог и отчёт.</p>
+      <label>Тип операции
+        <select class="mc-select" data-field="operation-type">
+          ${opOptions}
+        </select>
+      </label>
+      <input class="mc-input" data-field="partner-name" list="mc-partner-datalist" placeholder="Контрагент, подписант или согласующий (подсказки — после кнопки «Обновить»)">
+      <datalist id="mc-partner-datalist"></datalist>
+      <details class="mc-advanced-block">
+        <summary>Расширенно: JSON и номер заявки (необязательно)</summary>
+        <p class="mc-core-hint">JSON и поле «номер заявки» для отчёта. Обычный ввод — без этого блока.</p>
+      <textarea class="mc-input" data-field="operation-payload-json" rows="4" placeholder="Доп. поля в JSON, только если нужны (rowGroup, newDocType, …)"></textarea>
+      <input class="mc-input" data-field="source-rule" placeholder="Номер заявки / тикет (в отчёт)">
+      </details>
       <label class="mc-check"><input type="checkbox" data-field="delete-if-single"> Удалять строку, если контрагент единственный</label>
       <label class="mc-check"><input type="checkbox" data-field="skip-exclude" checked> Пропускать строки «Исключить»</label>
       <label class="mc-check"><input type="checkbox" data-field="require-draft" checked> Требовать статус «Черновик»</label>
       <label class="mc-check"><input type="checkbox" data-field="allow-unknown-running"> Разрешить apply, если статус запущенных листов неизвестен</label>
+      <label class="mc-check"><input type="checkbox" data-field="enforce-affiliation" checked disabled> Аффилированность: ${CONFIG.requiredAffiliation}</label>
       <label class="mc-check">Лимит строк: <input type="number" data-field="max-rows" value="${CONFIG.safety.defaultMaxAffectedRows}" min="1"></label>
       <div class="mc-actions">
         <button data-role="refresh" type="button">Обновить</button>
-        <button data-role="preview" type="button">Dry-run</button>
-        <button data-role="run" type="button">Run</button>
-        <button data-role="stop" type="button" disabled>Stop</button>
-        <button data-role="diag" type="button">Diag</button>
+        <button data-role="preview" type="button">Превью (без сохранения)</button>
+        <button data-role="run" type="button">Применить</button>
+        <button data-role="stop" type="button" disabled>Стоп</button>
+        <button data-role="diag" type="button">Диагностика</button>
         <button data-role="export-json" type="button">JSON</button>
         <button data-role="export-csv" type="button">CSV</button>
-        <button data-role="export-logs" type="button">Logs</button>
-        <button data-role="export-ambiguous" type="button">Ambiguous CSV</button>
-        <button data-role="copy-ambiguous" type="button">Copy ambiguous</button>
-        <button data-role="copy-skipped" type="button">Copy skipped</button>
-        <button data-role="copy-errors" type="button">Copy errors</button>
+        <button data-role="export-logs" type="button">Логи</button>
+        <button data-role="export-ambiguous" type="button">CSV неоднозначных</button>
+        <button data-role="copy-ambiguous" type="button">Копировать неоднозначные</button>
+        <button data-role="copy-skipped" type="button">Копировать пропуски</button>
+        <button data-role="copy-errors" type="button">Копировать ошибки</button>
+        <button data-role="run-all-tests" type="button">Тест всего</button>
       </div>
       <div class="mc-actions mc-actions--single">
-        <button data-role="partner-driver-dry" type="button">Partner driver dry-run</button>
-        <button data-role="partner-driver-run" type="button">Partner driver run</button>
+        <button data-role="partner-driver-dry" type="button">Драйвер поиска (превью)</button>
+        <button data-role="partner-driver-run" type="button">Драйвер поиска (применить)</button>
       </div>
       <div class="mc-triage" data-role="triage-tools">
-        <div class="mc-triage__title">Triage quick actions</div>
+        <div class="mc-triage__title">Быстрые triage-действия</div>
         <div class="mc-triage__counts" data-role="triage-counts">ambiguous: 0 · skipped: 0 · errors: 0</div>
         <div class="mc-actions mc-actions--single">
-          <button data-role="triage-copy-ambiguous" type="button">Copy ambiguous</button>
-          <button data-role="triage-copy-skipped" type="button">Copy skipped</button>
-          <button data-role="triage-copy-errors" type="button">Copy errors</button>
+          <button data-role="triage-copy-ambiguous" type="button">Копировать неоднозначные</button>
+          <button data-role="triage-copy-skipped" type="button">Копировать пропуски</button>
+          <button data-role="triage-copy-errors" type="button">Копировать ошибки</button>
         </div>
       </div>
     `;
     root.appendChild(section);
+    const quickMode = document.createElement('div');
+    quickMode.className = 'mc-compact-mode';
+    quickMode.innerHTML = `
+      <label class="mc-check">Показывать только:
+        <select class="mc-select" data-role="core-compact-mode">
+          <option value="all" selected>Все кнопки раздела</option>
+          <option value="action">Только превью / применить / тест</option>
+          <option value="export">Экспорт и отчеты</option>
+          <option value="triage">Triage и копирование</option>
+        </select>
+      </label>
+    `;
+    section.insertBefore(quickMode, section.querySelector('.mc-actions'));
+    const allButtons = Array.from(section.querySelectorAll('.mc-actions button'));
+    const actionRoles = new Set(['refresh', 'preview', 'run', 'stop', 'partner-driver-dry', 'partner-driver-run', 'run-all-tests']);
+    const exportRoles = new Set(['diag', 'export-json', 'export-csv', 'export-logs', 'export-ambiguous']);
+    const triageRoles = new Set(['copy-ambiguous', 'copy-skipped', 'copy-errors', 'triage-copy-ambiguous', 'triage-copy-skipped', 'triage-copy-errors']);
+    const applyCompact = mode => {
+      allButtons.forEach(btn => {
+        const role = btn.getAttribute('data-role');
+        if (mode === 'all') {
+          btn.style.display = '';
+          return;
+        }
+        if (mode === 'action') {
+          btn.style.display = actionRoles.has(role) ? '' : 'none';
+          return;
+        }
+        if (mode === 'export') {
+          btn.style.display = exportRoles.has(role) ? '' : 'none';
+          return;
+        }
+        if (mode === 'triage') {
+          btn.style.display = triageRoles.has(role) ? '' : 'none';
+          return;
+        }
+        btn.style.display = '';
+      });
+    };
+    const compactSelectCore = quickMode.querySelector('[data-role="core-compact-mode"]');
+    compactSelectCore.addEventListener('change', e => applyCompact(e.target.value));
+    applyCompact('all');
+    const fillPartnerDatalist = () => {
+      const dl = section.querySelector('#mc-partner-datalist');
+      if (!dl) return;
+      dl.innerHTML = '';
+      const seen = new Set();
+      const pushVal = (v) => {
+        const s = String(v || '').trim();
+        if (!s || seen.has(s.toLowerCase())) return;
+        seen.add(s.toLowerCase());
+        const o = document.createElement('option');
+        o.value = s;
+        dl.appendChild(o);
+      };
+      (state.partnerCatalog || []).forEach(p => {
+        if (p && p.name) pushVal(p.name);
+      });
+      const apiRef = __otMatrixCleanerHost().__OT_MATRIX_CLEANER__;
+      if (apiRef && typeof apiRef.getHumanDictionaries === 'function') {
+        try {
+          const dict = apiRef.getHumanDictionaries();
+          (dict.signersAndApprovers || []).forEach(pushVal);
+        } catch (_) { /* human UI ещё не смонтирован */ }
+      }
+    };
     section.querySelector('[data-role="refresh"]').addEventListener('click', async () => {
       await waitForReady();
       ensureMatrixInit();
       collectPartnerCatalog();
+      fillPartnerDatalist();
       setStats(`Контрагентов в матрице: ${state.partnerCatalog.length}`);
       log('Список контрагентов обновлен.', 'ok');
     });
+    fillPartnerDatalist();
     section.querySelector('[data-role="preview"]').addEventListener('click', async () => {
       const op = buildDefaultOperationFromUi({});
       await previewOperations([op], {});
@@ -2038,6 +3031,9 @@
       const name = section.querySelector('[data-field="partner-name"]').value;
       await runPartnerSearchDriver(name, { dryRun: false });
     });
+    section.querySelector('[data-role="run-all-tests"]').addEventListener('click', async () => {
+      await runAllUiDiagnostics();
+    });
     state.triageEl = section.querySelector('[data-role="triage-tools"]');
     section.querySelector('[data-role="triage-copy-ambiguous"]').addEventListener('click', async () => {
       await copyAmbiguousToClipboard();
@@ -2049,6 +3045,7 @@
       await copyErrorsToClipboard();
     });
     renderTriageCounters();
+    state.refillPartnerDatalist = fillPartnerDatalist;
   }
 
   function buildUI() {
@@ -2065,7 +3062,11 @@
     panel.innerHTML = `
       <div class="mc-head">
         <div class="mc-head-left">
-          <div class="mc-title">Matrix Cleaner ${CONFIG.version}</div>
+          <div>
+            <div class="mc-title">Matrix Cleaner <span class="mc-ver">${CONFIG.version}</span></div>
+            <div class="mc-subtitle" title="Автор">Артём Шаповалов · ShapArt</div>
+            <a class="mc-subtitle" href="https://github.com/ShapArt/Matrtix-Cleaner" target="_blank" rel="noopener" style="display:block;font-size:9px">GitHub: Matrtix-Cleaner</a>
+          </div>
           <div class="mc-risk-wrap">
             <div id="mc-risk-badge" class="mc-risk-badge mc-risk-badge--ok" title="Click: toggle triage log">risk: ok</div>
             <button type="button" id="mc-risk-help" class="mc-risk-help" data-role="risk-help" aria-label="Risk badge shortcuts" title="Show shortcuts">?</button>
@@ -2101,6 +3102,55 @@
     state.riskBadgeEl = panel.querySelector('#mc-risk-badge');
     const root = panel.querySelector('#mc-root');
 
+    const setCompactModule = moduleId => {
+      const selected = String(moduleId || 'core');
+      root.querySelectorAll('section[data-module]').forEach(section => {
+        section.style.display = (selected === 'all' || section.getAttribute('data-module') === selected) ? '' : 'none';
+      });
+      const modSel = root.querySelector('[data-role="compact-module-select"]');
+      if (modSel && modSel.querySelector(`option[value="${selected}"]`)) modSel.value = selected;
+      const navHint = root.querySelector('[data-role="compact-module-hint"]');
+      if (navHint) {
+        if (selected === 'all') {
+          navHint.hidden = true;
+        } else {
+          navHint.hidden = false;
+          navHint.textContent = selected === 'signer'
+            ? 'Открыт только «Мастер подписантов». Чтобы вернуть остальные блоки: кнопка «Все разделы» или пункт «Показать все разделы» в списке.'
+            : 'Показан один раздел панели. Вернитесь: кнопка «Все разделы» или «Показать все разделы» в списке.';
+        }
+      }
+      log(`Активный интерфейс: ${selected === 'all' ? 'все функции' : selected}.`, 'info');
+    };
+
+    const compactSection = document.createElement('section');
+    compactSection.setAttribute('data-module', 'compact');
+    compactSection.innerHTML = `
+      <h4>Режим интерфейса</h4>
+      <p class="mc-core-hint" style="margin-top:0">Сценарии — в human-first блоке. Здесь можно открыть отдельный раздел.</p>
+      <div class="mc-compact-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px;">
+        <select class="mc-select" data-role="compact-module-select" style="min-width:160px;flex:1">
+          <option value="all" selected>Показать все разделы</option>
+          <option value="core">Основные операции (детально)</option>
+          <option value="batch">Пакетный импорт</option>
+          <option value="signer">Мастер подписантов</option>
+          <option value="catalog">Каталог матриц</option>
+          <option value="compact">Только «режим интерфейса»</option>
+        </select>
+        <button type="button" data-role="compact-show-all">Все разделы</button>
+      </div>
+      <p class="mc-core-hint" data-role="compact-module-hint" hidden style="margin:0 0 6px"></p>
+    `;
+    root.appendChild(compactSection);
+    const compactShowAllBtn = compactSection.querySelector('[data-role="compact-show-all"]');
+    if (compactShowAllBtn) {
+      compactShowAllBtn.addEventListener('click', () => {
+        const sel = compactSection.querySelector('[data-role="compact-module-select"]');
+        if (sel) sel.value = 'all';
+        setCompactModule('all');
+      });
+    }
+
     if (isMatrixCatalogPage() && !isMatrixPage()) {
       state.mode = 'catalog';
       buildMatrixCatalogSection(root);
@@ -2110,6 +3160,9 @@
       buildSignerWizardSection(root);
       buildBatchSection(root);
     }
+    const compactSelect = compactSection.querySelector('[data-role="compact-module-select"]');
+    if (compactSelect) compactSelect.addEventListener('change', e => setCompactModule(e.target.value));
+    setCompactModule(isMatrixCatalogPage() && !isMatrixPage() ? 'catalog' : 'all');
 
     openBtn.addEventListener('click', () => {
       panel.classList.add('mc-panel--open');
@@ -2188,7 +3241,8 @@
         right: 14px;
         bottom: 66px;
         z-index: 999999;
-        width: 380px;
+        width: min(420px, calc(100vw - 28px));
+        max-width: 100%;
         max-height: calc(100vh - 90px);
         background: #fff;
         color: #111;
@@ -2196,6 +3250,7 @@
         box-shadow: 8px 8px 0 #111;
         font: 12px/1.35 Arial, Helvetica, sans-serif;
         display: none;
+        overflow: hidden;
       }
       #mc-panel.mc-panel--open { display: block; }
       #mc-panel * { box-sizing: border-box; }
@@ -2261,7 +3316,11 @@
         font-weight: 700;
         cursor: pointer;
       }
-      .mc-title { font-size: 13px; font-weight: 700; text-transform: uppercase; }
+      .mc-title { font-size: 12px; font-weight: 700; text-transform: none; line-height: 1.2; }
+      .mc-subtitle { font-size: 10px; font-weight: 400; opacity: 0.9; max-width: 200px; }
+      .mc-core-hint { font-size: 11px; color: #444; margin: 0 0 8px; line-height: 1.35; }
+      .mc-advanced-block { margin: 0 0 8px; border: 1px dashed #999; padding: 6px; background: #fafafa; }
+      .mc-advanced-block summary { cursor: pointer; font-weight: 700; }
       .mc-risk-badge {
         border: 1px solid #fff;
         padding: 1px 6px;
@@ -2293,19 +3352,26 @@
       .mc-check { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
       .mc-check input[type="number"] { width: 100px; }
       .mc-actions {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
         margin-bottom: 8px;
+        align-items: stretch;
       }
-      .mc-actions--single { grid-template-columns: repeat(2, 1fr); }
+      .mc-actions--single { }
       .mc-actions button, section > button {
-        padding: 7px;
+        padding: 7px 6px;
+        min-width: 0;
+        flex: 1 1 calc(50% - 4px);
+        max-width: 100%;
         border: 1px solid #111;
         background: #fff;
         color: #111;
+        font-size: 11px;
         font-weight: 700;
         cursor: pointer;
+        word-wrap: break-word;
+        hyphens: auto;
       }
       .mc-actions button:hover:not(:disabled), section > button:hover:not(:disabled) { background: #111; color: #fff; }
       .mc-actions button:disabled, section > button:disabled { opacity: .45; cursor: not-allowed; }
@@ -2392,7 +3458,35 @@
         return collectPartnerCatalog();
       },
       getPartnerCatalog: function () { return state.partnerCatalog.slice(); },
+      applyCounterpartyColumnFilter: function (query) {
+        if (!isMatrixPage()) return { rows: [], diagnostics: { mode: 'not_matrix_page' } };
+        ensureMatrixInit();
+        if (!state.partnerCatalog.length) collectPartnerCatalog();
+        const name = typeof query === 'string' ? query : (query && query.name ? query.name : '');
+        let entry = resolvePartnerByName(name);
+        if (!entry && query && Array.isArray(query.ids)) {
+          entry = {
+            name,
+            key: normalize(name),
+            ids: query.ids.map(id => Math.abs(Number(id))).filter(Number.isFinite),
+            affiliation: query.affiliation || CONFIG.requiredAffiliation,
+          };
+        }
+        if (!entry || !entry.ids.length) throw new Error('Counterparty was not resolved for filter application.');
+        const result = applyPartnerFilter(entry);
+        return {
+          rows: (result.rows || []).map(row => ({
+            itemid: Number(row.getAttribute('itemid') || row.getAttribute('itemID') || 0),
+            rowNo: getRowNo(row),
+          })),
+          diagnostics: result.diagnostics,
+        };
+      },
+      clearMatrixFilters: function () { return clearMatrixFilters(); },
+      getCounterpartyFilterDiagnostics: function () { return state.filterDiagnostics ? Object.assign({}, state.filterDiagnostics) : null; },
       getMatrixCatalog: function () { return state.matrixCatalog.slice(); },
+      preview: function (operation) { return previewOperations([operation], {}); },
+      apply: function (operation, opts) { return runOperations([operation], opts || {}); },
       previewRun: async function (opts) {
         const op = normalizeOperation({
           type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
@@ -2426,6 +3520,14 @@
       runPartnerSearchDriver: function (partnerName, opts) { return runPartnerSearchDriver(partnerName, opts || {}); },
       getDiagnostics: function () { return collectDiagnostics(); },
       getLastReport: function () { return state.lastReport.slice(); },
+      getLastApplySnapshot: function () { return state.lastApplySnapshot ? JSON.parse(JSON.stringify(state.lastApplySnapshot)) : null; },
+      getRunningSheetsState: function () { return detectRunningSheetsState(); },
+      exportReport: function (format) {
+        const kind = String(format || 'json').toLowerCase();
+        if (kind === 'csv') return reportToCsv(state.lastReport);
+        return JSON.stringify(state.lastReport, null, 2);
+      },
+      diagnoseCurrentCard: function () { return diagnoseCurrentCard(); },
       getReportBuckets: function () { return splitReportBuckets(state.lastReport); },
       getReportSummary: function () { return buildReportSummary(state.lastReport); },
       getTriageCounts: function () { return getTriageCounts(); },
@@ -2451,21 +3553,27 @@
       isPanelOpen: function () { return isMatrixPanelOpen(); },
       stopRun: stopRun,
       getConfig: function () { return JSON.parse(JSON.stringify(CONFIG)); },
+      getOperationLabels: function () { return Object.assign({}, CONFIG.operationLabels || {}); },
+      parseFreeformRequestText: function (raw) { return parseFreeformRequestText(raw); },
+      buildRequestDraft: function (raw, opts) { return buildRequestDraft(raw, opts || {}); },
       getReleaseInfo: function () {
         return {
-          version: '5.0.0',
+          version: '7.0.0',
           channel: 'production',
-          modules: ['legacy-core', 'visual-preview', 'rule-engine-v2', 'search', 'checklist', 'dsl'],
+          modules: ['legacy-core', 'native-counterparty-filter', 'running-sheet-detector', 'apply-snapshot', 'visual-preview', 'rule-engine-v2', 'search', 'checklist', 'dsl-v6', 'route-doctor'],
         };
       },
       validateDslConfig: function (config) {
         const errors = [];
         if (!config || typeof config !== 'object') errors.push('DSL должен быть объектом.');
-        ['schemaVersion', 'sourceMetadata', 'operations'].forEach(key => {
+        ['schemaVersion', 'sourceMetadata'].forEach(key => {
           if (!config || !Object.prototype.hasOwnProperty.call(config, key)) errors.push(`Отсутствует обязательное поле: ${key}`);
         });
-        if (config && config.schemaVersion && !/^2\./.test(String(config.schemaVersion))) {
-          errors.push('schemaVersion должен быть 2.x.x');
+        if (config && !Array.isArray(config.operations) && !config.operation) {
+          errors.push('Either operations[] or operation must be provided.');
+        }
+        if (config && config.schemaVersion && !/^(2|6|7)\./.test(String(config.schemaVersion))) {
+          errors.push('schemaVersion must be 2.x.x, 6.x.x or 7.x.x');
         }
         if (config && Array.isArray(config.operations)) {
           config.operations.forEach((op, idx) => {
@@ -2594,7 +3702,23 @@
           : Boolean(enabled);
         return hostWindow().__OT_MATRIX_PREVIEW_ENABLED__;
       },
+      runAllUiDiagnostics: function (opts) { return runAllUiDiagnostics(opts || {}); },
     };
+    hostWindow().MatrixCleaner = hostWindow().__OT_MATRIX_CLEANER__;
+    (function relinkPostExposeExtensions() {
+      const w = hostWindow();
+      if (typeof w.__otV5Reinstall === 'function') {
+        try { w.__otV5Reinstall(); } catch (e) { void 0; }
+      }
+      if (typeof w.__otHumanReinstall === 'function') {
+        try { w.__otHumanReinstall(); } catch (e) { void 0; }
+      }
+      setTimeout(() => {
+        if (typeof state.refillPartnerDatalist === 'function') {
+          try { state.refillPartnerDatalist(); } catch (e2) { void 0; }
+        }
+      }, 0);
+    }());
   }
 
   async function boot() {
@@ -2616,10 +3740,10 @@
     exposeApi();
     if (isMatrixCatalogPage() && !isMatrixPage()) {
       setStats(`Matrix catalog: ${state.matrixCatalog.length}`);
-      log('Режим Matrix Catalog активирован.', 'ok');
+      log('Режим каталога матриц активирован.', 'ok');
     } else {
       setStats(`Контрагентов: ${state.partnerCatalog.length}`);
-      log('Скрипт активирован. Используй Dry-run перед Run.', 'ok');
+      log('Скрипт активирован. Сначала запускай превью, затем применение.', 'ok');
     }
   }
 
@@ -2644,7 +3768,7 @@
   };
 
   function getApi() {
-    return window.__OT_MATRIX_CLEANER__;
+    return __otMatrixCleanerHost().__OT_MATRIX_CLEANER__;
   }
 
   function getMatrixTable() {
@@ -2666,7 +3790,7 @@
     const section = document.createElement('section');
     section.setAttribute('data-role', 'v5-preview-diff');
     section.innerHTML = `
-      <h4>Preview Diff v5</h4>
+      <h4>Визуальный diff v5</h4>
       <label class="mc-check"><input type="checkbox" data-role="v5-preview-only" checked> Preview only (без сохранения)</label>
       <div class="mc-actions mc-actions--single">
         <button type="button" data-role="v5-preview-toggle">Toggle preview</button>
@@ -2781,7 +3905,7 @@
     const counters = countBuckets(report);
     extState.countersEl.textContent = `created: ${counters.created} · updated: ${counters.updated} · deleted: ${counters.deleted} · skipped: ${counters.skipped} · ambiguous: ${counters.ambiguous}`;
     if (!report.length) {
-      extState.diffPanel.innerHTML = '<div class="mc-v5-empty">Preview пуст. Запусти Dry-run/preview.</div>';
+      extState.diffPanel.innerHTML = '<div class="mc-v5-empty">Превью пусто. Запусти превью операции.</div>';
       return;
     }
     const lines = report.slice(0, 120).map((entry, idx) => {
@@ -2939,7 +4063,7 @@
   window[INSTALL_FLAG] = true;
 
   const FEATURE_SCHEMA = {
-    requiredRoot: ['schemaVersion', 'sourceMetadata', 'operations'],
+    requiredRoot: ['schemaVersion', 'sourceMetadata'],
     supportedTypes: [
       'replace_approver',
       'remove_approver',
@@ -2974,7 +4098,7 @@
   ];
 
   function getApi() {
-    return window.__OT_MATRIX_CLEANER__;
+    return __otMatrixCleanerHost().__OT_MATRIX_CLEANER__;
   }
 
   function normalize(value) {
@@ -3003,8 +4127,11 @@
     FEATURE_SCHEMA.requiredRoot.forEach(key => {
       if (!config || !(key in config)) errors.push(`Отсутствует обязательное поле: ${key}`);
     });
-    if (config && config.schemaVersion && !/^2\./.test(String(config.schemaVersion))) {
-      errors.push('schemaVersion должен начинаться с 2.x.x');
+    if (config && !Array.isArray(config.operations) && !config.operation) {
+      errors.push('Either operations[] or operation must be provided.');
+    }
+    if (config && config.schemaVersion && !/^(2|6)\./.test(String(config.schemaVersion))) {
+      errors.push('schemaVersion must start with 2.x.x or 6.x.x');
     }
     if (config && Array.isArray(config.operations)) {
       config.operations.forEach((op, idx) => {
@@ -3184,7 +4311,7 @@
 
     const searchSection = document.createElement('section');
     searchSection.innerHTML = `
-      <h4>Search everywhere</h4>
+      <h4>Поиск по матрицам</h4>
       <select class="mc-select" data-role="v5-search-mode">
         <option value="counterparty">counterparty</option>
         <option value="user">user</option>
@@ -3197,8 +4324,8 @@
         <option value="exact">exact</option>
       </select>
       <div class="mc-actions mc-actions--single">
-        <button type="button" data-role="v5-search-run">Scan</button>
-        <button type="button" data-role="v5-search-export">Export HTML</button>
+        <button type="button" data-role="v5-search-run">Запустить поиск</button>
+        <button type="button" data-role="v5-search-export">Экспорт HTML</button>
       </div>
       <div data-role="v5-search-result" class="mc-v5-search-result">Еще не запускали.</div>
     `;
@@ -3206,23 +4333,23 @@
 
     const checklistSection = document.createElement('section');
     checklistSection.innerHTML = `
-      <h4>Checklist</h4>
+      <h4>Чеклист</h4>
       <div class="mc-actions mc-actions--single">
-        <button type="button" data-role="v5-checklist-run">Run checklist</button>
+        <button type="button" data-role="v5-checklist-run">Запустить чеклист</button>
         <button type="button" data-role="v5-checklist-export">Export JSON</button>
       </div>
-      <div data-role="v5-checklist-result" class="mc-v5-search-result">Checklist не запускался.</div>
+      <div data-role="v5-checklist-result" class="mc-v5-search-result">Чеклист ещё не запускался.</div>
     `;
     root.appendChild(checklistSection);
 
     const requestSection = document.createElement('section');
     requestSection.setAttribute('data-role', 'v5-request-template');
     requestSection.innerHTML = `
-      <h4>Request template</h4>
+      <h4>Шаблон заявки</h4>
       <textarea class="mc-input" data-role="v5-request-text" rows="5" placeholder="Вставь JSON/TSV/текст заявки"></textarea>
       <div class="mc-actions mc-actions--single">
-        <button type="button" data-role="v5-request-parse">Parse request</button>
-        <button type="button" data-role="v5-request-preview">Preview parsed</button>
+        <button type="button" data-role="v5-request-parse">Разобрать заявку</button>
+        <button type="button" data-role="v5-request-preview">Показать превью заявки</button>
       </div>
       <div data-role="v5-request-result" class="mc-v5-search-result">Ожидается ввод.</div>
     `;
@@ -3313,6 +4440,9 @@
     return true;
   }
 
+  const wgt = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  wgt.__otV5Reinstall = install;
+
   if (install()) return;
   const timer = setInterval(() => {
     if (!install()) return;
@@ -3321,24 +4451,571 @@
   setTimeout(() => clearInterval(timer), 25000);
 })();
 
-
-/* ===== Matrix Cleaner v5 extension (generated) ===== */
 (() => {
   'use strict';
 
-  const INSTALL_FLAG = '__OT_MATRIX_CLEANER_V5_EXTENSION__';
+  const FLAG = '__OT_MATRIX_CLEANER_HUMAN_FIRST_UI__';
+  if (window[FLAG]) return;
+  window[FLAG] = true;
+
+  const state = {
+    dictionaries: null,
+    lastSearchResult: null,
+  };
+
+  const SCENARIOS = [
+    { key: 'replace_signer', label: 'Замена подписанта' },
+    { key: 'replace_approver', label: 'Замена согласующего' },
+    { key: 'remove_approver', label: 'Удаление согласующего' },
+    { key: 'remove_counterparty_from_rows', label: 'Удаление контрагента из строк' },
+    { key: 'delete_rows_if_single_counterparty', label: 'Удаление строки с единственным контрагентом' },
+    { key: 'add_signer_bundle', label: 'Подписант по 4-строчному preset' },
+    { key: 'add_doc_type_to_matching_rows', label: 'Добавить тип документа' },
+    { key: 'add_change_card_flag_to_matching_rows', label: 'Изменение карточки' },
+    { key: 'add_legal_entity_to_matching_rows', label: 'Добавить юрлицо' },
+  ];
+
+  const QUICK_PRESETS = {
+    signer_smoke: {
+      label: 'Подписант: быстрый smoke 4 строки',
+      values: {
+        'hf-scenario': 'add_signer_bundle',
+        'hf-limit': '1000',
+        'hf-amount': '500',
+      },
+    },
+    bulk_doc_ds: {
+      label: 'Массово: тип документа для ДС',
+      values: {
+        'hf-row-group': 'supplemental_rows',
+        'hf-required-doc-types': 'ДС',
+        'hf-match-mode': 'all',
+        'hf-doc-type': 'Тестовый тип',
+      },
+    },
+    bulk_legal_main: {
+      label: 'Массово: юрлицо для основных',
+      values: {
+        'hf-row-group': 'main_contract_rows',
+        'hf-match-mode': 'any',
+        'hf-legal-entity': 'ООО Тестовое ЮЛ',
+      },
+    },
+    replace_approver_demo: {
+      label: 'Замена согласующего: заготовка полей',
+      values: {
+        'hf-scenario': 'replace_approver',
+        'hf-current-user': '',
+        'hf-new-user': '',
+      },
+    },
+  };
+
+  function applyQuickPreset(root, presetId) {
+    const preset = QUICK_PRESETS[presetId];
+    if (!preset) return false;
+    Object.keys(preset.values || {}).forEach(role => {
+      const el = root.querySelector(`[data-role="${role}"]`);
+      if (!el) return;
+      el.value = preset.values[role];
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    return true;
+  }
+
+  function getApi() {
+    return __otMatrixCleanerHost().__OT_MATRIX_CLEANER__;
+  }
+
+  function getRows() {
+    return Array.from(document.querySelectorAll('#sc_ApprovalMatrix tbody tr[itemid], #sc_ApprovalMatrix tbody tr[itemID]'));
+  }
+
+  function parseSemi(value) {
+    return String(value || '').split(/[;,]/).map(v => String(v || '').trim()).filter(Boolean);
+  }
+
+  function unique(values) {
+    return Array.from(new Set(values));
+  }
+
+  function collectDictionaries() {
+    const api = getApi();
+    const rawPartners = api && typeof api.getPartnerCatalog === 'function' ? api.getPartnerCatalog() : null;
+    const partners = Array.isArray(rawPartners) ? rawPartners : [];
+    const rows = getRows();
+    const docTypes = [];
+    const legalEntities = [];
+    const actors = [];
+    rows.forEach(row => {
+      const txt = String(row.textContent || '');
+      const doc = txt.match(/(?:типы?\s*документов?|doc\s*types?)[:\s-]*([^\n]+)/i);
+      const legal = txt.match(/(?:юр\.?\s*лиц[а]?|legal\s*entit(?:y|ies))[:\s-]*([^\n]+)/i);
+      parseSemi(doc ? doc[1] : '').forEach(v => docTypes.push(v));
+      parseSemi(legal ? legal[1] : '').forEach(v => legalEntities.push(v));
+      row.querySelectorAll('li.token-input-token, .token-input-token').forEach(node => {
+        const rawT = (node.getAttribute('title') || node.textContent || '').replace(/[\u00A0\u2007]/g, ' ').replace(/\s*x\s*$/i, '').trim();
+        if (rawT && rawT.length > 1 && !/^\d+$/.test(rawT)) actors.push(rawT);
+      });
+    });
+    return {
+      counterparties: partners.map(item => (item && item.name) || '').filter(Boolean),
+      signersAndApprovers: unique(actors).sort((a, b) => a.localeCompare(b, 'ru')),
+      docTypes: unique(docTypes).sort((a, b) => a.localeCompare(b, 'ru')),
+      legalEntities: unique(legalEntities).sort((a, b) => a.localeCompare(b, 'ru')),
+      rowGroups: ['all', 'main_contract_rows', 'supplemental_rows', 'custom'],
+      requiredAffiliation: 'Группа Черкизово',
+    };
+  }
+
+  function buildOperation(root, overrideType) {
+    const type = overrideType || root.querySelector('[data-role="hf-scenario"]').value;
+    const payload = {
+      partnerName: root.querySelector('[data-role="hf-counterparty"]').value || '',
+      currentApprover: root.querySelector('[data-role="hf-current-user"]').value || '',
+      currentSigner: root.querySelector('[data-role="hf-current-user"]').value || '',
+      newApprover: root.querySelector('[data-role="hf-new-user"]').value || '',
+      newSigner: root.querySelector('[data-role="hf-new-user"]').value || '',
+      rowGroup: root.querySelector('[data-role="hf-row-group"]').value || 'all',
+      newDocType: root.querySelector('[data-role="hf-doc-type"]').value || '',
+      legalEntity: root.querySelector('[data-role="hf-legal-entity"]').value || '',
+      requiredDocTypes: parseSemi(root.querySelector('[data-role="hf-required-doc-types"]').value || ''),
+      matchMode: root.querySelector('[data-role="hf-match-mode"]').value || 'all',
+      affiliation: 'Группа Черкизово',
+      limit: root.querySelector('[data-role="hf-limit"]').value || '',
+      amount: root.querySelector('[data-role="hf-amount"]').value || '',
+    };
+    return {
+      type,
+      matrixName: document.title,
+      scope: {},
+      filters: { rowGroup: payload.rowGroup, requiredDocTypes: payload.requiredDocTypes, matchMode: payload.matchMode },
+      payload,
+      options: { sourceRule: 'human_first_ui' },
+    };
+  }
+
+  async function runSyntheticContour(mode) {
+    const api = getApi();
+    const ops = [
+      { type: 'add_doc_type_to_matching_rows', payload: { rowGroup: 'supplemental_rows', requiredDocTypes: ['ДС'], matchMode: 'all', newDocType: 'Тестовый тип', affiliation: 'Группа Черкизово' } },
+      { type: 'add_legal_entity_to_matching_rows', payload: { rowGroup: 'main_contract_rows', requiredDocTypes: [], matchMode: 'any', legalEntity: 'ООО Тестовое ЮЛ', affiliation: 'Группа Черкизово' } },
+      { type: 'add_change_card_flag_to_matching_rows', payload: { rowGroup: 'all', requiredDocTypes: [], matchMode: 'any', changeCardFlag: 'Ранее не подписан', affiliation: 'Группа Черкизово' } },
+      { type: 'add_signer_bundle', payload: { currentSigner: 'Тестовый', newSigner: 'Новый', limit: '1000', amount: '500', affiliation: 'Группа Черкизово' } },
+    ].map(op => ({
+      type: op.type,
+      matrixName: document.title,
+      scope: {},
+      filters: {},
+      payload: op.payload,
+      options: { sourceRule: `synthetic_${mode}` },
+    }));
+
+    const checks = [];
+    const preview = await api.previewRuleBatch(ops, {});
+    checks.push({ name: 'Synthetic preview', ok: Array.isArray(preview) && preview.length > 0 });
+    const signer = await api.previewRuleBatch([ops[3]], {});
+    const signerRows = (signer || []).filter(item => item.actionType === 'add-row');
+    checks.push({ name: 'Signer 4 rows', ok: signerRows.length === 4, details: `rows=${signerRows.length}` });
+    const checklist = api.runChecklistEngine ? api.runChecklistEngine({ generatedRows: signerRows }) : null;
+    checks.push({ name: 'Checklist', ok: Boolean(checklist && checklist.summary && checklist.summary.total > 0) });
+    const search = api.searchAcrossMatrices ? await api.searchAcrossMatrices('договор', { mode: 'counterparty', matchMode: 'partial' }) : null;
+    checks.push({ name: 'Global search', ok: Boolean(search && typeof search.total === 'number') });
+    if (mode === 'real_insert') {
+      const tableRows = getRows();
+      checks.push({ name: 'Real insert guard', ok: tableRows.length > 0 });
+    }
+    const fail = checks.filter(item => !item.ok).length;
+    return { total: checks.length, ok: checks.length - fail, fail, checks, mode };
+  }
+
+  function installApi(api) {
+    if (!api || api.__humanFirstUiInstalled) return;
+    api.getHumanDictionaries = () => {
+      state.dictionaries = collectDictionaries();
+      return JSON.parse(JSON.stringify(state.dictionaries));
+    };
+    api.runAllHumanTests = options => runSyntheticContour(options && options.mode ? options.mode : 'preview_only');
+    api.__humanFirstUiInstalled = true;
+  }
+
+  function installStyles() {
+    if (document.querySelector('#mc-human-first-style')) return;
+    const style = document.createElement('style');
+    style.id = 'mc-human-first-style';
+    style.textContent = `
+      .mc-hf-root { border:1px solid #111; padding:8px; margin-bottom:10px; background:#fff; }
+      .mc-hf-header { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+      .mc-hf-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-bottom:8px; }
+      @media (min-width: 400px) { .mc-hf-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+      .mc-hf-tabs button { border:1px solid #111; background:#fff; padding:5px 4px; font-size:10px; font-weight:700; cursor:pointer; word-wrap:break-word; }
+      .mc-hf-tabs button.is-active { background:#111; color:#fff; }
+      .mc-hf-panel label { display:block; margin-bottom:6px; }
+      .mc-hf-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin:8px 0; }
+      .mc-hf-actions button { border:1px solid #111; background:#fff; padding:6px; font-size:11px; font-weight:700; cursor:pointer; }
+      .mc-hf-result { border:1px solid #111; padding:6px; background:#fafafa; }
+      .mc-hf-check-card { border:1px solid #ccc; padding:6px; margin-top:6px; }
+      .mc-hf-pass { background:#efffef; } .mc-hf-warning { background:#fff8e8; } .mc-hf-fail { background:#ffecec; }
+      .mc-hf-guide { font-size:11px; line-height:1.35; color:#333; margin:0 0 8px; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function hideLegacySections(root) {
+    root.querySelectorAll('section').forEach(section => {
+      if (section.getAttribute('data-role') === 'hf-root') return;
+      section.hidden = true;
+      section.style.display = 'none';
+    });
+  }
+
+  function showLegacySections(root) {
+    root.querySelectorAll('section').forEach(section => {
+      if (section.getAttribute('data-role') === 'hf-root') return;
+      section.hidden = false;
+      section.style.display = '';
+    });
+  }
+
+  function fillDataLists(root, dict) {
+    const cpList = root.querySelector('#hf-counterparty-list');
+    cpList.innerHTML = '';
+    (dict.counterparties || []).forEach(item => {
+      const option = document.createElement('option');
+      option.value = item;
+      cpList.appendChild(option);
+    });
+    const docList = root.querySelector('#hf-doc-list');
+    docList.innerHTML = '';
+    (dict.docTypes || []).forEach(item => {
+      const option = document.createElement('option');
+      option.value = item;
+      docList.appendChild(option);
+    });
+    const legalList = root.querySelector('#hf-legal-list');
+    legalList.innerHTML = '';
+    (dict.legalEntities || []).forEach(item => {
+      const option = document.createElement('option');
+      option.value = item;
+      legalList.appendChild(option);
+    });
+    const actList = root.querySelector('#hf-actors-list');
+    if (actList) {
+      actList.innerHTML = '';
+      (dict.signersAndApprovers || []).forEach(item => {
+        const option = document.createElement('option');
+        option.value = item;
+        actList.appendChild(option);
+      });
+    }
+  }
+
+  function renderChecklist(container, result) {
+    if (!result || !Array.isArray(result.checks)) {
+      container.textContent = 'Чек-лист недоступен.';
+      return;
+    }
+    const rows = result.checks.map(check => `<div class="mc-hf-check-card mc-hf-${check.status}"><b>${check.title}</b><div>Статус: ${check.status}</div><div>${check.recommendation || ''}</div></div>`).join('');
+    container.innerHTML = `<div class="mc-hf-result">pass=${result.summary.passed} fail=${result.summary.failed} warn=${result.summary.warnings}</div>${rows}`;
+  }
+
+  function buildUi(root) {
+    if (root.querySelector('[data-role="hf-root"]')) return;
+    const shell = document.createElement('section');
+    shell.setAttribute('data-role', 'hf-root');
+    shell.className = 'mc-hf-root';
+    shell.innerHTML = `
+      <div class="mc-hf-header">
+        <div><b>Рабочий режим Matrix Cleaner</b><div>1) Сценарий → 2) Данные → 3) Превью → 4) Применить</div></div>
+        <div>Автор: Артём Шаповалов (ShapArt)</div>
+      </div>
+      <div class="mc-hf-tabs">
+        <button type="button" data-tab="work" class="is-active">Рабочий</button>
+        <button type="button" data-tab="ticket">Текст заявки</button>
+        <button type="button" data-tab="bulk">Массовые</button>
+        <button type="button" data-tab="search">Поиск</button>
+        <button type="button" data-tab="signer">Подписанты</button>
+        <button type="button" data-tab="checklist">Чек-лист</button>
+        <button type="button" data-tab="test">Тест всего</button>
+        <button type="button" data-tab="reports">Отчеты</button>
+        <button type="button" data-tab="advanced">Advanced</button>
+      </div>
+      <div class="mc-hf-panel" data-panel="work">
+        <p class="mc-hf-guide">Шаг 1: тип сценария. Шаг 2: выберите значения из списков (после «Обновить» внизу в разделе «Основные») или введите вручную. Шаг 3: «Показать превью».</p>
+        <label>Сценарий <select class="mc-select" data-role="hf-scenario"></select></label>
+        <label>Быстрая заготовка
+          <select class="mc-select" data-role="hf-quick-preset">
+            <option value="">Без заготовки</option>
+            <option value="signer_smoke">Подписант: быстрый smoke 4 строки</option>
+            <option value="bulk_doc_ds">Массово: тип документа для ДС</option>
+            <option value="bulk_legal_main">Массово: юрлицо для основных</option>
+            <option value="replace_approver_demo">Замена согласующего: заготовка полей</option>
+          </select>
+        </label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-apply-preset">Применить заготовку</button><button type="button" data-role="hf-preview">Показать превью</button></div>
+        <div class="mc-hf-result" data-role="hf-preset-result">Подсказка: заготовка заполняет поля, затем можно сразу запускать превью.</div>
+        <label>Контрагент <input class="mc-input" list="hf-counterparty-list" data-role="hf-counterparty" title="Список из каталога матрицы"></label>
+        <datalist id="hf-counterparty-list"></datalist>
+        <label>Текущий пользователь <input class="mc-input" list="hf-actors-list" data-role="hf-current-user" title="Подсказки из токенов в строках"></label>
+        <label>Новый пользователь <input class="mc-input" list="hf-actors-list" data-role="hf-new-user" title="Кого поставить вместо текущего"></label>
+        <datalist id="hf-actors-list"></datalist>
+        <label>Группа строк <select class="mc-select" data-role="hf-row-group"><option value="all">Все</option><option value="main_contract_rows">Основные</option><option value="supplemental_rows">Доп соглашения</option><option value="custom">Custom</option></select></label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-apply">Применить</button></div>
+      </div>
+      <div class="mc-hf-panel" data-panel="ticket" hidden>
+        <p class="mc-hf-guide">Вставьте текст письма или заявки. Скрипт предложит черновик операций (без JSON). Проверьте поля и нажмите «Превью черновика».</p>
+        <textarea class="mc-input" data-role="hf-ticket-text" rows="6" placeholder="Напр.: Просьба заменить подписанта Иванов на Петров; добавить тип документа ДС..."></textarea>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-ticket-parse">Разобрать текст</button><button type="button" data-role="hf-ticket-preview">Превью черновика</button></div>
+        <div class="mc-hf-result" data-role="hf-ticket-result">Сюда выведутся подсказки и уверенность.</div>
+      </div>
+      <div class="mc-hf-panel" data-panel="bulk" hidden>
+        <label>Новый тип документа <input class="mc-input" list="hf-doc-list" data-role="hf-doc-type"></label>
+        <datalist id="hf-doc-list"></datalist>
+        <label>Требуемые типы (через ;) <input class="mc-input" data-role="hf-required-doc-types"></label>
+        <label>Режим совпадения <select class="mc-select" data-role="hf-match-mode"><option value="all">ALL</option><option value="any">ANY</option></select></label>
+        <label>Юрлицо <input class="mc-input" list="hf-legal-list" data-role="hf-legal-entity"></label>
+        <datalist id="hf-legal-list"></datalist>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-preview-bulk">Превью patch</button><button type="button" data-role="hf-apply-bulk">Применить patch</button></div>
+      </div>
+      <div class="mc-hf-panel" data-panel="search" hidden>
+        <label>Тип поиска <select class="mc-select" data-role="hf-search-type"><option value="counterparty">Контрагент</option><option value="user">Пользователь</option><option value="signer">Подписант</option><option value="approver">Согласующий</option></select></label>
+        <label>Запрос <input class="mc-input" data-role="hf-search-query"></label>
+        <label>Режим <select class="mc-select" data-role="hf-search-mode"><option value="partial">Частичное</option><option value="exact">Точное</option></select></label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-search-run">Поиск</button><button type="button" data-role="hf-search-stop">Стоп</button><button type="button" data-role="hf-search-export">Экспорт HTML</button></div>
+        <div class="mc-hf-result" data-role="hf-search-result">Поиск ещё не запускался.</div>
+      </div>
+      <div class="mc-hf-panel" data-panel="signer" hidden>
+        <p class="mc-hf-guide">По правилу «4 строки»: 2 для основного договора (лимит) + 2 для ДС/доп. (сумма), с разбивкой по ЭДО. Введите лимит и сумму, если нужны обе ветки.</p>
+        <label>Лимит (основной договор) <input class="mc-input" data-role="hf-limit" title="Для main_contract_rows"></label>
+        <label>Сумма (доп. соглашения) <input class="mc-input" data-role="hf-amount" title="Для supplemental_rows"></label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-signer-preview">Показать 4 строки</button><button type="button" data-role="hf-signer-apply">Применить 4 строки</button></div>
+        <div class="mc-hf-result" data-role="hf-signer-result">Ожидание.</div>
+      </div>
+      <div class="mc-hf-panel" data-panel="checklist" hidden>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-checklist-run">Запустить чек-лист</button></div>
+        <div data-role="hf-checklist-result"></div>
+      </div>
+      <div class="mc-hf-panel" data-panel="test" hidden>
+        <p class="mc-hf-guide">Сначала прогоняется тестовый контур (превью операций), затем проверка превью по видимым строкам и резервный bundle. Важно: «Тест всего» не сохраняет изменения в матрице, это диагностический прогон.</p>
+        <label>Режим контура <select class="mc-select" data-role="hf-test-mode"><option value="preview_only">Только превью (без записи в таблицу)</option><option value="real_insert">С проверками для реальной вставки</option></select></label>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-test-all">Тест всего</button></div>
+        <div class="mc-hf-result" data-role="hf-test-result">Тест не запускался.</div>
+      </div>
+      <div class="mc-hf-panel" data-panel="reports" hidden>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-report-json">JSON</button><button type="button" data-role="hf-report-csv">CSV</button><button type="button" data-role="hf-report-html">HTML</button></div>
+      </div>
+      <div class="mc-hf-panel" data-panel="advanced" hidden>
+        <div class="mc-hf-actions"><button type="button" data-role="hf-show-legacy">Показать технические блоки</button></div>
+      </div>
+    `;
+    root.prepend(shell);
+
+    const tabs = Array.from(shell.querySelectorAll('[data-tab]'));
+    function switchTab(id) {
+      tabs.forEach(btn => btn.classList.toggle('is-active', btn.getAttribute('data-tab') === id));
+      shell.querySelectorAll('[data-panel]').forEach(panel => {
+        panel.hidden = panel.getAttribute('data-panel') !== id;
+      });
+    }
+    tabs.forEach(btn => btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab'))));
+
+    const scenarioSelect = shell.querySelector('[data-role="hf-scenario"]');
+    scenarioSelect.innerHTML = SCENARIOS.map(item => `<option value="${item.key}">${item.label}</option>`).join('');
+
+    const api = getApi();
+    const dict = api.getHumanDictionaries();
+    fillDataLists(shell, dict);
+    hideLegacySections(root);
+
+    shell.querySelector('[data-role="hf-show-legacy"]').addEventListener('click', () => showLegacySections(root));
+    shell.querySelector('[data-role="hf-apply-preset"]').addEventListener('click', () => {
+      const presetId = shell.querySelector('[data-role="hf-quick-preset"]').value;
+      const info = shell.querySelector('[data-role="hf-preset-result"]');
+      if (!presetId) {
+        info.textContent = 'Выберите заготовку из списка.';
+        return;
+      }
+      const ok = applyQuickPreset(shell, presetId);
+      info.textContent = ok
+        ? `Заготовка применена: ${QUICK_PRESETS[presetId].label}. Дальше нажмите «Показать превью».`
+        : 'Не удалось применить заготовку.';
+    });
+    shell.querySelector('[data-role="hf-preview"]').addEventListener('click', () => api.previewRuleBatch([buildOperation(shell)], {}));
+    shell.querySelector('[data-role="hf-apply"]').addEventListener('click', () => api.runRuleBatch([buildOperation(shell)], {}));
+    shell.querySelector('[data-role="hf-preview-bulk"]').addEventListener('click', () => api.previewRuleBatch([
+      buildOperation(shell, 'add_doc_type_to_matching_rows'),
+      buildOperation(shell, 'add_change_card_flag_to_matching_rows'),
+      buildOperation(shell, 'add_legal_entity_to_matching_rows'),
+    ], {}));
+    shell.querySelector('[data-role="hf-apply-bulk"]').addEventListener('click', () => api.runRuleBatch([
+      buildOperation(shell, 'add_doc_type_to_matching_rows'),
+      buildOperation(shell, 'add_change_card_flag_to_matching_rows'),
+      buildOperation(shell, 'add_legal_entity_to_matching_rows'),
+    ], {}));
+
+    let searchCancelled = false;
+    shell.querySelector('[data-role="hf-search-stop"]').addEventListener('click', () => {
+      searchCancelled = true;
+      shell.querySelector('[data-role="hf-search-result"]').textContent = 'Поиск остановлен пользователем.';
+    });
+    shell.querySelector('[data-role="hf-search-run"]').addEventListener('click', async () => {
+      searchCancelled = false;
+      const query = shell.querySelector('[data-role="hf-search-query"]').value;
+      const mode = shell.querySelector('[data-role="hf-search-mode"]').value;
+      const type = shell.querySelector('[data-role="hf-search-type"]').value;
+      if (searchCancelled) return;
+      state.lastSearchResult = await api.searchAcrossMatrices(query, { matchMode: mode, mode: type });
+      shell.querySelector('[data-role="hf-search-result"]').textContent = `Найдено: ${state.lastSearchResult.total}; dedupe: ${state.lastSearchResult.deduped.length}`;
+    });
+    shell.querySelector('[data-role="hf-search-export"]').addEventListener('click', () => {
+      const html = api.exportHtmlReport((state.lastSearchResult && state.lastSearchResult.deduped) || [], 'Результат поиска');
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `matrix-search-${Date.now()}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+
+    shell.querySelector('[data-role="hf-signer-preview"]').addEventListener('click', async () => {
+      const report = await api.previewRuleBatch([buildOperation(shell, 'add_signer_bundle')], {});
+      const rows = (report || []).filter(item => item.actionType === 'add-row');
+      const tpl = document.querySelector('#sc_ApprovalMatrix tbody tr[itemid], #sc_ApprovalMatrix tbody tr[itemID]');
+      const ghostHint = tpl && rows.length
+        ? ' Внизу таблицы матрицы должны появиться подсвеченные строки-превью (прокрутите).'
+        : (rows.length ? ' Если таблица пуста — ghost-строки не рисуются; см. лог панели.' : '');
+      shell.querySelector('[data-role="hf-signer-result"]').textContent = `Сгенерировано записей плана: ${rows.length} из 4 ожидаемых.${ghostHint}`;
+    });
+    shell.querySelector('[data-role="hf-signer-apply"]').addEventListener('click', () => api.runRuleBatch([buildOperation(shell, 'add_signer_bundle')], {}));
+
+    shell.querySelector('[data-role="hf-checklist-run"]').addEventListener('click', () => renderChecklist(shell.querySelector('[data-role="hf-checklist-result"]'), api.runChecklistEngine({})));
+
+    let lastTicketParse = null;
+    shell.querySelector('[data-role="hf-ticket-parse"]').addEventListener('click', () => {
+      const text = shell.querySelector('[data-role="hf-ticket-text"]').value;
+      if (typeof api.parseFreeformRequestText !== 'function') {
+        shell.querySelector('[data-role="hf-ticket-result"]').textContent = 'API parseFreeformRequestText недоступен. Обновите userscript.';
+        return;
+      }
+      lastTicketParse = api.parseFreeformRequestText(text);
+      const r = lastTicketParse;
+      const pct = r && r.confidence != null ? (Number(r.confidence) * 100).toFixed(0) : '0';
+      shell.querySelector('[data-role="hf-ticket-result"]').textContent = `Уверенность: ${pct}%. ${(r.reasons || []).join(' ')} Операций: ${(r.operations || []).length}.`;
+    });
+    shell.querySelector('[data-role="hf-ticket-preview"]').addEventListener('click', async () => {
+      const text = shell.querySelector('[data-role="hf-ticket-text"]').value;
+      let parsed = lastTicketParse;
+      if (!parsed || !Array.isArray(parsed.operations) || !parsed.operations.length) {
+        parsed = api.parseFreeformRequestText ? api.parseFreeformRequestText(text) : { operations: [] };
+      }
+      if (!parsed.operations || !parsed.operations.length) {
+        shell.querySelector('[data-role="hf-ticket-result"]').textContent = 'Сначала нажмите «Разобрать текст» или вставьте явный сценарий (замена подписанта, тип документа, юрлицо).';
+        return;
+      }
+      const ops = parsed.operations.map(op => {
+        const base = op && typeof op === 'object' ? op : {};
+        return {
+          type: base.type,
+          matrixName: document.title,
+          scope: base.scope || {},
+          filters: base.filters || {},
+          payload: base.payload || {},
+          options: Object.assign({ sourceRule: 'freeform_ticket' }, base.options || {}),
+        };
+      });
+      await api.previewRuleBatch(ops, {});
+      const rep = (api.getLastReport && api.getLastReport()) || [];
+      shell.querySelector('[data-role="hf-ticket-result"]').textContent = `Превью: записей в отчёте ${Array.isArray(rep) ? rep.length : 0}. Проверьте подсветку строк.`;
+    });
+
+    shell.querySelector('[data-role="hf-test-all"]').addEventListener('click', async () => {
+      const mode = shell.querySelector('[data-role="hf-test-mode"]').value;
+      if (typeof api.runAllUiDiagnostics !== 'function') {
+        const result = await api.runAllHumanTests({ mode });
+        shell.querySelector('[data-role="hf-test-result"]').textContent = `Итог контура: OK=${result.ok}, FAIL=${result.fail} из ${result.total} (старый API без runAllUiDiagnostics).`;
+        return;
+      }
+      const diag = await api.runAllUiDiagnostics({ humanTestMode: mode });
+      shell.querySelector('[data-role="hf-test-result"]').textContent = `Проверок: ${diag.checks.length}, сбоев: ${diag.failed}. Режим контура: ${diag.humanTestMode}. Тест не вносит постоянные изменения, это проверка перед реальным apply.`;
+    });
+
+    shell.querySelector('[data-role="hf-report-json"]').addEventListener('click', () => {
+      const report = api.getLastReport ? api.getLastReport() : [];
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `matrix-report-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+    shell.querySelector('[data-role="hf-report-csv"]').addEventListener('click', () => {
+      const report = api.getLastReport ? api.getLastReport() : [];
+      const headers = ['operationType', 'actionType', 'status', 'reason', 'itemid'];
+      const csv = [headers.join(',')].concat(report.map(row => headers.map(k => `"${String(row[k] || '').replace(/"/g, '""')}"`).join(','))).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `matrix-report-${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+    shell.querySelector('[data-role="hf-report-html"]').addEventListener('click', () => {
+      const report = api.getLastReport ? api.getLastReport() : [];
+      const htmlRows = report.map((item, idx) => ({ matrixName: document.title, rowNumber: idx + 1, column: item.operationType, matchedValue: item.reason || item.message || '' }));
+      const html = api.exportHtmlReport(htmlRows, 'Отчет Matrix Cleaner');
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `matrix-report-${Date.now()}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+  }
+
+  function install() {
+    const api = getApi();
+    const root = document.querySelector('#mc-root');
+    if (!api) return false;
+    installApi(api);
+    if (!root) return false;
+    installStyles();
+    buildUi(root);
+    return true;
+  }
+
+  const wHf = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+  wHf.__otHumanReinstall = install;
+
+  if (install()) return;
+  const timer = setInterval(() => {
+    install();
+  }, 250);
+  setTimeout(() => clearInterval(timer), 30000);
+})();
+
+
+/* ===== Matrix Cleaner v7 extension (generated) ===== */
+(() => {
+  'use strict';
+
+  const INSTALL_FLAG = '__OT_MATRIX_CLEANER_V7_EXTENSION__';
   if (window[INSTALL_FLAG]) return;
   window[INSTALL_FLAG] = true;
 
   function install() {
     const api = window.__OT_MATRIX_CLEANER__;
     if (!api) return false;
-    if (api.getReleaseInfo && api.getReleaseInfo().version === '5.0.0') return true;
+    if (api.getReleaseInfo && api.getReleaseInfo().version === '7.0.0') return true;
     const baseGetConfig = api.getConfig ? api.getConfig.bind(api) : () => ({});
     api.getReleaseInfo = () => ({
-      version: '5.0.0',
+      version: '7.0.0',
       channel: 'production',
-      build: 'modular-extension',
+      build: 'modular-extension-v7',
       generatedAt: new Date().toISOString(),
       modules: [
         'preview',
@@ -3347,6 +5024,11 @@
         'search-everywhere',
         'patchers',
         'audit',
+        'native-counterparty-filter',
+        'running-sheet-detector',
+        'apply-snapshot',
+        'route-doctor',
+        'corpus-inventory',
       ],
     });
     api.getExtendedConfig = () => {
@@ -3355,8 +5037,13 @@
         featureFlags: {
           visualPreview: true,
           jsonDslV2: true,
+          jsonDslV6: true,
           checklistEngine: true,
           globalSearchMode: true,
+          nativeCounterpartyFilter: true,
+          runningSheetDetector: true,
+          applySnapshot: true,
+          routeDoctor: true,
         },
       };
       return base;

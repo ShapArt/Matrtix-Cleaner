@@ -11,4 +11,8 @@ test('default signer preset has exactly four required rows', () => {
   assert.equal(def.requiredRows, 4);
   assert.equal(def.rows.length, 4);
   assert.equal(def.rows.every(row => row.required === true), true);
+  assert.equal(def.rows.filter(row => row.group === 'main_contract_rows' && row.valueMode === 'limit').length, 2);
+  assert.equal(def.rows.filter(row => row.group === 'supplemental_rows' && row.valueMode === 'amount').length, 2);
+  assert.equal(new Set(def.rows.map(row => row.edoMode)).has('edo'), true);
+  assert.equal(new Set(def.rows.map(row => row.edoMode)).has('non_edo'), true);
 });

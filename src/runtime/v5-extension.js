@@ -1,19 +1,19 @@
 (() => {
   'use strict';
 
-  const INSTALL_FLAG = '__OT_MATRIX_CLEANER_V5_EXTENSION__';
+  const INSTALL_FLAG = '__OT_MATRIX_CLEANER_V7_EXTENSION__';
   if (window[INSTALL_FLAG]) return;
   window[INSTALL_FLAG] = true;
 
   function install() {
     const api = window.__OT_MATRIX_CLEANER__;
     if (!api) return false;
-    if (api.getReleaseInfo && api.getReleaseInfo().version === '5.0.0') return true;
+    if (api.getReleaseInfo && api.getReleaseInfo().version === '7.0.0') return true;
     const baseGetConfig = api.getConfig ? api.getConfig.bind(api) : () => ({});
     api.getReleaseInfo = () => ({
-      version: '5.0.0',
+      version: '7.0.0',
       channel: 'production',
-      build: 'modular-extension',
+      build: 'modular-extension-v7',
       generatedAt: new Date().toISOString(),
       modules: [
         'preview',
@@ -22,6 +22,11 @@
         'search-everywhere',
         'patchers',
         'audit',
+        'native-counterparty-filter',
+        'running-sheet-detector',
+        'apply-snapshot',
+        'route-doctor',
+        'corpus-inventory',
       ],
     });
     api.getExtendedConfig = () => {
@@ -30,8 +35,13 @@
         featureFlags: {
           visualPreview: true,
           jsonDslV2: true,
+          jsonDslV6: true,
           checklistEngine: true,
           globalSearchMode: true,
+          nativeCounterpartyFilter: true,
+          runningSheetDetector: true,
+          applySnapshot: true,
+          routeDoctor: true,
         },
       };
       return base;

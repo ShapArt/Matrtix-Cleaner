@@ -1,17 +1,28 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/ShapArt/Matrtix-Cleaner/schema/config-v2.json",
-  "title": "Matrix Cleaner DSL v2",
+  "$id": "https://github.com/ShapArt/Matrtix-Cleaner/schema/config-v7.json",
+  "title": "Matrix Cleaner DSL v6/v7",
   "type": "object",
   "required": [
     "schemaVersion",
-    "sourceMetadata",
-    "operations"
+    "sourceMetadata"
+  ],
+  "anyOf": [
+    {
+      "required": [
+        "operations"
+      ]
+    },
+    {
+      "required": [
+        "operation"
+      ]
+    }
   ],
   "properties": {
     "schemaVersion": {
       "type": "string",
-      "pattern": "^2\\.[0-9]+\\.[0-9]+$"
+      "pattern": "^(2|6|7)\\.[0-9]+\\.[0-9]+$"
     },
     "sourceMetadata": {
       "type": "object",
@@ -63,6 +74,34 @@
           "type": "object"
         }
       },
+      "additionalProperties": true
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "preview": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "apply": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "checklists": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "reporting": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "rollbackHint": {
+      "type": "object",
       "additionalProperties": true
     },
     "operations": {

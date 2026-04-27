@@ -4,6 +4,7 @@ const hasLiveProfile = Boolean(process.env.OT_LIVE_BASE_URL);
 
 module.exports = defineConfig({
   testDir: './tests',
+  testMatch: /.*\.spec\.js/,
   timeout: 120000,
   retries: 0,
   use: {

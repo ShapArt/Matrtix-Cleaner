@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "6.0.0",
+  "sourceMetadata": {
+    "requestId": "ITCM-EXAMPLE-1",
+    "author": "first-line",
+    "createdAt": "2026-04-27",
+    "description": "Preview-first counterparty cleanup request."
+  },
+  "matrixQuery": {
+    "matrixName": "Matrix name from OpenText",
+    "system": "OpenText"
+  },
+  "selection": {
+    "counterparty": {
+      "name": "Example Counterparty LLC",
+      "ids": [123456],
+      "affiliation": "Группа Черкизово",
+      "filterMode": "ui_first"
+    }
+  },
+  "operations": [
+    {
+      "type": "remove_counterparty_from_rows",
+      "selection": {
+        "rowGroup": "all"
+      },
+      "payload": {
+        "partnerName": "Example Counterparty LLC",
+        "affiliation": "Группа Черкизово"
+      },
+      "options": {
+        "skipExclude": true,
+        "broadnessGuard": {
+          "minimumNarrowingSignals": 2
+        }
+      }
+    }
+  ],
+  "safety": {
+    "previewFirst": true,
+    "requireDraft": true,
+    "maxAffectedRows": 200
+  },
+  "preview": {
+    "visualDiff": true
+  },
+  "apply": {
+    "requiresConfirmation": true
+  },
+  "checklists": {
+    "routeFailure": true,
+    "cardValidation": true
+  },
+  "reporting": {
+    "formats": ["json", "csv"]
+  },
+  "rollbackHint": {
+    "strategy": "restore from exported before/after report and OpenText version history"
+  }
+}

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenText Matrix Cleaner Compact Safe
 // @namespace    https://chat.openai.com/
-// @version      2026.4.22.7
+// @version      2026.4.27.7
 // @description  Эволюционная автоматизация матриц OpenText: catalog, dry-run, rule engine, batch import, signer wizard
 // @match        *://*/otcs/cs.exe*
 // @homepageURL  https://github.com/ShapArt/Matrtix-Cleaner
@@ -22,7 +22,7 @@ function __otMatrixCleanerHost() {
   'use strict';
 
   const CONFIG = {
-    version: '4.0.0',
+    version: '7.0.0',
     requiredAffiliation: 'Группа Черкизово',
     partnerAliases: ['partner_id', 'partners_internal_id'],
     operationTypes: {
@@ -74,6 +74,12 @@ function __otMatrixCleanerHost() {
       matrixForm: '#sc_approvalForm',
       matrixSaveBtn: 'button[onclick*="sc_submitMatrix"]',
       matrixFilterCell: '#sc_ApprovalMatrix thead .sc_filter.partner, #sc_ApprovalMatrix thead .sc_filter',
+      matrixPartnerFilterCell: '#sc_ApprovalMatrix thead td.sc_filter.partner',
+      matrixFilterPopup: '.sc_tableFilter',
+      matrixFilterSearch: '#sc_filterForFilterValues',
+      matrixFilterOptions: '.sc_filterPropsList li',
+      matrixFilterCheckboxes: '.sc_filterPropsList input[type="checkbox"]',
+      matrixFilterApplyButtons: '.sc_tableFilter .sc_filterButton button',
       listTable: '#browseViewCoreTable',
       listRows: '#browseViewCoreTable tr.browseRow1, #browseViewCoreTable tr.browseRow2',
       listName: 'a.browseItemNameContainer[data-otname="itemContainer"]',
@@ -120,6 +126,8 @@ function __otMatrixCleanerHost() {
     selectedPartnerName: '',
     selectedMatrixName: '',
     columnIdx: null,
+    filterDiagnostics: null,
+    lastApplySnapshot: null,
     mode: 'matrix',
     booted: false,
     runningSheetsGuardHintLogged: false,
@@ -454,6 +462,145 @@ function __otMatrixCleanerHost() {
     throw new Error('Не удалось определить колонку «Контрагент».');
   }
 
+  function getPartnerColumnAlias(columnIdx) {
+    const matrix = ensureMatrixInit();
+    const col = matrix.cols && matrix.cols[columnIdx] ? matrix.cols[columnIdx] : null;
+    return col && col.alias ? String(col.alias) : CONFIG.partnerAliases[0];
+  }
+
+  function findPartnerFilterCell(columnIdx) {
+    const idx = String(columnIdx);
+    const direct = document.querySelector(`${CONFIG.selectors.matrixPartnerFilterCell}[itemcolidx="${idx}"], ${CONFIG.selectors.matrixPartnerFilterCell}[itemColIdx="${idx}"]`);
+    if (direct) return direct;
+    const partnerCells = Array.from(document.querySelectorAll(CONFIG.selectors.matrixPartnerFilterCell));
+    const byIdx = partnerCells.find(cell => String(cell.getAttribute('itemcolidx') || cell.getAttribute('itemColIdx') || '') === idx);
+    if (byIdx) return byIdx;
+    const generic = Array.from(document.querySelectorAll(`${CONFIG.selectors.matrixTable} thead td.sc_filter[itemcolidx="${idx}"], ${CONFIG.selectors.matrixTable} thead td.sc_filter[itemColIdx="${idx}"]`));
+    return generic.find(cell => !cell.classList.contains('condition')) || generic[0] || null;
+  }
+
+  function getFilterPopup() {
+    return document.querySelector(CONFIG.selectors.matrixFilterPopup);
+  }
+
+  function openNativePartnerFilter(columnIdx) {
+    const matrix = ensureMatrixInit();
+    const jq = $();
+    const cell = findPartnerFilterCell(columnIdx);
+    if (!cell) throw new Error('Partner filter header cell was not found.');
+    let popup = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (typeof matrix.filterHide === 'function') {
+        try { matrix.filterHide(); } catch (error) { lastError = error; }
+      }
+      cell.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      popup = getFilterPopup();
+      if (popup) break;
+      if (typeof matrix.filterShow === 'function' && typeof jq === 'function') {
+        try {
+          hostWindow().event = { target: cell };
+          matrix.filterShow(jq(cell));
+          popup = getFilterPopup();
+          if (popup) break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+    }
+    if (!popup) {
+      const suffix = lastError && lastError.message ? ` ${lastError.message}` : '';
+      throw new Error(`Native OpenText filter popup was not opened.${suffix}`);
+    }
+    return { cell, popup };
+  }
+
+  function setNativeFilterSearch(popup, query) {
+    const input = popup.querySelector(CONFIG.selectors.matrixFilterSearch) || document.querySelector(CONFIG.selectors.matrixFilterSearch);
+    if (!input) return false;
+    input.value = String(query || '');
+    ['input', 'change', 'keyup'].forEach(type => {
+      input.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+    });
+    return true;
+  }
+
+  function choosePartnerFilterCheckboxes(popup, partnerEntry) {
+    const wantedIds = new Set((partnerEntry.ids || []).map(id => String(Math.abs(Number(id)))));
+    const wantedName = normalize(partnerEntry.name || '');
+    const checkboxes = Array.from((popup || document).querySelectorAll(CONFIG.selectors.matrixFilterCheckboxes));
+    const selectedValues = [];
+    checkboxes.forEach(input => {
+      if (!input.value) {
+        input.checked = false;
+        return;
+      }
+      const label = input.closest('label');
+      const labelText = normalize(label ? label.textContent : '');
+      const value = String(input.value || '');
+      const byId = wantedIds.has(String(Math.abs(Number(value))));
+      const byExactName = wantedName && labelText === wantedName;
+      const checked = byId || byExactName;
+      input.checked = checked;
+      if (checked) selectedValues.push(value);
+    });
+    return unique(selectedValues);
+  }
+
+  function verifyPartnerFilterSelection(popup, selectedValues) {
+    const selected = new Set((selectedValues || []).map(String));
+    const checked = Array.from((popup || document).querySelectorAll(CONFIG.selectors.matrixFilterCheckboxes))
+      .filter(input => input.checked && input.value)
+      .map(input => String(input.value || ''));
+    const unexpected = checked.filter(value => !selected.has(value));
+    const missing = Array.from(selected).filter(value => checked.indexOf(value) < 0);
+    return {
+      ok: selected.size > 0 && !unexpected.length && !missing.length,
+      checkedValues: checked,
+      unexpected,
+      missing,
+    };
+  }
+
+  function clickNativeFilterApply(popup) {
+    const matrix = ensureMatrixInit();
+    const buttons = Array.from((popup || document).querySelectorAll(CONFIG.selectors.matrixFilterApplyButtons));
+    const applyText = normalize(matrix.lang && matrix.lang.apply ? matrix.lang.apply : 'apply');
+    const button = buttons.find(btn => normalize(btn.textContent || '') === applyText)
+      || buttons.find(btn => /apply|примен/i.test(String(btn.textContent || '')))
+      || buttons[0];
+    if (button) {
+      button.click();
+      return 'button';
+    }
+    if (typeof matrix.filterApply === 'function') {
+      if (typeof matrix.filterHide === 'function') matrix.filterHide();
+      matrix.filterApply();
+      return 'api';
+    }
+    throw new Error('Native filter Apply button was not found.');
+  }
+
+  function applyPartnerFilterInternal(partnerEntry, reason) {
+    const matrix = ensureMatrixInit();
+    const columnIdx = state.columnIdx != null ? state.columnIdx : getPartnerColumnIdx();
+    matrix.filter.colsFilterArray[columnIdx] = partnerEntry.ids.map(String);
+    matrix.filterItems();
+    const diagnostics = {
+      mode: 'internal_fallback',
+      reason: reason || '',
+      columnIdx,
+      columnAlias: getPartnerColumnAlias(columnIdx),
+      matchedIds: partnerEntry.ids.map(String),
+      popupOpened: false,
+      searched: false,
+      appliedBy: 'filterItems',
+      visibleRows: visibleRows().length,
+    };
+    state.filterDiagnostics = diagnostics;
+    return { rows: visibleRows(), diagnostics };
+  }
+
   function getPartnerIdsByItemId(itemId, columnIdx) {
     const raw = sc().items && sc().items[itemId] ? sc().items[itemId][columnIdx] : null;
     if (!Array.isArray(raw)) return [];
@@ -585,12 +732,113 @@ function __otMatrixCleanerHost() {
     return { confidence: conf, operations, reasons };
   }
 
+  function buildRequestDraft(rawText, options) {
+    const opts = options || {};
+    const parsed = parseFreeformRequestText(rawText);
+    const text = normalize(rawText || '');
+    const requiredMissingFields = [];
+    let operation = parsed.operations[0] || null;
+    if (!operation) {
+      const hasCounterpartySignal = /контрагент|counterparty|partner/.test(text);
+      const hasRemoveSignal = /удал|убра|remove/.test(text);
+      const hasRouteSignal = /маршрут|лист согласования|не стро|route/.test(text);
+      if (hasCounterpartySignal && hasRemoveSignal) {
+        operation = normalizeOperation({
+          type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
+          payload: { partnerName: opts.partnerName || '', affiliation: CONFIG.requiredAffiliation },
+          options: { skipExclude: true },
+        });
+        if (!operation.payload.partnerName) requiredMissingFields.push('counterparty name');
+      } else if (hasRouteSignal) {
+        operation = normalizeOperation({
+          type: CONFIG.operationTypes.CHECKLIST_ROUTE_FAILURE,
+          payload: { rawText: rawText || '' },
+        });
+      }
+    }
+    if (!operation) {
+      if (/контрагент|counterparty|partner/.test(text) && /удал|убра|remove/.test(text)) {
+        operation = normalizeOperation({
+          type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
+          payload: { partnerName: opts.partnerName || '', affiliation: CONFIG.requiredAffiliation },
+          options: { skipExclude: true },
+        });
+        if (!operation.payload.partnerName) requiredMissingFields.push('counterparty name');
+      } else if (/маршрут|route|лист согласования|не стро/.test(text)) {
+        operation = normalizeOperation({
+          type: CONFIG.operationTypes.CHECKLIST_ROUTE_FAILURE,
+          payload: { rawText: rawText || '' },
+        });
+      }
+    }
+    if (!operation) requiredMissingFields.push('operation type');
+    const confidence = requiredMissingFields.length ? Math.min(parsed.confidence || 0.3, 0.49) : Math.max(parsed.confidence || 0.5, 0.55);
+    return {
+      confidence,
+      reasons: (parsed.reasons || []).concat(requiredMissingFields.length ? ['missing_required_fields'] : []),
+      requiredMissingFields,
+      operation,
+      autoApplyAllowed: false,
+      suggestedFirstLineResponse: requiredMissingFields.length
+        ? `Запросить недостающие данные: ${requiredMissingFields.join(', ')}.`
+        : 'Построить preview в Matrix Cleaner и приложить JSON/CSV отчёт перед apply.',
+    };
+  }
+
   function applyPartnerFilter(partnerEntry) {
     const matrix = ensureMatrixInit();
     const columnIdx = state.columnIdx != null ? state.columnIdx : getPartnerColumnIdx();
-    matrix.filter.colsFilterArray[columnIdx] = partnerEntry.ids.map(String);
-    matrix.filterItems();
-    return visibleRows();
+    if (String(window.location.protocol || '').toLowerCase() === 'file:') {
+      return applyPartnerFilterInternal(partnerEntry, 'fixture/offline page: native UI filter skipped');
+    }
+    const diagnostics = {
+      mode: 'ui_first',
+      reason: '',
+      columnIdx,
+      columnAlias: getPartnerColumnAlias(columnIdx),
+      matchedIds: [],
+      popupOpened: false,
+      searched: false,
+      appliedBy: '',
+      visibleRows: 0,
+    };
+    try {
+      const opened = openNativePartnerFilter(columnIdx);
+      diagnostics.popupOpened = true;
+      diagnostics.searched = setNativeFilterSearch(opened.popup, partnerEntry.name);
+      diagnostics.matchedIds = choosePartnerFilterCheckboxes(opened.popup, partnerEntry);
+      if (!diagnostics.matchedIds.length) {
+        throw new Error('Partner was not found in native filter checkbox list.');
+      }
+      const selectionCheck = verifyPartnerFilterSelection(opened.popup, diagnostics.matchedIds);
+      diagnostics.selectionCheck = selectionCheck;
+      if (!selectionCheck.ok) {
+        throw new Error(`Native filter checkbox selection mismatch: ${JSON.stringify(selectionCheck)}`);
+      }
+      diagnostics.appliedBy = clickNativeFilterApply(opened.popup);
+      diagnostics.visibleRows = visibleRows().length;
+      state.filterDiagnostics = diagnostics;
+      return { rows: visibleRows(), diagnostics };
+    } catch (error) {
+      log(`Counterparty column filter fallback: ${error.message}`, 'warn');
+      return applyPartnerFilterInternal(partnerEntry, error.message);
+    }
+  }
+
+  function clearMatrixFilters() {
+    const matrix = ensureMatrixInit();
+    if (typeof matrix.filterHide === 'function') {
+      try { matrix.filterHide(); } catch (_) {}
+    }
+    if (typeof matrix.initFilters === 'function') matrix.initFilters();
+    if (matrix.element && typeof matrix.element.find === 'function') {
+      matrix.element.find('.sc_filterHasCondition').removeClass('sc_filterHasCondition');
+    } else {
+      document.querySelectorAll(`${CONFIG.selectors.matrixTable} .sc_filterHasCondition`).forEach(node => node.classList.remove('sc_filterHasCondition'));
+    }
+    if (typeof matrix.filterItems === 'function') matrix.filterItems();
+    state.filterDiagnostics = null;
+    return { cleared: true, visibleRows: visibleRows().length };
   }
 
   function switchRowMode(rowOrJq, dontSave) {
@@ -708,11 +956,46 @@ function __otMatrixCleanerHost() {
   }
 
   function detectRunningSheetsState() {
+    const statusSelect = document.querySelector(CONFIG.selectors.matrixStatus);
+    const statusValue = normalize(statusSelect ? statusSelect.value || '' : '');
+    const statusText = normalize(statusSelect && statusSelect.options && statusSelect.selectedIndex >= 0 ? statusSelect.options[statusSelect.selectedIndex].text || '' : '');
+    const bodyText = normalize(document.body ? document.body.textContent || '' : '');
+    const approvalLinks = Array.from(document.querySelectorAll('a[href]'))
+      .map(link => String(link.getAttribute('href') || ''))
+      .filter(href => /approvallist|openapprovallist|approvalid|approval/i.test(href));
+    const runningTextSignals = [
+      'лист согласования',
+      'запущен',
+      'запущенные листы',
+      'на согласовании',
+      'approvallist',
+      'approval id',
+    ].filter(signal => bodyText.indexOf(normalize(signal)) >= 0);
+    const activeStatus = Boolean(statusValue && statusValue !== 'draft' && statusValue !== 'черновик');
+    const hasRunningSheets = approvalLinks.length > 0 || runningTextSignals.length > 0 || activeStatus;
     return {
-      known: false,
-      hasRunningSheets: null,
-      message: 'Признак уже запущенных листов недоступен в текущем DOM/API. Требуется явный override.',
+      known: true,
+      hasRunningSheets,
+      statusValue,
+      statusText,
+      evidence: {
+        approvalLinks: approvalLinks.slice(0, 10),
+        runningTextSignals,
+        activeStatus,
+      },
+      message: hasRunningSheets
+        ? 'Найдены признаки уже запущенных листов/маршрута. Apply требует override.'
+        : 'Признаков уже запущенных листов в текущем DOM не найдено.',
     };
+  }
+
+  function isLikelyLiveOpenTextPage() {
+    const protocol = String(window.location.protocol || '').toLowerCase();
+    if (protocol === 'file:' || protocol === 'about:' || protocol === 'data:') return false;
+    const href = String(window.location.href || '');
+    if (/otcs|cs\.exe|opentext/i.test(href)) return true;
+    const win = hostWindow();
+    return Boolean(win.sc && win.sc.urlPrefix && /^https?:/i.test(String(win.sc.urlPrefix || '')));
   }
 
   function normalizeOperation(raw) {
@@ -724,6 +1007,85 @@ function __otMatrixCleanerHost() {
       filters: op.filters || {},
       payload: op.payload || {},
       options: op.options || {},
+    };
+  }
+
+  function cleanCellText(value) {
+    return String(value == null ? '' : value)
+      .replace(/\u00a0/g, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/;+\s*$/g, '')
+      .trim();
+  }
+
+  function getRowCellText(row, aliases) {
+    const list = Array.isArray(aliases) ? aliases : [aliases];
+    for (const alias of list) {
+      const cells = Array.from(row.querySelectorAll(`td.attrAlias_${alias}`));
+      const text = cleanCellText(cells.map(cell => cell.textContent || '').join('; '));
+      if (text && text !== '*' && !/^(пустое значение|empty value)$/i.test(text)) return text;
+    }
+    return '';
+  }
+
+  function countRowNarrowingSignals(row) {
+    if (!row) return { score: 0, signals: [] };
+    const signalDefs = [
+      ['document_type', ['document_type']],
+      ['legal_entity', ['legal_entity', 'entity', 'juridical_person']],
+      ['direction', ['direction']],
+      ['function', ['functions']],
+      ['category', ['category']],
+      ['amount', ['sum_rub']],
+      ['limit', ['limit_contract']],
+      ['edo_mode', ['eds']],
+      ['change', ['change']],
+      ['partner_op', ['partner_op']],
+      ['affiliation', ['affiliation']],
+    ];
+    const signals = [];
+    signalDefs.forEach(([name, aliases]) => {
+      if (getRowCellText(row, aliases)) signals.push(name);
+    });
+    return { score: signals.length, signals };
+  }
+
+  function evaluateBroadnessRisk(row, remainingPartners, options) {
+    const opts = options || {};
+    const minimumSignals = Number.isFinite(Number(opts.minimumNarrowingSignals))
+      ? Number(opts.minimumNarrowingSignals)
+      : 2;
+    const remaining = Array.isArray(remainingPartners) ? remainingPartners.filter(Boolean) : [];
+    if (!remaining.length) {
+      return {
+        level: 'manual_review',
+        reason: 'Counterparty removal would leave the row without a counterparty condition.',
+        signals: [],
+        score: 0,
+      };
+    }
+    if (remaining.some(name => normalize(name) === '*' || /пустое значение|empty value|null/i.test(String(name)))) {
+      return {
+        level: 'manual_review',
+        reason: 'Remaining counterparty condition looks empty or wildcard-like.',
+        signals: [],
+        score: 0,
+      };
+    }
+    const counted = countRowNarrowingSignals(row);
+    if (counted.score < minimumSignals) {
+      return {
+        level: 'manual_review',
+        reason: `Too few narrowing conditions after counterparty removal (${counted.score}/${minimumSignals}).`,
+        signals: counted.signals,
+        score: counted.score,
+      };
+    }
+    return {
+      level: 'ok',
+      reason: '',
+      signals: counted.signals,
+      score: counted.score,
     };
   }
 
@@ -743,7 +1105,9 @@ function __otMatrixCleanerHost() {
     if (!entry) {
       return [{ actionType: CONFIG.actionTypes.MANUAL_REVIEW, status: CONFIG.status.MANUAL_REVIEW, reason: `Контрагент «${partnerName}» не найден в каталоге матрицы.` }];
     }
-    const rows = applyPartnerFilter(entry);
+    const filterResult = applyPartnerFilter(entry);
+    const rows = filterResult.rows || [];
+    const filterDiagnostics = filterResult.diagnostics || state.filterDiagnostics || {};
     const skipExclude = op.options.skipExclude !== undefined ? Boolean(op.options.skipExclude) : CONFIG.safety.defaultSkipExclude;
     const actions = [];
     rows.forEach(row => {
@@ -754,18 +1118,28 @@ function __otMatrixCleanerHost() {
       const uniqueIds = unique(signedIds.map(v => Math.abs(Number(v))).filter(Boolean));
       const matchedIds = uniqueIds.filter(id => entry.ids.indexOf(id) >= 0);
       const beforePartners = unique(getPartnerNamesFromSignedIds(signedIds));
+      const remainingPartners = beforePartners.filter(name => normalize(name) !== normalize(entry.name));
       const condition = getConditionBySignedIds(signedIds);
       const base = {
+        matrixName: op.matrixName || document.title || '',
         operationType: op.type,
         affiliation: requiredAffiliation,
         itemId,
         recId,
+        recordId: recId,
         rowNo,
         condition,
         before: { partners: beforePartners.slice() },
         after: {},
         matchedIds,
         matchedPartnerName: entry.name,
+        remainingPartners,
+        filterMode: filterDiagnostics.mode || '',
+        filterColumnAlias: filterDiagnostics.columnAlias || getPartnerColumnAlias(state.columnIdx),
+        filterMatchedIds: (filterDiagnostics.matchedIds || []).slice ? filterDiagnostics.matchedIds.slice() : [],
+        whyMatched: matchedIds.length
+          ? `Counterparty filter matched ids: ${matchedIds.join(', ')}`
+          : 'Counterparty filter returned the row, but partner ids did not match after re-check.',
       };
       if (!matchedIds.length) {
         actions.push(Object.assign(base, {
@@ -787,9 +1161,10 @@ function __otMatrixCleanerHost() {
       if (op.type === CONFIG.operationTypes.DELETE_IF_SINGLE_COUNTERPARTY && onlyThisPartner) {
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.DELETE_ROW,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
           reason: 'Удаление строки: единственный контрагент в строке.',
           after: { deleted: true },
+          applyMode: 'ot_native_delete_row',
         }));
         return;
       }
@@ -797,9 +1172,10 @@ function __otMatrixCleanerHost() {
         if (onlyThisPartner && op.options.deleteIfSingle) {
           actions.push(Object.assign(base, {
             actionType: CONFIG.actionTypes.DELETE_ROW,
-            status: CONFIG.status.SKIPPED,
+            status: CONFIG.status.OK,
             reason: 'Удаление строки: режим deleteIfSingle.',
             after: { deleted: true },
+            applyMode: 'ot_native_delete_row',
           }));
           return;
         }
@@ -811,12 +1187,24 @@ function __otMatrixCleanerHost() {
           }));
           return;
         }
+        const broadnessRisk = evaluateBroadnessRisk(row, remainingPartners, op.options && op.options.broadnessGuard);
+        if (broadnessRisk.level !== 'ok') {
+          actions.push(Object.assign(base, {
+            actionType: CONFIG.actionTypes.MANUAL_REVIEW,
+            status: CONFIG.status.MANUAL_REVIEW,
+            reason: broadnessRisk.reason,
+            broadnessRisk,
+          }));
+          return;
+        }
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.REMOVE_TOKEN,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
+          broadnessRisk,
           reason: 'Будет удален контрагент из строки.',
+          applyMode: 'ot_native_row_edit_token',
           after: {
-            partners: beforePartners.filter(name => normalize(name) !== normalize(entry.name)),
+            partners: remainingPartners.slice(),
           },
         }));
       }
@@ -850,10 +1238,14 @@ function __otMatrixCleanerHost() {
     const text = String(row ? row.textContent || '' : '');
     const itemId = Number(row && (row.getAttribute('itemid') || row.getAttribute('itemID')) || 0);
     const rowNo = getRowNo(row);
-    const docTypes = parseSemiList((text.match(/(?:типы?\s*документов?|doc\s*types?)[:\s-]*([^\n]+)/i) || [])[1] || text);
-    const legalEntities = parseSemiList((text.match(/(?:юр\.?\s*лиц[а]?|legal\s*entities?)[:\s-]*([^\n]+)/i) || [])[1] || '');
+    const docTypeText = row ? getRowCellText(row, ['document_type']) : '';
+    const legalEntityText = row ? getRowCellText(row, ['legal_entity', 'legal_entities', 'legal_entity_id', 'legal_entities_id']) : '';
+    const limitText = row ? getRowCellText(row, ['limit_contract']) : '';
+    const amountText = row ? getRowCellText(row, ['sum_rub']) : '';
+    const docTypes = parseSemiList(docTypeText || (text.match(/(?:типы?\s*документов?|doc\s*types?)[:\s-]*([^\n]+)/i) || [])[1] || text);
+    const legalEntities = parseSemiList(legalEntityText || (text.match(/(?:юр\.?\s*лиц[а]?|legal\s*entities?)[:\s-]*([^\n]+)/i) || [])[1] || '');
     const hasChangeCard = /ранее\s+подписан|change\s*card|карточк/i.test(text);
-    return { row, text, itemId, rowNo, docTypes, legalEntities, hasChangeCard };
+    return { row, text, itemId, rowNo, docTypes, legalEntities, limitText, amountText, hasChangeCard };
   }
 
   function matchRowGroup(facts, rowGroup) {
@@ -878,6 +1270,25 @@ function __otMatrixCleanerHost() {
 
   function patchRowText(row, beforeValue, afterValue) {
     if (!row) return false;
+    const aliasesByKind = {
+      docType: ['document_type'],
+      legalEntity: ['legal_entity', 'legal_entities', 'legal_entity_id', 'legal_entities_id'],
+      changeCard: ['change', 'note'],
+      limits: ['limit_contract', 'sum_rub'],
+      amount: ['sum_rub'],
+    };
+    const kind = arguments.length > 3 ? arguments[3] : '';
+    const aliases = aliasesByKind[kind] || [];
+    for (const alias of aliases) {
+      const cell = row.querySelector(`td.attrAlias_${alias}`);
+      if (!cell) continue;
+      cell.innerHTML = String(afterValue || '')
+        .split(/\s*;\s*/)
+        .filter(Boolean)
+        .map(value => `${value};`)
+        .join('<br>');
+      return true;
+    }
     const direct = row.querySelector('[data-field="doc-types"], [data-field="legal-entities"], [data-field="change-card-flag"]');
     if (direct) {
       const source = 'value' in direct ? String(direct.value || '') : String(direct.textContent || '');
@@ -953,10 +1364,12 @@ function __otMatrixCleanerHost() {
         }
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.PATCH_ROW,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
           reason: `Будет добавлен тип документа "${newDocType}".`,
           after: { docTypes: facts.docTypes.concat([newDocType]) },
           domPatch: { kind: 'docType', beforeValue: facts.docTypes.join('; '), afterValue: facts.docTypes.concat([newDocType]).join('; ') },
+          applyMode: 'fixture_dom_patch',
+          rollbackHint: 'Remove the added document type from this row or restore before.docTypes from the report.',
         }));
         return;
       }
@@ -979,10 +1392,12 @@ function __otMatrixCleanerHost() {
         }
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.PATCH_ROW,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
           reason: `Будет добавлено юрлицо "${legalEntity}".`,
           after: { legalEntities: facts.legalEntities.concat([legalEntity]) },
           domPatch: { kind: 'legalEntity', beforeValue: facts.legalEntities.join('; '), afterValue: facts.legalEntities.concat([legalEntity]).join('; ') },
+          applyMode: 'fixture_dom_patch',
+          rollbackHint: 'Remove the added legal entity from this row or restore before.legalEntities from the report.',
         }));
         return;
       }
@@ -997,12 +1412,83 @@ function __otMatrixCleanerHost() {
         }
         actions.push(Object.assign(base, {
           actionType: CONFIG.actionTypes.PATCH_ROW,
-          status: CONFIG.status.SKIPPED,
+          status: CONFIG.status.OK,
           reason: `Будет проставлен флаг "${changeCardFlag}".`,
           after: { changeCardFlag },
           domPatch: { kind: 'changeCard', beforeValue: '', afterValue: changeCardFlag },
+          applyMode: 'fixture_dom_patch',
+          rollbackHint: 'Remove the added change-card flag or restore the row from the before snapshot.',
         }));
       }
+    });
+    return actions;
+  }
+
+  function planLimitPatch(op) {
+    const requestedLimit = Number(op.payload.limitRows || op.payload.maxRows || op.options.maxRows || 0);
+    const rows = requestedLimit > 0 ? visibleRows().slice(0, requestedLimit) : visibleRows();
+    const group = op.payload.rowGroup || op.filters.rowGroup || 'all';
+    const requiredDocTypes = parseSemiList(op.payload.requiredDocTypes || op.filters.requiredDocTypes || '');
+    const matchMode = String(op.payload.matchMode || op.filters.matchMode || 'all').toLowerCase();
+    const target = String(op.payload.target || op.payload.valueMode || 'limit').toLowerCase();
+    const nextValue = String(op.payload.value || op.payload.limit || op.payload.amount || '').trim();
+    const kind = target.indexOf('amount') >= 0 || target.indexOf('sum') >= 0 ? 'amount' : 'limit';
+    const actions = [];
+    rows.forEach(row => {
+      const facts = getRowFacts(row);
+      const beforeValue = kind === 'amount' ? facts.amountText : facts.limitText;
+      const base = {
+        matrixName: op.matrixName || document.title || '',
+        operationType: op.type,
+        itemId: facts.itemId,
+        recId: getRecIdByItemId(facts.itemId),
+        recordId: getRecIdByItemId(facts.itemId),
+        rowNo: facts.rowNo,
+        before: { limit: facts.limitText, amount: facts.amountText, docTypes: facts.docTypes.slice() },
+        sourceRule: op.options.sourceRule || op.payload.sourceRule || '',
+        whyMatched: `rowGroup=${group}, docTypeMatch=${matchMode}, target=${kind}`,
+      };
+      if (!matchRowGroup(facts, group)) {
+        actions.push(Object.assign(base, {
+          actionType: CONFIG.actionTypes.SKIP,
+          status: CONFIG.status.SKIPPED,
+          reason: `Строка не входит в выбранный group=${group}.`,
+        }));
+        return;
+      }
+      if (!hasTypesByMode(facts.docTypes, requiredDocTypes, matchMode)) {
+        actions.push(Object.assign(base, {
+          actionType: CONFIG.actionTypes.SKIP,
+          status: CONFIG.status.SKIPPED,
+          reason: `Не выполнен doc type match (${matchMode.toUpperCase()}).`,
+        }));
+        return;
+      }
+      if (!nextValue) {
+        actions.push(Object.assign(base, {
+          actionType: CONFIG.actionTypes.MANUAL_REVIEW,
+          status: CONFIG.status.MANUAL_REVIEW,
+          reason: 'Не указано новое значение лимита/суммы.',
+        }));
+        return;
+      }
+      if (normalize(beforeValue) === normalize(nextValue)) {
+        actions.push(Object.assign(base, {
+          actionType: CONFIG.actionTypes.SKIP,
+          status: CONFIG.status.SKIPPED,
+          reason: `Значение ${kind} уже равно "${nextValue}".`,
+        }));
+        return;
+      }
+      actions.push(Object.assign(base, {
+        actionType: CONFIG.actionTypes.PATCH_ROW,
+        status: CONFIG.status.OK,
+        reason: `Будет изменено поле ${kind}: "${beforeValue || '(пусто)'}" -> "${nextValue}".`,
+        after: kind === 'amount' ? { amount: nextValue } : { limit: nextValue },
+        domPatch: { kind: kind === 'amount' ? 'amount' : 'limits', beforeValue, afterValue: nextValue },
+        applyMode: 'fixture_dom_patch',
+        rollbackHint: `Restore ${kind} from before.${kind} in the apply snapshot/report.`,
+      }));
     });
     return actions;
   }
@@ -1039,13 +1525,15 @@ function __otMatrixCleanerHost() {
     return rows.map((rowPayload, idx) => ({
       operationType: op.type,
       actionType: CONFIG.actionTypes.ADD_ROW,
-      status: CONFIG.status.SKIPPED,
+      status: CONFIG.status.OK,
       rowNo: `new-${idx + 1}`,
       reason: `Signer bundle row ${idx + 1}/4 (${rowPayload.rowKey}).`,
       sourceRule: op.options.sourceRule || 'project_default_4_rows',
       before: {},
       after: rowPayload,
       generatedRow: rowPayload,
+      applyMode: 'fixture_generated_row',
+      rollbackHint: 'Remove the generated signer row if apply was incorrect.',
     }));
   }
 
@@ -1123,6 +1611,8 @@ function __otMatrixCleanerHost() {
         newId,
         columns,
       },
+      applyMode: 'ot_native_performer_list',
+      rollbackHint: 'Restore performerList values from the before snapshot or rerun the inverse approver operation.',
     }];
   }
 
@@ -1139,6 +1629,7 @@ function __otMatrixCleanerHost() {
       case CONFIG.operationTypes.REPLACE_SIGNER:
         return planGenericManualReview(op, 'Для replace_signer auto-apply отключен: требуется отдельный signer mapping/подтверждение.');
       case CONFIG.operationTypes.CHANGE_LIMITS:
+        return planLimitPatch(op);
       case CONFIG.operationTypes.EXPAND_LEGAL_ENTITIES:
       case CONFIG.operationTypes.EXPAND_SITES:
       case CONFIG.operationTypes.PATCH_DOC_TYPES:
@@ -1236,9 +1727,15 @@ function __otMatrixCleanerHost() {
     }
 
     if (entry.actionType === CONFIG.actionTypes.PATCH_ROW && entry.domPatch) {
+      if (isLikelyLiveOpenTextPage() && !(options && options.allowDomPatchOnLive)) {
+        return {
+          status: CONFIG.status.MANUAL_REVIEW,
+          message: 'Live DOM-only patch blocked: no confirmed OpenText native writer for this field yet. Use preview/report or pass allowDomPatchOnLive only in an explicit test profile.',
+        };
+      }
       const row = getRowByItemId(entry.itemId, { preferEdit: false });
       if (!row) return { status: CONFIG.status.SKIPPED, message: `Строка itemid=${entry.itemId} не найдена для patch.` };
-      const ok = patchRowText(row, entry.domPatch.beforeValue || '', entry.domPatch.afterValue || '');
+      const ok = patchRowText(row, entry.domPatch.beforeValue || '', entry.domPatch.afterValue || '', entry.domPatch.kind || '');
       if (!ok) return { status: CONFIG.status.SKIPPED, message: `DOM patch для itemid=${entry.itemId} не применен.` };
       return { status: CONFIG.status.OK, message: `DOM patch применен (itemid=${entry.itemId}, ${entry.domPatch.kind}).` };
     }
@@ -1264,17 +1761,32 @@ function __otMatrixCleanerHost() {
     return { status: CONFIG.status.SKIPPED, message: 'Тип действия пока не исполняется автоматически.' };
   }
 
+  function resolveApplyMode(entry) {
+    if (!entry) return '';
+    if (entry.applyMode) return entry.applyMode;
+    if (entry.nativePatch) return 'ot_native_performer_list';
+    if (entry.domPatch) return 'fixture_dom_patch';
+    if (entry.generatedRow) return 'fixture_generated_row';
+    if (entry.actionType === CONFIG.actionTypes.REMOVE_TOKEN) return 'ot_native_row_edit_token';
+    if (entry.actionType === CONFIG.actionTypes.DELETE_ROW) return 'ot_native_delete_row';
+    return '';
+  }
+
   function toReportEntry(entry, result, dryRun) {
     const beforePartners = entry.before && Array.isArray(entry.before.partners) ? entry.before.partners.slice() : [];
     const matchedPartnerName = entry.matchedPartnerName || '';
     return {
+      matrixName: entry.matrixName || document.title || '',
       operationType: entry.operationType || '',
+      itemId: entry.itemId != null ? entry.itemId : '',
       itemid: entry.itemId != null ? entry.itemId : '',
       recId: entry.recId != null ? entry.recId : '',
+      recordId: entry.recordId != null ? entry.recordId : (entry.recId != null ? entry.recId : ''),
       rowNo: entry.rowNo || '',
       actionType: entry.actionType,
       status: result && result.status ? result.status : entry.status || CONFIG.status.SKIPPED,
       reason: entry.reason || '',
+      whyMatched: entry.whyMatched || entry.reason || '',
       affiliation: entry.affiliation || CONFIG.requiredAffiliation,
       sourceRule: entry.sourceRule || '',
       skippedReason: (result && result.status === CONFIG.status.SKIPPED) ? (result.message || entry.reason || '') : '',
@@ -1284,6 +1796,14 @@ function __otMatrixCleanerHost() {
       after: entry.after || {},
       condition: entry.condition || '',
       matchedPartnerName,
+      remainingPartners: Array.isArray(entry.remainingPartners) ? entry.remainingPartners.slice() : ((entry.after && Array.isArray(entry.after.partners)) ? entry.after.partners.slice() : []),
+      filterMode: entry.filterMode || '',
+      filterColumnAlias: entry.filterColumnAlias || '',
+      filterMatchedIds: Array.isArray(entry.filterMatchedIds) ? entry.filterMatchedIds.slice() : [],
+      broadnessRisk: entry.broadnessRisk || null,
+      applyMode: resolveApplyMode(entry),
+      rollbackHint: entry.rollbackHint || buildRollbackHint(entry),
+      error: result && result.status === CONFIG.status.ERROR ? (result.message || '') : '',
       // Legacy compatibility fields.
       originalPartners: beforePartners,
       removedPartner: matchedPartnerName,
@@ -1291,18 +1811,22 @@ function __otMatrixCleanerHost() {
   }
 
   function reportToCsv(report) {
-    const headers = ['operationType', 'itemid', 'recId', 'rowNo', 'actionType', 'status', 'reason', 'affiliation', 'sourceRule', 'skippedReason', 'ambiguousReason', 'message', 'condition', 'matchedPartnerName', 'before', 'after'];
+    const headers = ['matrixName', 'operationType', 'itemId', 'itemid', 'recId', 'recordId', 'rowNo', 'actionType', 'status', 'reason', 'whyMatched', 'affiliation', 'sourceRule', 'skippedReason', 'ambiguousReason', 'message', 'condition', 'matchedPartnerName', 'remainingPartners', 'filterMode', 'filterColumnAlias', 'filterMatchedIds', 'broadnessRisk', 'applyMode', 'rollbackHint', 'error', 'before', 'after'];
     const escape = value => `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
     const lines = [headers.join(',')];
     report.forEach(row => {
       lines.push([
+        row.matrixName,
         row.operationType,
+        row.itemId,
         row.itemid,
         row.recId,
+        row.recordId,
         row.rowNo,
         row.actionType,
         row.status,
         row.reason,
+        row.whyMatched,
         row.affiliation,
         row.sourceRule,
         row.skippedReason,
@@ -1310,6 +1834,14 @@ function __otMatrixCleanerHost() {
         row.message,
         row.condition,
         row.matchedPartnerName,
+        JSON.stringify(row.remainingPartners || []),
+        row.filterMode,
+        row.filterColumnAlias,
+        JSON.stringify(row.filterMatchedIds || []),
+        JSON.stringify(row.broadnessRisk || null),
+        row.applyMode,
+        row.rollbackHint,
+        row.error,
         JSON.stringify(row.before || {}),
         JSON.stringify(row.after || {}),
       ].map(escape).join(','));
@@ -1423,14 +1955,17 @@ function __otMatrixCleanerHost() {
     }
     if (isMatrixPage()) {
       const runningSheetsState = detectRunningSheetsState();
-      if (!(opts.allowRunningSheetsUnknown || safety.allowUnknownRunning) && runningSheetsState.known === false && CONFIG.safety.defaultFailOnUnknownRunningSheets) {
+      if (!(opts.allowRunningSheetsUnknown || safety.allowUnknownRunning) && runningSheetsState.hasRunningSheets === true && CONFIG.safety.defaultFailOnUnknownRunningSheets) {
         if (!state.runningSheetsGuardHintLogged) {
           state.runningSheetsGuardHintLogged = true;
-          log(`${runningSheetsState.message} Для применения включите чекбокс «Разрешить apply, если статус запущенных листов неизвестен» или пользуйтесь только «Превью (без сохранения)».`, 'warn');
+          log(`${runningSheetsState.message} Для применения включите override или пользуйтесь только превью.`, 'warn');
         } else {
-          log('Применение остановлено: статус запущенных листов неизвестен (см. сообщение выше или включите чекбокс).', 'warn');
+          log('Применение остановлено: найдены признаки уже запущенных листов/маршрута.', 'warn');
         }
         return [];
+      }
+      if (runningSheetsState.hasRunningSheets === false) {
+        log(runningSheetsState.message, 'info');
       }
       await waitForReady();
       ensureMatrixInit();
@@ -1438,7 +1973,7 @@ function __otMatrixCleanerHost() {
     }
 
     const plan = buildRulePlan(operations, {});
-    const actionable = plan.filter(entry => [CONFIG.actionTypes.DELETE_ROW, CONFIG.actionTypes.REMOVE_TOKEN, CONFIG.actionTypes.PATCH_ROW].includes(entry.actionType));
+    const actionable = plan.filter(entry => isActionableAction(entry.actionType));
     if (actionable.length > safety.maxRows && !opts.overrideMaxRows) {
       log(`Превышен лимит затронутых строк (${actionable.length} > ${safety.maxRows}).`, 'error');
       return [];
@@ -1449,6 +1984,13 @@ function __otMatrixCleanerHost() {
         log('Операция отменена пользователем.', 'warn');
         return [];
       }
+    }
+    if (actionable.length) {
+      state.lastApplySnapshot = buildApplySnapshot(plan, operations);
+      if (!opts.skipSnapshotDownload) {
+        downloadText(`ot-matrix-apply-snapshot-${timestamp()}.json`, JSON.stringify(state.lastApplySnapshot, null, 2), 'application/json;charset=utf-8');
+      }
+      log(`Apply snapshot сохранён: ${state.lastApplySnapshot.entries.length} действий.`, 'ok');
     }
 
     setRunning(true);
@@ -1469,7 +2011,8 @@ function __otMatrixCleanerHost() {
             log(result.message, 'ok');
           } else {
             skippedCount += 1;
-            log(result.message, entry.actionType === CONFIG.actionTypes.MANUAL_REVIEW ? 'warn' : 'info');
+            const statusText = String(result.status || '');
+            log(result.message, entry.actionType === CONFIG.actionTypes.MANUAL_REVIEW || statusText.indexOf('manual') >= 0 ? 'warn' : 'info');
           }
         } catch (error) {
           report.push(toReportEntry(entry, { status: CONFIG.status.ERROR, message: error.message }, false));
@@ -1756,6 +2299,49 @@ function __otMatrixCleanerHost() {
         partnerAliases: CONFIG.partnerAliases.slice(),
         safety: Object.assign({}, CONFIG.safety),
       },
+      filterDiagnostics: state.filterDiagnostics ? Object.assign({}, state.filterDiagnostics) : null,
+      runningSheetsState: isMatrixPage() ? detectRunningSheetsState() : null,
+      lastApplySnapshot: state.lastApplySnapshot
+        ? { generatedAt: state.lastApplySnapshot.generatedAt, entries: state.lastApplySnapshot.entries.length }
+        : null,
+    };
+  }
+
+  function isActionableAction(actionType) {
+    return [CONFIG.actionTypes.DELETE_ROW, CONFIG.actionTypes.REMOVE_TOKEN, CONFIG.actionTypes.PATCH_ROW, CONFIG.actionTypes.ADD_ROW].includes(actionType);
+  }
+
+  function buildRollbackHint(entry) {
+    if (!entry) return '';
+    if (entry.actionType === CONFIG.actionTypes.DELETE_ROW) return 'Restore the deleted row from the exported before snapshot or OpenText version history.';
+    if (entry.actionType === CONFIG.actionTypes.REMOVE_TOKEN) return 'Re-add the removed counterparty token using the originalPartners report field.';
+    if (entry.actionType === CONFIG.actionTypes.PATCH_ROW) return 'Restore the before value from this snapshot/report for the patched row.';
+    if (entry.actionType === CONFIG.actionTypes.ADD_ROW) return 'Remove the generated row if apply was incorrect.';
+    return 'No rollback action required.';
+  }
+
+  function buildApplySnapshot(plan, operations) {
+    const entries = (plan || []).filter(entry => isActionableAction(entry.actionType)).map(entry => ({
+      matrixName: entry.matrixName || document.title || '',
+      operationType: entry.operationType || '',
+      actionType: entry.actionType,
+      itemId: entry.itemId != null ? entry.itemId : '',
+      itemid: entry.itemId != null ? entry.itemId : '',
+      recId: entry.recId != null ? entry.recId : '',
+      recordId: entry.recordId != null ? entry.recordId : (entry.recId != null ? entry.recId : ''),
+      rowNo: entry.rowNo || '',
+      before: entry.before || {},
+      plannedAfter: entry.after || {},
+      reason: entry.reason || '',
+      applyMode: resolveApplyMode(entry),
+      rollbackHint: entry.rollbackHint || buildRollbackHint(entry),
+    }));
+    return {
+      generatedAt: new Date().toISOString(),
+      href: window.location.href,
+      matrixName: document.title || '',
+      operations: (operations || []).map(op => normalizeOperation(op)),
+      entries,
     };
   }
 
@@ -1796,7 +2382,102 @@ function __otMatrixCleanerHost() {
       skipped: buckets.skipped.length,
       errors: buckets.errors.length,
       ambiguous: buckets.ambiguous.length,
-      actionable: rows.filter(row => [CONFIG.actionTypes.DELETE_ROW, CONFIG.actionTypes.REMOVE_TOKEN, CONFIG.actionTypes.PATCH_ROW].indexOf(row.actionType) >= 0).length,
+      actionable: rows.filter(row => isActionableAction(row.actionType)).length,
+    };
+  }
+
+  function diagnoseCurrentCard() {
+    const text = normalize(document.body ? document.body.textContent || '' : '');
+    const title = document.title || '';
+    const href = window.location.href;
+    const links = Array.from(document.querySelectorAll('a[href]')).map(link => ({
+      href: link.href || link.getAttribute('href') || '',
+      text: String(link.textContent || '').replace(/\s+/g, ' ').trim(),
+    })).slice(0, 50);
+    const fieldHints = [
+      [/тип\s+документ|document\s+type/, 'documentType'],
+      [/юр\.?\s*лиц|legal\s+entity/, 'legalEntity'],
+      [/контрагент|counterparty|partner/, 'counterparty'],
+      [/сумм|amount/, 'amount'],
+      [/лимит|limit/, 'limit'],
+      [/эдо|edo|эп|eds/, 'edoMode'],
+      [/матриц|matrix/, 'matrixName'],
+      [/этап|stage|лист\s+согласования|approvallist/, 'approvalStage'],
+      [/согласующ|подписант|approver|signer/, 'stuckApprover'],
+    ].filter(([pattern]) => pattern.test(text)).map(([, id]) => id);
+    const currentStageMatch = text.match(/(?:этап|stage|статус|status)\s*[:\-]?\s*([^.;]{3,80})/);
+    const stuckApproverMatch = text.match(/(?:согласующ|подписант|approver|signer)\s*[:\-]?\s*([^.;]{3,80})/);
+    const currentStage = currentStageMatch ? currentStageMatch[1].trim() : '';
+    const stuckApprover = stuckApproverMatch ? stuckApproverMatch[1].trim() : '';
+    const checks = [
+      {
+        id: 'approval_list',
+        status: /approvallist|лист согласования|approval/.test(`${text} ${href}`) ? 'pass' : 'warn',
+        reason: 'Approval list signals in current page.',
+      },
+      {
+        id: 'route_not_built',
+        status: /маршрут|route/.test(text) && /не\s*стро|не\s*форм|ошиб/.test(text) ? 'fail' : 'warn',
+        reason: 'Route build failure text signals.',
+      },
+      {
+        id: 'card_required_fields',
+        status: /обязат|красн|required|validation/.test(text) ? 'fail' : 'pass',
+        reason: 'Required card field / validation signals.',
+      },
+      {
+        id: 'matrix_match',
+        status: /матриц/.test(text) ? 'warn' : 'warn',
+        reason: 'Matrix match needs matrix preview/search cross-check.',
+      },
+      {
+        id: 'signer_checklist',
+        status: /подпис|согласующ|sign/.test(text) ? 'warn' : 'pass',
+        reason: 'Signer/checklist signals.',
+      },
+    ];
+    const requiredFields = [
+      'document type',
+      'legal entity',
+      'counterparty + affiliation',
+      'amount/limit',
+      'EDO mode',
+      'route stage / approval list screenshot',
+    ];
+    const missingFields = requiredFields.filter(field => {
+      if (/document type/i.test(field)) return fieldHints.indexOf('documentType') < 0;
+      if (/legal entity/i.test(field)) return fieldHints.indexOf('legalEntity') < 0;
+      if (/counterparty/i.test(field)) return fieldHints.indexOf('counterparty') < 0;
+      if (/amount\/limit/i.test(field)) return fieldHints.indexOf('amount') < 0 && fieldHints.indexOf('limit') < 0;
+      if (/EDO/i.test(field)) return fieldHints.indexOf('edoMode') < 0;
+      if (/route stage/i.test(field)) return fieldHints.indexOf('approvalStage') < 0;
+      return false;
+    });
+    return {
+      generatedAt: new Date().toISOString(),
+      title,
+      href,
+      detectedSystem: /assyst|itcm|incident|инцидент/.test(text) ? 'ITCM/assyst' : 'OpenText',
+      checks,
+      requiredFields,
+      missingFields,
+      extracted: {
+        fieldHints,
+        currentStage,
+        stuckApprover,
+        links,
+        matrixMatchHints: links.filter(link => /matrix|матриц|openmatrix/i.test(`${link.href} ${link.text}`)).slice(0, 10),
+      },
+      escalationReason: checks.some(item => item.status === 'fail') ? 'Route/card validation failure detected.' : '',
+      suggestedFirstLineScript: 'Ask for card link, matrix name, document type, legal entity, counterparty affiliation, amount/limit, EDO mode, and approval-list screenshot.',
+      selfCheckScript: 'Open the card, check required red fields, compare card values with Matrix Cleaner preview, then open approval list and identify the stuck stage/approver.',
+      escalationWhen: 'Escalate when required fields are present, Matrix Cleaner preview has no matching safe row, or approval list shows a failed/stuck stage after route rebuild.',
+      suggestedDslDraft: {
+        schemaVersion: '7.0.0',
+        operation: /approvallist|лист согласования|approval/.test(`${text} ${href}`)
+          ? { type: CONFIG.operationTypes.CHECKLIST_ROUTE_FAILURE, payload: { currentStage, stuckApprover } }
+          : { type: CONFIG.operationTypes.CHECKLIST_CARD_VALIDATION, payload: { missingFields } },
+      },
     };
   }
 
@@ -2777,7 +3458,35 @@ function __otMatrixCleanerHost() {
         return collectPartnerCatalog();
       },
       getPartnerCatalog: function () { return state.partnerCatalog.slice(); },
+      applyCounterpartyColumnFilter: function (query) {
+        if (!isMatrixPage()) return { rows: [], diagnostics: { mode: 'not_matrix_page' } };
+        ensureMatrixInit();
+        if (!state.partnerCatalog.length) collectPartnerCatalog();
+        const name = typeof query === 'string' ? query : (query && query.name ? query.name : '');
+        let entry = resolvePartnerByName(name);
+        if (!entry && query && Array.isArray(query.ids)) {
+          entry = {
+            name,
+            key: normalize(name),
+            ids: query.ids.map(id => Math.abs(Number(id))).filter(Number.isFinite),
+            affiliation: query.affiliation || CONFIG.requiredAffiliation,
+          };
+        }
+        if (!entry || !entry.ids.length) throw new Error('Counterparty was not resolved for filter application.');
+        const result = applyPartnerFilter(entry);
+        return {
+          rows: (result.rows || []).map(row => ({
+            itemid: Number(row.getAttribute('itemid') || row.getAttribute('itemID') || 0),
+            rowNo: getRowNo(row),
+          })),
+          diagnostics: result.diagnostics,
+        };
+      },
+      clearMatrixFilters: function () { return clearMatrixFilters(); },
+      getCounterpartyFilterDiagnostics: function () { return state.filterDiagnostics ? Object.assign({}, state.filterDiagnostics) : null; },
       getMatrixCatalog: function () { return state.matrixCatalog.slice(); },
+      preview: function (operation) { return previewOperations([operation], {}); },
+      apply: function (operation, opts) { return runOperations([operation], opts || {}); },
       previewRun: async function (opts) {
         const op = normalizeOperation({
           type: CONFIG.operationTypes.REMOVE_COUNTERPARTY,
@@ -2811,6 +3520,14 @@ function __otMatrixCleanerHost() {
       runPartnerSearchDriver: function (partnerName, opts) { return runPartnerSearchDriver(partnerName, opts || {}); },
       getDiagnostics: function () { return collectDiagnostics(); },
       getLastReport: function () { return state.lastReport.slice(); },
+      getLastApplySnapshot: function () { return state.lastApplySnapshot ? JSON.parse(JSON.stringify(state.lastApplySnapshot)) : null; },
+      getRunningSheetsState: function () { return detectRunningSheetsState(); },
+      exportReport: function (format) {
+        const kind = String(format || 'json').toLowerCase();
+        if (kind === 'csv') return reportToCsv(state.lastReport);
+        return JSON.stringify(state.lastReport, null, 2);
+      },
+      diagnoseCurrentCard: function () { return diagnoseCurrentCard(); },
       getReportBuckets: function () { return splitReportBuckets(state.lastReport); },
       getReportSummary: function () { return buildReportSummary(state.lastReport); },
       getTriageCounts: function () { return getTriageCounts(); },
@@ -2838,21 +3555,25 @@ function __otMatrixCleanerHost() {
       getConfig: function () { return JSON.parse(JSON.stringify(CONFIG)); },
       getOperationLabels: function () { return Object.assign({}, CONFIG.operationLabels || {}); },
       parseFreeformRequestText: function (raw) { return parseFreeformRequestText(raw); },
+      buildRequestDraft: function (raw, opts) { return buildRequestDraft(raw, opts || {}); },
       getReleaseInfo: function () {
         return {
-          version: '5.0.0',
+          version: '7.0.0',
           channel: 'production',
-          modules: ['legacy-core', 'visual-preview', 'rule-engine-v2', 'search', 'checklist', 'dsl'],
+          modules: ['legacy-core', 'native-counterparty-filter', 'running-sheet-detector', 'apply-snapshot', 'visual-preview', 'rule-engine-v2', 'search', 'checklist', 'dsl-v6', 'route-doctor'],
         };
       },
       validateDslConfig: function (config) {
         const errors = [];
         if (!config || typeof config !== 'object') errors.push('DSL должен быть объектом.');
-        ['schemaVersion', 'sourceMetadata', 'operations'].forEach(key => {
+        ['schemaVersion', 'sourceMetadata'].forEach(key => {
           if (!config || !Object.prototype.hasOwnProperty.call(config, key)) errors.push(`Отсутствует обязательное поле: ${key}`);
         });
-        if (config && config.schemaVersion && !/^2\./.test(String(config.schemaVersion))) {
-          errors.push('schemaVersion должен быть 2.x.x');
+        if (config && !Array.isArray(config.operations) && !config.operation) {
+          errors.push('Either operations[] or operation must be provided.');
+        }
+        if (config && config.schemaVersion && !/^(2|6|7)\./.test(String(config.schemaVersion))) {
+          errors.push('schemaVersion must be 2.x.x, 6.x.x or 7.x.x');
         }
         if (config && Array.isArray(config.operations)) {
           config.operations.forEach((op, idx) => {
@@ -2983,6 +3704,7 @@ function __otMatrixCleanerHost() {
       },
       runAllUiDiagnostics: function (opts) { return runAllUiDiagnostics(opts || {}); },
     };
+    hostWindow().MatrixCleaner = hostWindow().__OT_MATRIX_CLEANER__;
     (function relinkPostExposeExtensions() {
       const w = hostWindow();
       if (typeof w.__otV5Reinstall === 'function') {
@@ -3341,7 +4063,7 @@ function __otMatrixCleanerHost() {
   window[INSTALL_FLAG] = true;
 
   const FEATURE_SCHEMA = {
-    requiredRoot: ['schemaVersion', 'sourceMetadata', 'operations'],
+    requiredRoot: ['schemaVersion', 'sourceMetadata'],
     supportedTypes: [
       'replace_approver',
       'remove_approver',
@@ -3405,8 +4127,11 @@ function __otMatrixCleanerHost() {
     FEATURE_SCHEMA.requiredRoot.forEach(key => {
       if (!config || !(key in config)) errors.push(`Отсутствует обязательное поле: ${key}`);
     });
-    if (config && config.schemaVersion && !/^2\./.test(String(config.schemaVersion))) {
-      errors.push('schemaVersion должен начинаться с 2.x.x');
+    if (config && !Array.isArray(config.operations) && !config.operation) {
+      errors.push('Either operations[] or operation must be provided.');
+    }
+    if (config && config.schemaVersion && !/^(2|6)\./.test(String(config.schemaVersion))) {
+      errors.push('schemaVersion must start with 2.x.x or 6.x.x');
     }
     if (config && Array.isArray(config.operations)) {
       config.operations.forEach((op, idx) => {

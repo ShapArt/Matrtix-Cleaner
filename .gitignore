@@ -1,9 +1,19 @@
 node_modules/
+.bootstrap/node/
+.bootstrap/*.zip
+.bootstrap/_node_extract/
 test-results/
 playwright-report/
+generated/
 *.xlsx
 *.xls
 *.xlsm
+*.pptx
+*.msg
+HelpDesk_Export_*/
+Страница инцидента/
+Договор ЦЗ*
+ПВП.*
 
 # Private OpenText fixtures and exports (keep local only)
 Матрица согласования_ Договор Правовая дирекция.html

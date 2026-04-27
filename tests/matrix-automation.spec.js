@@ -100,21 +100,20 @@ test('5. replace flow is classified', async ({ page }) => {
   expect(['manual-review', 'patch-row']).toContain(report[0].actionType);
 });
 
-test('6. remove flow can execute', async ({ page }) => {
-  test.setTimeout(180000);
+test('6. remove flow keeps destructive apply behind preview/guards', async ({ page }) => {
   await page.goto(pathToFileURL(MATRIX_HTML).href);
   await loadUserscript(page);
   const report = await page.evaluate(async () => {
     await window.__OT_MATRIX_CLEANER__.refreshPartners();
-    return window.__OT_MATRIX_CLEANER__.runCleanup({
+    return window.__OT_MATRIX_CLEANER__.previewRun({
       partnerName: 'КУЗНЕЦОВСКИЙ КОМБИНАТ ООО',
       actionMode: 'remove_or_delete_single',
       skipExclude: true,
-      skipDeleteConfirm: true,
     });
   });
   expect(Array.isArray(report)).toBeTruthy();
   expect(report.length).toBeGreaterThan(0);
+  expect(report.every(row => String(row.message || '').startsWith('dry-run:'))).toBeTruthy();
 });
 
 test('7. signer bundle generation preview', async ({ page }) => {
@@ -344,6 +343,12 @@ test('18. copy skipped API writes TSV to clipboard', async ({ page }) => {
       skipExclude: true,
     });
   });
+  await page.evaluate(() => window.__OT_MATRIX_CLEANER__.previewRuleBatch([{
+    type: 'add_doc_type_to_matching_rows',
+    matrixName: document.title,
+    payload: { rowGroup: 'all', requiredDocTypes: ['__NO_SUCH_DOC_TYPE__'], matchMode: 'all', newDocType: 'SKIPPED_TEST_DOC' },
+    options: { sourceRule: 'skipped-copy-test' },
+  }], {}));
   const result = await page.evaluate(async () => {
     let copied = '';
     Object.defineProperty(navigator, 'clipboard', {
@@ -669,12 +674,15 @@ test('33. Escape closes panel when popover is not open', async ({ page }) => {
   expect(closed).toBeTruthy();
 });
 
-test('34. v5 release info is exposed', async ({ page }) => {
+test('34. v7 release info is exposed', async ({ page }) => {
   await page.goto(pathToFileURL(MATRIX_HTML).href);
   await loadUserscript(page);
   const info = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.getReleaseInfo());
   expect(info).toBeTruthy();
-  expect(info.version).toBe('5.0.0');
+  expect(info.version).toBe('7.0.0');
+  expect(info.modules).toContain('native-counterparty-filter');
+  expect(info.modules).toContain('running-sheet-detector');
+  expect(info.modules).toContain('apply-snapshot');
 });
 
 test('35. visual preview API toggles and clears', async ({ page }) => {
@@ -958,4 +966,117 @@ test('53. canonical API exposes runAllHumanTests (Tampermonkey host window)', as
     );
   });
   expect(ok).toBeTruthy();
+});
+
+test('54. v7 counterparty column filter API returns diagnostics', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const result = await page.evaluate(async () => {
+    const api = window.__OT_MATRIX_CLEANER__;
+    const catalog = await api.refreshPartners();
+    const entry = catalog.find(item => item && item.name && Array.isArray(item.ids) && item.ids.length);
+    return api.applyCounterpartyColumnFilter({ name: entry.name, ids: entry.ids });
+  });
+  expect(result).toBeTruthy();
+  expect(Array.isArray(result.rows)).toBeTruthy();
+  expect(result.rows.length).toBeGreaterThan(0);
+  expect(['ui_first', 'internal_fallback']).toContain(result.diagnostics.mode);
+  expect(result.diagnostics.columnAlias).toBeTruthy();
+});
+
+test('55. v7 preview report exposes extended audit fields', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const report = await page.evaluate(async () => {
+    const api = window.__OT_MATRIX_CLEANER__;
+    const catalog = await api.refreshPartners();
+    const entry = catalog.find(item => item && item.name && Array.isArray(item.ids) && item.ids.length);
+    return api.previewRuleBatch([{
+      type: 'remove_counterparty_from_rows',
+      matrixName: document.title,
+      payload: { partnerName: entry.name, affiliation: api.getConfig().requiredAffiliation },
+      options: { skipExclude: true },
+    }], {});
+  });
+  expect(report.length).toBeGreaterThan(0);
+  const row = report[0];
+  expect(Object.prototype.hasOwnProperty.call(row, 'matrixName')).toBeTruthy();
+  expect(Object.prototype.hasOwnProperty.call(row, 'recordId')).toBeTruthy();
+  expect(Object.prototype.hasOwnProperty.call(row, 'whyMatched')).toBeTruthy();
+  expect(Object.prototype.hasOwnProperty.call(row, 'filterMode')).toBeTruthy();
+  expect(Object.prototype.hasOwnProperty.call(row, 'filterColumnAlias')).toBeTruthy();
+  expect(Object.prototype.hasOwnProperty.call(row, 'remainingPartners')).toBeTruthy();
+  expect(Object.prototype.hasOwnProperty.call(row, 'applyMode')).toBeTruthy();
+  expect(Object.prototype.hasOwnProperty.call(row, 'rollbackHint')).toBeTruthy();
+});
+
+test('56. v7 public MatrixCleaner alias and route doctor API are available', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const result = await page.evaluate(() => {
+    const api = window.MatrixCleaner;
+    return {
+      hasAlias: Boolean(api && api === window.__OT_MATRIX_CLEANER__),
+      hasPreview: typeof api.preview === 'function',
+      hasApply: typeof api.apply === 'function',
+      hasExport: typeof api.exportReport === 'function',
+      diagnosis: api.diagnoseCurrentCard(),
+    };
+  });
+  expect(result.hasAlias).toBeTruthy();
+  expect(result.hasPreview).toBeTruthy();
+  expect(result.hasApply).toBeTruthy();
+  expect(result.hasExport).toBeTruthy();
+  expect(result.diagnosis).toBeTruthy();
+  expect(Array.isArray(result.diagnosis.requiredFields)).toBeTruthy();
+});
+
+test('57. v7 request draft API builds guarded first-line draft', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const draft = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.buildRequestDraft('Нужно убрать контрагента Example Counterparty из матрицы договора'));
+  expect(draft).toBeTruthy();
+  expect(draft.autoApplyAllowed).toBeFalsy();
+  expect(Array.isArray(draft.reasons)).toBeTruthy();
+  expect(String(draft.suggestedFirstLineResponse || '').length).toBeGreaterThan(10);
+});
+
+test('58. v7 guarded apply stores snapshot and apply mode on fixture', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  await openCleanerPanel(page);
+  const result = await page.evaluate(async () => {
+    const api = window.__OT_MATRIX_CLEANER__;
+    const report = await api.runRuleBatch([{
+      type: 'change_limits',
+      matrixName: document.title,
+      payload: { rowGroup: 'all', requiredDocTypes: [], matchMode: 'all', target: 'limit', value: '123456789', maxRows: 1 },
+      options: { sourceRule: 'v7-fixture' },
+    }], {
+      skipSnapshotDownload: true,
+      allowRunningSheetsUnknown: true,
+      overrideMaxRows: true,
+    });
+    return {
+      report,
+      snapshot: api.getLastApplySnapshot(),
+      diagnostics: api.getDiagnostics(),
+    };
+  });
+  expect(Array.isArray(result.report)).toBeTruthy();
+  expect(result.snapshot).toBeTruthy();
+  expect(Array.isArray(result.snapshot.entries)).toBeTruthy();
+  expect(result.snapshot.entries.length).toBeGreaterThan(0);
+  expect(result.snapshot.entries[0]).toHaveProperty('applyMode');
+  expect(result.diagnostics).toHaveProperty('runningSheetsState');
+});
+
+test('59. v7 running-sheet detector API is exposed', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const state = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.getRunningSheetsState());
+  expect(state).toBeTruthy();
+  expect(state).toHaveProperty('known', true);
+  expect(state).toHaveProperty('hasRunningSheets');
+  expect(state).toHaveProperty('evidence');
 });
