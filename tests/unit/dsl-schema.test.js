@@ -34,6 +34,16 @@ test('CONFIG_SCHEMA validates v7 sample DSL', () => {
   assert.equal(ok, true, JSON.stringify(validate.errors || [], null, 2));
 });
 
+test('CONFIG_SCHEMA validates v8 sample DSL', () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const schema = JSON.parse(fs.readFileSync(path.join(root, 'CONFIG_SCHEMA.json'), 'utf8'));
+  const sample = JSON.parse(fs.readFileSync(path.join(root, 'examples', 'dsl-v8-sample.json'), 'utf8'));
+  const ajv = new Ajv({ allErrors: true, strict: false });
+  const validate = ajv.compile(schema);
+  const ok = validate(sample);
+  assert.equal(ok, true, JSON.stringify(validate.errors || [], null, 2));
+});
+
 test('CONFIG_SCHEMA accepts v6 single operation shape', () => {
   const root = path.resolve(__dirname, '..', '..');
   const schema = JSON.parse(fs.readFileSync(path.join(root, 'CONFIG_SCHEMA.json'), 'utf8'));

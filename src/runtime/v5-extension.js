@@ -8,7 +8,10 @@
   function install() {
     const api = window.__OT_MATRIX_CLEANER__;
     if (!api) return false;
-    if (api.getReleaseInfo && api.getReleaseInfo().version === '7.0.0') return true;
+    if (api.getReleaseInfo) {
+      const current = api.getReleaseInfo();
+      if (current && (current.version === '7.0.0' || /^8\./.test(String(current.version || '')))) return true;
+    }
     const baseGetConfig = api.getConfig ? api.getConfig.bind(api) : () => ({});
     api.getReleaseInfo = () => ({
       version: '7.0.0',

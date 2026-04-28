@@ -81,3 +81,13 @@
 
 - Поиск «по всем матрицам» в этой версии надежен для открытой матрицы и локальных снимков; глубокий обход боевой среды зависит от доступности каталога, URL и прав.
 - На разных инстансах OpenText DOM-поля могут отличаться, поэтому может понадобиться точная адаптация селекторов и маппинга.
+# Matrix Cleaner v8
+
+v8 turns the tool back toward the operator workflow:
+
+- first screen has four Russian modes instead of the old crowded tab row;
+- preview creates an auditable `planId`;
+- apply consumes the previewed plan and writes only through confirmed OpenText model/native paths;
+- signer bundle now creates the required 4 draft rows through the matrix model;
+- catalog search scans matrix catalog entries instead of reporting only the current DOM as “all matrices”;
+- JSON/DSL and debug controls are kept in advanced/export sections.

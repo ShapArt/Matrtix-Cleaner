@@ -8,6 +8,7 @@ const samples = [
   path.join(root, 'examples', 'dsl-v2-sample.json'),
   path.join(root, 'examples', 'dsl-v6-sample.json'),
   path.join(root, 'examples', 'dsl-v7-sample.json'),
+  path.join(root, 'examples', 'dsl-v8-sample.json'),
 ];
 
 const ajv = new Ajv({ allErrors: true, strict: false });

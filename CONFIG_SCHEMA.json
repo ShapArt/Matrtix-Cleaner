@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/ShapArt/Matrtix-Cleaner/schema/config-v7.json",
-  "title": "Matrix Cleaner DSL v6/v7",
-  "description": "Единый JSON DSL: matrixQuery, selection, operation, preview, apply, checklist, report, rollbackHint. v7 keeps v6 operation compatibility and adds stronger verify/apply reporting.",
+  "$id": "https://github.com/ShapArt/Matrtix-Cleaner/schema/config-v8.json",
+  "title": "Matrix Cleaner DSL v6/v7/v8",
+  "description": "Единый JSON DSL: matrixQuery, selection, operation, preview, apply, checklist, report, rollbackHint. v8 keeps v7 compatibility and adds operator-first preview/apply/search contracts.",
   "type": "object",
   "required": ["schemaVersion", "sourceMetadata"],
   "anyOf": [
@@ -10,7 +10,7 @@
     { "required": ["operation"] }
   ],
   "properties": {
-    "schemaVersion": { "type": "string", "pattern": "^(2|6|7)\\.[0-9]+\\.[0-9]+$" },
+    "schemaVersion": { "type": "string", "pattern": "^(2|6|7|8)\\.[0-9]+\\.[0-9]+$" },
     "sourceMetadata": {
       "type": "object",
       "required": ["requestId", "author", "createdAt"],

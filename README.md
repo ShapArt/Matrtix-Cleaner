@@ -1,6 +1,25 @@
-# Matrtix-Cleaner
+# Matrix Cleaner
 
 Tampermonkey-based operator tool for **previewing, auditing, and applying guarded bulk changes** in OpenText approval matrices.
+
+## v8 Status
+
+The active runtime is **Matrix Cleaner v8**. It keeps legacy API compatibility where useful, but the daily UI is now Russian-first and centered on four operator modes:
+
+- `Операции по матрице`
+- `Проверка карточки / маршрута`
+- `Поиск по всем матрицам`
+- `Разбор заявки / инцидента`
+
+Reports, raw JSON/DSL, debug, and legacy controls are advanced-only. Preview returns a `planId`; apply consumes that exact plan and re-checks row fingerprints before writing.
+
+## Download / Install
+
+Install the production userscript in Tampermonkey:
+
+- [Download Matrix Cleaner userscript](https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/codex/matrix-cleaner-v7-platform/dist/matrix-cleaner.user.js)
+
+In Tampermonkey, use `Utilities -> Import from URL` with the same link if direct opening does not trigger installation.
 
 ## Why this project exists
 
@@ -10,7 +29,7 @@ Changing signers, approvers, counterparties, document rules, or legal-entity bin
 
 ## What it does
 
-`Matrtix-Cleaner` is implemented as a browser userscript that augments OpenText matrix pages with an operator panel.
+`Matrix Cleaner` is implemented as a browser userscript that augments OpenText matrix pages with an operator panel.
 
 The script works directly against the page DOM and existing OpenText client-side objects, then builds a controlled workflow around common matrix operations:
 
@@ -34,6 +53,9 @@ The current script exposes domain-specific operations such as:
 - removing or locating counterparties across rows;
 - locating user references across the matrix;
 - running matrix audit and checklist-style diagnostics.
+- generating the mandatory signer 4-row preset;
+- patching document types through the OpenText matrix model;
+- scanning catalog entries with same-origin fetch and fallback reporting.
 
 ## Architecture overview
 
@@ -43,6 +65,7 @@ This is **not** a backend service. It is a browser-side operator tool.
 
 - **Distribution format:** Tampermonkey userscript
 - **Main file:** `matrix-cleaner.user.js`
+- **v8 runtime module:** `src/runtime/v8-core.js`
 - **Execution model:** injected into OpenText pages after document load
 - **Host integration:** `unsafeWindow` / existing page context
 - **UI model:** custom panel rendered on top of the OpenText interface
@@ -73,6 +96,8 @@ The current codebase includes signals for:
 
 In other words, this repository is closer to **operator tooling with controlled mutation paths** than to a raw mass-edit script.
 
+v8 live apply policy is strict: only confirmed OpenText native/model writers may mutate live data. Unsupported writers return `manual_review`.
+
 ## Technical highlights
 
 - One-file delivery keeps installation simple for browser userscript workflows
@@ -84,8 +109,10 @@ In other words, this repository is closer to **operator tooling with controlled 
 ## Repository structure
 
 ```text
-Matrtix-Cleaner/
+Matrix-Cleaner/
   matrix-cleaner.user.js
+  src/runtime/v8-core.js
+  tests/
   README.md
 ```
 
@@ -95,8 +122,22 @@ Matrtix-Cleaner/
 2. Open the relevant OpenText matrix or related catalog page.
 3. Let the script detect matrix context and available rows.
 4. Choose the required operation from the operator panel.
-5. Preview the plan, inspect ambiguous cases, and verify the affected scope.
-6. Apply the change only after the planned result looks correct.
+5. Preview the plan, inspect affected rows, reasons, before/after, and `planId`.
+6. Apply only the previewed plan after the planned result looks correct.
+
+## Verification
+
+Run verification with the repo-local bootstrap:
+
+```powershell
+.\verify.cmd
+```
+
+For a faster unit/schema/core loop:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1 -SkipBrowser
+```
 
 ## Where this repo is strongest
 

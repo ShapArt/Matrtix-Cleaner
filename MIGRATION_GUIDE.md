@@ -54,3 +54,10 @@
 - Соответствие alias полей doc types / legal entities / flags вашему DOM.
 - Корректность группировки `main_contract_rows` и `supplemental_rows`.
 - Срабатывание draft guard / delete confirm на вашем окружении.
+# Migrating to v8
+
+- Use the new first-screen modes for daily work: matrix operations, route/card doctor, catalog search, and request/incident parsing.
+- Replace direct `runRuleBatch(operations)` usage with `const p = await preview(operations); await apply(p.planId);` for v8-native flows.
+- Keep legacy operations available, but treat them as compatibility paths unless v8 reports a confirmed native/model writer.
+- JSON configs should use `schemaVersion: "8.0.0"` for new examples. v2/v6/v7 samples remain accepted.
+- For live pages, do not pass DOM-only override flags. v8 expects unsupported writers to return `manual_review`.

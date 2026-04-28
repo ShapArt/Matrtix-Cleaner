@@ -11,6 +11,20 @@ Primary goals:
 
 This file is intentionally practical. Prefer short, accurate instructions over generic advice.
 
+## Current product baseline
+
+The active target is **Matrix Cleaner v8**:
+- Russian operator-first UI with 4 first-screen modes:
+  - `Операции по матрице`;
+  - `Проверка карточки / маршрута`;
+  - `Поиск по всем матрицам`;
+  - `Разбор заявки / инцидента`.
+- JSON/DSL, debug, raw reports, and legacy controls are advanced-only.
+- Preview must return a `planId` and must be applied by consuming that preview plan.
+- Live apply is **native/model writer only**. DOM-only live patches are not considered implemented.
+- Global matrix search must scan catalog entries, not only the current matrix DOM.
+- Synthetic contour must prove preview/checklist/search/report behavior even when live rows are insufficient.
+
 ---
 
 ## Project layout
@@ -18,8 +32,10 @@ This file is intentionally practical. Prefer short, accurate instructions over g
 Top-level files and folders you should know first:
 
 - `matrix-cleaner.user.js`
-  - Main userscript entrypoint and current source of truth for runtime behavior.
-  - If no build pipeline exists yet, final production output must still be this file.
+  - Main Tampermonkey userscript entrypoint.
+  - Must include the v8 runtime block or be generated from `src/runtime/v8-core.js`.
+- `src/runtime/v8-core.js`
+  - Current v8 operator runtime: matrix adapter, honest preview/apply API, 4-mode UI, catalog search, request parser, route/card doctor.
 - `prompt_for_ot_matrix_automation.txt`
   - Historical task context and earlier scope for the userscript.
   - Useful as background, but **not** as the final source of truth.
@@ -79,11 +95,13 @@ Every meaningful change should preserve these principles:
    - Main panel path is operator-facing Russian guided flow.
    - Compact/dev blocks and raw JSON controls are advanced-only, not the default path.
    - Every scenario should explain "что произойдет после нажатия" before apply.
+   - Do not reintroduce a JSON-first or 9-tab default UI.
 
 1. **Preview first**
    - Any destructive or high-impact matrix action must support dry-run first.
    - Best case: visual unsaved preview directly in the matrix DOM.
    - Never make bulk destructive changes silently.
+   - v8 preview must produce a stable `planId`; apply must consume that exact plan.
 
 2. **Safety before speed**
    - Require explicit confirmation before destructive bulk actions.
@@ -167,6 +185,7 @@ If a signer has both **sum** and **limit**, the default preset must generate **e
 - rows are split by EDO mode.
 
 Implement this as a validated preset, not a vague heuristic.
+In v8, applying this preset must create real OpenText model rows through native/model APIs, or report `manual_review`.
 
 ### Counterparty affiliation
 All counterparty-related scenario payloads and reports must preserve mandatory affiliation:
@@ -183,9 +202,11 @@ Do not reduce them to raw string matching only. Keep a normalized row-group laye
 ### Doc type bulk patching
 The repo must support adding a new document type only to rows matching a full pattern.
 This means matching by **intersection** of selected conditions, not by any single loose field unless the operation explicitly says `ANY`.
+v8 must support `ALL`, `ANY`, duplicate prevention, preview reasons, and native/model apply for confirmed column aliases.
 
 ### Legal entity bulk patching
 Adding a legal entity must be selective and pattern-based. Never add a legal entity to all rows blindly.
+If the saved fixture or live page does not expose a confirmed legal-entity column alias, v8 must return `manual_review` instead of pretending to apply.
 
 ### Checklist mode
 Route-formation and card-validation checks are part of the product, not optional extras.
@@ -203,6 +224,7 @@ Prefer local verification on fixtures before any live validation.
   - `preview_only` synthetic rows (no write);
   - `real_insert` synthetic rows with explicit warning/guard.
 - The synthetic smoke path must include signer-4-row validation, checklist pass/warn/fail, and search/report output checks.
+- FAIL caused only by `rows=0` is not an acceptable smoke result.
 
 ### If no test harness exists yet
 It is acceptable to introduce one, but keep it lightweight and repo-local.
