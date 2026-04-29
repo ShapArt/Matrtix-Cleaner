@@ -23,7 +23,7 @@ Reports, raw JSON/DSL, debug, and legacy controls are advanced-only. Preview ret
 
 Install the production userscript in Tampermonkey:
 
-- [Download Matrix Cleaner userscript](https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/dist/matrix-cleaner.user.js)
+- [Download Matrix Cleaner userscript](https://github.com/ShapArt/Matrtix-Cleaner/raw/refs/heads/main/dist/matrix-cleaner.user.js)
 
 In Tampermonkey, use `Utilities -> Import from URL` with the same link if direct opening does not trigger installation.
 

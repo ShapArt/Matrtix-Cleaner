@@ -6,8 +6,8 @@
 // @match        *://*/otcs/cs.exe*
 // @homepageURL  https://github.com/ShapArt/Matrtix-Cleaner
 // @supportURL   https://github.com/ShapArt/Matrtix-Cleaner/issues
-// @updateURL    https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/dist/matrix-cleaner.user.js
-// @downloadURL  https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/dist/matrix-cleaner.user.js
+// @updateURL    https://github.com/ShapArt/Matrtix-Cleaner/raw/refs/heads/main/dist/matrix-cleaner.user.js
+// @downloadURL  https://github.com/ShapArt/Matrtix-Cleaner/raw/refs/heads/main/dist/matrix-cleaner.user.js
 // @run-at       document-idle
 // @grant        GM_addStyle
 // @grant        unsafeWindow
