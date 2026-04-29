@@ -6,8 +6,8 @@
 // @match        *://*/otcs/cs.exe*
 // @homepageURL  https://github.com/ShapArt/Matrtix-Cleaner
 // @supportURL   https://github.com/ShapArt/Matrtix-Cleaner/issues
-// @updateURL    https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/matrix-cleaner.user.js
-// @downloadURL  https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/matrix-cleaner.user.js
+// @updateURL    https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/dist/matrix-cleaner.user.js
+// @downloadURL  https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/dist/matrix-cleaner.user.js
 // @run-at       document-idle
 // @grant        GM_addStyle
 // @grant        unsafeWindow
@@ -22,7 +22,7 @@ function __otMatrixCleanerHost() {
   'use strict';
 
   const CONFIG = {
-    version: '7.0.0',
+    version: '8.0.0',
     requiredAffiliation: 'Группа Черкизово',
     partnerAliases: ['partner_id', 'partners_internal_id'],
     operationTypes: {
@@ -2473,7 +2473,7 @@ function __otMatrixCleanerHost() {
       selfCheckScript: 'Open the card, check required red fields, compare card values with Matrix Cleaner preview, then open approval list and identify the stuck stage/approver.',
       escalationWhen: 'Escalate when required fields are present, Matrix Cleaner preview has no matching safe row, or approval list shows a failed/stuck stage after route rebuild.',
       suggestedDslDraft: {
-        schemaVersion: '7.0.0',
+        schemaVersion: '8.0.0',
         operation: /approvallist|лист согласования|approval/.test(`${text} ${href}`)
           ? { type: CONFIG.operationTypes.CHECKLIST_ROUTE_FAILURE, payload: { currentStage, stuckApprover } }
           : { type: CONFIG.operationTypes.CHECKLIST_CARD_VALIDATION, payload: { missingFields } },
@@ -3558,7 +3558,7 @@ function __otMatrixCleanerHost() {
       buildRequestDraft: function (raw, opts) { return buildRequestDraft(raw, opts || {}); },
       getReleaseInfo: function () {
         return {
-          version: '7.0.0',
+          version: '8.0.0',
           channel: 'production',
           modules: ['legacy-core', 'native-counterparty-filter', 'running-sheet-detector', 'apply-snapshot', 'visual-preview', 'rule-engine-v2', 'search', 'checklist', 'dsl-v6', 'route-doctor'],
         };
@@ -3572,8 +3572,8 @@ function __otMatrixCleanerHost() {
         if (config && !Array.isArray(config.operations) && !config.operation) {
           errors.push('Either operations[] or operation must be provided.');
         }
-        if (config && config.schemaVersion && !/^(2|6|7)\./.test(String(config.schemaVersion))) {
-          errors.push('schemaVersion must be 2.x.x, 6.x.x or 7.x.x');
+        if (config && config.schemaVersion && !/^(2|6|7|8)\./.test(String(config.schemaVersion))) {
+          errors.push('schemaVersion must be 2.x.x, 6.x.x, 7.x.x or 8.x.x');
         }
         if (config && Array.isArray(config.operations)) {
           config.operations.forEach((op, idx) => {
@@ -4129,8 +4129,8 @@ function __otMatrixCleanerHost() {
     if (config && !Array.isArray(config.operations) && !config.operation) {
       errors.push('Either operations[] or operation must be provided.');
     }
-    if (config && config.schemaVersion && !/^(2|6)\./.test(String(config.schemaVersion))) {
-      errors.push('schemaVersion must start with 2.x.x or 6.x.x');
+    if (config && config.schemaVersion && !/^(2|6|7|8)\./.test(String(config.schemaVersion))) {
+      errors.push('schemaVersion must start with 2.x.x, 6.x.x, 7.x.x or 8.x.x');
     }
     if (config && Array.isArray(config.operations)) {
       config.operations.forEach((op, idx) => {

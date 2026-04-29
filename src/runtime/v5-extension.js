@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const INSTALL_FLAG = '__OT_MATRIX_CLEANER_V7_EXTENSION__';
+  const INSTALL_FLAG = '__OT_MATRIX_CLEANER_COMPAT_EXTENSION__';
   if (window[INSTALL_FLAG]) return;
   window[INSTALL_FLAG] = true;
 
@@ -10,13 +10,13 @@
     if (!api) return false;
     if (api.getReleaseInfo) {
       const current = api.getReleaseInfo();
-      if (current && (current.version === '7.0.0' || /^8\./.test(String(current.version || '')))) return true;
+      if (current && /^8\./.test(String(current.version || ''))) return true;
     }
     const baseGetConfig = api.getConfig ? api.getConfig.bind(api) : () => ({});
     api.getReleaseInfo = () => ({
-      version: '7.0.0',
+      version: '8.0.0',
       channel: 'production',
-      build: 'modular-extension-v7',
+      build: 'modular-compatibility-extension-v8',
       generatedAt: new Date().toISOString(),
       modules: [
         'preview',

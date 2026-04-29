@@ -31,7 +31,7 @@
    Все модули userscript обращаются к API на странице через один и тот же host-window; иначе synthetic-тесты и ghost-превью могли бы не находить методы на объекте.
 # v8 Known Limitations
 
-- v8 is installed as an overlay on the existing v7 userscript. Legacy APIs remain for compatibility while operator-facing paths move to v8.
+- v8 is the production runtime. Legacy APIs remain for compatibility, but operator-facing paths, release info, and install/update URLs now point to the v8 userscript bundle.
 - Legal-entity apply is native/model-only. If a matrix fixture does not expose a confirmed legal-entity alias, v8 returns `manual_review`.
 - Catalog search uses same-origin `fetch`; when browser or saved-file security blocks a matrix fetch, v8 records a failure and falls back to catalog-name evidence instead of pretending the matrix was scanned.
 - Signer 4-row apply can create model rows and fill known aliases; signer performer IDs are filled only when the OpenText user cache resolves the selected name.

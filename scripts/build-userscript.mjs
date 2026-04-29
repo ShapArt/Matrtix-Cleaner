@@ -23,7 +23,7 @@ async function main() {
     v8Source = '';
   }
   let merged = extensionSource
-    ? `${legacySource}\n\n/* ===== Matrix Cleaner v7 extension (generated) ===== */\n${extensionSource}\n`
+    ? `${legacySource}\n\n/* ===== Matrix Cleaner compatibility extension (generated) ===== */\n${extensionSource}\n`
     : legacySource;
   if (v8Source && !merged.includes('__OT_MATRIX_CLEANER_V8_RUNTIME__')) {
     merged = `${merged}\n\n/* ===== Matrix Cleaner v8 runtime (generated) ===== */\n${v8Source}\n`;

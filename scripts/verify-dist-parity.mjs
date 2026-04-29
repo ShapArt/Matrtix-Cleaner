@@ -46,5 +46,5 @@ if (!dist.includes(source.trim().slice(0, 1000))) {
 }
 
 if (!process.exitCode) {
-  process.stdout.write('OK dist parity: userscript bundle contains source plus v7/v8 API markers.\n');
+  process.stdout.write('OK dist parity: userscript bundle contains source plus compatibility/v8 API markers.\n');
 }

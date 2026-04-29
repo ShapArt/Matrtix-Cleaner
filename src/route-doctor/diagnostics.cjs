@@ -158,7 +158,7 @@ function diagnoseHtml(html, sourcePath = '') {
     selfCheckScript: 'Open the card, check required red fields, compare card values with Matrix Cleaner preview, then open approval list and identify the stuck stage/approver.',
     escalationWhen: 'Escalate when required fields are present, Matrix Cleaner preview has no matching safe row, or approval list shows a failed/stuck stage after route rebuild.',
     suggestedDslDraft: {
-      schemaVersion: '7.0.0',
+      schemaVersion: '8.0.0',
       operation: pageType === 'approval_list'
         ? { type: 'checklist_route_failure', payload: { currentStage, stuckApprover } }
         : { type: 'checklist_card_validation', payload: { missingFields } },
