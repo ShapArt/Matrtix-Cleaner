@@ -10,16 +10,21 @@ const dist = fs.readFileSync(distPath, 'utf8');
 
 const requiredSnippets = [
   '@version      2026',
-  "version: '7.0.0'",
+  "version: VERSION",
+  "const VERSION = '8.0.0'",
+  'operator-rebuild-v8',
   'applyCounterpartyColumnFilter',
   'clearMatrixFilters',
   'diagnoseCurrentCard',
   'getRunningSheetsState',
   'buildRequestDraft',
+  'parseRequestText',
+  'searchAcrossMatrices',
   'MatrixCleaner',
   'native-counterparty-filter',
   'apply-snapshot',
   'route-doctor',
+  'catalog-fetch-search',
 ];
 
 const missing = requiredSnippets.filter(snippet => !dist.includes(snippet));
@@ -41,5 +46,5 @@ if (!dist.includes(source.trim().slice(0, 1000))) {
 }
 
 if (!process.exitCode) {
-  process.stdout.write('OK dist parity: userscript bundle contains source and v7 API markers.\n');
+  process.stdout.write('OK dist parity: userscript bundle contains source plus compatibility/v8 API markers.\n');
 }

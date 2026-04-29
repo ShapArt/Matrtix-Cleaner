@@ -13,6 +13,7 @@
     "verify:dist": "node scripts/verify-dist-parity.mjs",
     "test": "playwright test",
     "test:unit": "node --test tests/unit/*.test.js",
+    "test:v8": "playwright test --grep \"v8|60\\.|61\\.|62\\.|63\\.\"",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "verify:core": "npm run preflight && npm run test:unit && npm run schema:validate && npm run inventory:smoke && npm run build && npm run verify:dist",

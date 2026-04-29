@@ -4,7 +4,8 @@
 
 - `matrix-cleaner.user.js` - production Tampermonkey userscript source.
 - `dist/matrix-cleaner.user.js` - generated bundle used for distribution/update checks.
-- `src/runtime/` - small runtime extension metadata.
+- `src/runtime/v8-core.js` - active v8 operator runtime overlay: 4-mode UI, matrix adapter, honest preview/apply, catalog search, parser, route/card doctor.
+- `src/runtime/` - compatibility runtime extension metadata.
 
 ## Source Modules
 
@@ -23,7 +24,8 @@
 
 ## Operator Docs
 
-- `docs/operator-flow-v7.md` - current v7 operator flow.
+- `docs/operator-flow-v8.md` - current v8 operator flow.
+- `docs/operator-flow-v7.md` - retained v7 baseline.
 - `docs/operator-flow-v6.md` - retained v6 baseline.
 - `docs/generated-output.md` - generated inventory/report locations.
 - `docs/context/` - historical prompts, design notes, and analysis context.

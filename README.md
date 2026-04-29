@@ -1,4 +1,4 @@
-# Matrtix-Cleaner
+# Matrix Cleaner
 
 Tampermonkey-based operator tool for **previewing, auditing, and applying guarded bulk changes** in OpenText approval matrices.
 
@@ -7,6 +7,25 @@ Tampermonkey-based operator tool for **previewing, auditing, and applying guarde
 `Matrtix-Cleaner` is a browser-side automation tool built for a workflow that is both repetitive and dangerous: changing approval matrices inside a real enterprise interface where one incorrect mass edit can create routing failures, hidden policy drift, or operational cleanup work later.
 
 The repository is not interesting because it “edits rows in a table.” It is interesting because it treats matrix editing as an **operator workflow with risk**, then builds previewing, ambiguity handling, and scoped execution around that reality.
+
+## v8 Status
+
+The active runtime is **Matrix Cleaner v8**. It keeps legacy API compatibility where useful, but the daily UI is now Russian-first and centered on four operator modes:
+
+- `Операции по матрице`
+- `Проверка карточки / маршрута`
+- `Поиск по всем матрицам`
+- `Разбор заявки / инцидента`
+
+Reports, raw JSON/DSL, debug, and legacy controls are advanced-only. Preview returns a `planId`; apply consumes that exact plan and re-checks row fingerprints before writing.
+
+## Download / Install
+
+Install the production userscript in Tampermonkey:
+
+- [Download Matrix Cleaner userscript](https://raw.githubusercontent.com/ShapArt/Matrtix-Cleaner/main/dist/matrix-cleaner.user.js)
+
+In Tampermonkey, use `Utilities -> Import from URL` with the same link if direct opening does not trigger installation.
 
 ## Why this project exists
 
@@ -46,6 +65,9 @@ The current script exposes domain-specific operations such as:
 - removing or locating counterparties across rows;
 - locating user references across the matrix;
 - running matrix audit and checklist-style diagnostics.
+- generating the mandatory signer 4-row preset;
+- patching document types through the OpenText matrix model;
+- scanning catalog entries with same-origin fetch and fallback reporting.
 
 ## Architecture overview
 
@@ -55,6 +77,7 @@ This is **not** a backend service. It is a browser-side operator tool.
 
 - **Distribution format:** Tampermonkey userscript
 - **Main file:** `matrix-cleaner.user.js`
+- **v8 runtime module:** `src/runtime/v8-core.js`
 - **Execution model:** injected into OpenText pages after document load
 - **Host integration:** `unsafeWindow` / existing page context
 - **UI model:** custom operator panel rendered on top of the existing interface
@@ -105,6 +128,8 @@ A mass-edit tool is only useful if the user can understand what it is about to d
 
 Many automation tools fail because they force a binary success/failure model on messy operational data. This project explicitly leaves room for manual review, which is a sign of maturity rather than incompleteness.
 
+v8 live apply policy is strict: only confirmed OpenText native/model writers may mutate live data. Unsupported writers return `manual_review`.
+
 ## Technical highlights
 
 - one-file delivery keeps installation simple for userscript workflows;
@@ -116,8 +141,10 @@ Many automation tools fail because they force a binary success/failure model on 
 ## Repository structure
 
 ```text
-Matrtix-Cleaner/
+Matrix-Cleaner/
   matrix-cleaner.user.js
+  src/runtime/v8-core.js
+  tests/
   README.md
 ```
 
@@ -126,10 +153,32 @@ Matrtix-Cleaner/
 1. Install the userscript in Tampermonkey.
 2. Open the relevant OpenText matrix or related catalog page.
 3. Let the script detect matrix context and available rows.
-4. Choose the required domain operation from the operator panel.
-5. Preview the plan and inspect ambiguous cases.
-6. Verify the affected scope.
-7. Apply the change only when the planned result looks correct.
+4. Choose the required operation from the operator panel.
+5. Preview the plan, inspect affected rows, reasons, before/after, and `planId`.
+6. Apply only the previewed plan after the planned result looks correct.
+
+## Verification
+
+Run verification with the repo-local bootstrap:
+
+```powershell
+.\verify.cmd
+```
+
+For a faster unit/schema/core loop:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1 -SkipBrowser
+```
+
+## Where this repo is strongest
+
+This repository is most valuable as an example of:
+
+- workflow automation in a hostile / legacy browser environment;
+- domain-specific batch editing with safety rails;
+- practical operator UX on top of an existing enterprise interface;
+- balancing speed of change against risk of destructive edits.
 
 ## Constraints and trade-offs
 

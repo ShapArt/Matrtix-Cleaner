@@ -29,3 +29,10 @@
 
 10. **Tampermonkey `unsafeWindow` vs изолированный `window`**  
    Все модули userscript обращаются к API на странице через один и тот же host-window; иначе synthetic-тесты и ghost-превью могли бы не находить методы на объекте.
+# v8 Known Limitations
+
+- v8 is the production runtime. Legacy APIs remain for compatibility, but operator-facing paths, release info, and install/update URLs now point to the v8 userscript bundle.
+- Legal-entity apply is native/model-only. If a matrix fixture does not expose a confirmed legal-entity alias, v8 returns `manual_review`.
+- Catalog search uses same-origin `fetch`; when browser or saved-file security blocks a matrix fetch, v8 records a failure and falls back to catalog-name evidence instead of pretending the matrix was scanned.
+- Signer 4-row apply can create model rows and fill known aliases; signer performer IDs are filled only when the OpenText user cache resolves the selected name.
+- Full Playwright regression can be slow on the private fixture set; use targeted v8 tests or the unit/schema loop during development.

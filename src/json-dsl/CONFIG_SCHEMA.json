@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/ShapArt/Matrtix-Cleaner/schema/config-v7.json",
-  "title": "Matrix Cleaner DSL v6/v7",
+  "$id": "https://github.com/ShapArt/Matrtix-Cleaner/schema/config-v8.json",
+  "title": "Matrix Cleaner DSL v6/v7/v8",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -22,7 +22,7 @@
   "properties": {
     "schemaVersion": {
       "type": "string",
-      "pattern": "^(2|6|7)\\.[0-9]+\\.[0-9]+$"
+      "pattern": "^(2|6|7|8)\\.[0-9]+\\.[0-9]+$"
     },
     "sourceMetadata": {
       "type": "object",

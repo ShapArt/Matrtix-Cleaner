@@ -124,10 +124,11 @@ test('7. signer bundle generation preview', async ({ page }) => {
     matrixName: document.title,
     scope: {},
     filters: {},
-    payload: { newSigner: 'Signer' },
+    payload: { newSigner: 'Signer', limit: '1000', amount: '500', affiliation: 'Группа Черкизово' },
     options: { configurablePreset: true },
   }], {}));
   expect(report[0].actionType).toBe('add-row');
+  expect(report.filter(row => row.actionType === 'add-row')).toHaveLength(4);
 });
 
 test('8. batch import parsing and preview through UI', async ({ page }) => {
@@ -674,15 +675,15 @@ test('33. Escape closes panel when popover is not open', async ({ page }) => {
   expect(closed).toBeTruthy();
 });
 
-test('34. v7 release info is exposed', async ({ page }) => {
+test('34. v8 release info is exposed', async ({ page }) => {
   await page.goto(pathToFileURL(MATRIX_HTML).href);
   await loadUserscript(page);
   const info = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.getReleaseInfo());
   expect(info).toBeTruthy();
-  expect(info.version).toBe('7.0.0');
-  expect(info.modules).toContain('native-counterparty-filter');
-  expect(info.modules).toContain('running-sheet-detector');
-  expect(info.modules).toContain('apply-snapshot');
+  expect(info.version).toBe('8.0.0');
+  expect(info.modules).toContain('operator-ui-v8');
+  expect(info.modules).toContain('matrix-adapter');
+  expect(info.modules).toContain('catalog-fetch-search');
 });
 
 test('35. visual preview API toggles and clears', async ({ page }) => {
@@ -767,6 +768,7 @@ test('41. search across matrices returns structured report', async ({ page }) =>
   expect(result).toBeTruthy();
   expect(typeof result.total).toBe('number');
   expect(Array.isArray(result.deduped)).toBeTruthy();
+  expect(result.progress).toBeTruthy();
 });
 
 test('42. end-to-end smoke flow', async ({ page }) => {
@@ -797,20 +799,20 @@ test('43. human-first shell is default and russian-first', async ({ page }) => {
   await loadUserscript(page);
   await page.click('#mc-open-btn');
   const ui = await page.evaluate(() => {
-    const root = document.querySelector('[data-role="hf-root"]');
-    const workTab = document.querySelector('[data-tab="work"]');
-    const panel = document.querySelector('[data-panel="work"]');
+    const root = document.querySelector('[data-role="v8-root"]');
+    const workTab = document.querySelector('[data-v8-tab="ops"]');
+    const panel = document.querySelector('[data-v8-panel="ops"]');
     const author = root ? root.textContent || '' : '';
-    const legacyVisible = Array.from(document.querySelectorAll('#mc-root section'))
-      .filter(section => section.getAttribute('data-role') !== 'hf-root')
-      .some(section => !section.hidden && section.style.display !== 'none');
+    const oldHuman = document.querySelector('[data-role="hf-root"]');
+    const visibleTabs = root ? Array.from(root.querySelectorAll('[data-v8-tab]')).map(btn => btn.textContent.trim()) : [];
     return {
       hasRoot: Boolean(root),
       workActive: Boolean(workTab && workTab.classList.contains('is-active')),
       workPanelVisible: Boolean(panel && !panel.hidden),
-      hasRussianTitle: author.includes('Рабочий режим Matrix Cleaner'),
+      hasRussianTitle: author.includes('Matrix Cleaner v8'),
       hasAuthor: author.includes('Артём Шаповалов'),
-      legacyVisible,
+      oldHumanHidden: !oldHuman || oldHuman.hidden,
+      visibleTabs,
     };
   });
   expect(ui.hasRoot).toBeTruthy();
@@ -818,6 +820,13 @@ test('43. human-first shell is default and russian-first', async ({ page }) => {
   expect(ui.workPanelVisible).toBeTruthy();
   expect(ui.hasRussianTitle).toBeTruthy();
   expect(ui.hasAuthor).toBeTruthy();
+  expect(ui.oldHumanHidden).toBeTruthy();
+  expect(ui.visibleTabs).toEqual([
+    'Операции по матрице',
+    'Проверка карточки / маршрута',
+    'Поиск по всем матрицам',
+    'Разбор заявки / инцидента',
+  ]);
 });
 
 test('44. run all tests button writes diagnostic logs', async ({ page }) => {
@@ -911,9 +920,10 @@ test('49. human checklist panel renders pass/warn/fail cards', async ({ page }) 
   await page.goto(pathToFileURL(MATRIX_HTML).href);
   await loadUserscript(page);
   await page.click('#mc-open-btn');
-  await page.click('[data-tab="checklist"]');
-  await page.click('[data-role="hf-checklist-run"]');
-  const content = await page.textContent('[data-role="hf-checklist-result"]');
+  await page.click('[data-v8-tab="doctor"]');
+  await page.fill('[data-role="v8-doctor-text"]', 'маршрут карточка контрагент сумма лимит ЭДО тип документа юрлицо');
+  await page.click('[data-role="v8-doctor-run"]');
+  const content = await page.textContent('[data-role="v8-doctor-result"]');
   expect(String(content)).toContain('pass=');
 });
 
@@ -944,10 +954,10 @@ test('51. runAllUiDiagnostics API chains synthetic and preview checks', async ({
   expect(result.failed).toBe(0);
 });
 
-test('52. parseFreeformRequestText returns draft operations', async ({ page }) => {
+test('52. parseRequestText returns draft operations', async ({ page }) => {
   await page.goto(pathToFileURL(MATRIX_HTML).href);
   await loadUserscript(page);
-  const r = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.parseFreeformRequestText('Заменить подписанта с Иванов на Петров'));
+  const r = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.parseRequestText('Добавить подписанта Петров с лимитом 1000 и суммой 500'));
   expect(r.operations.length).toBeGreaterThan(0);
   expect(r.confidence).toBeGreaterThan(0.4);
 });
@@ -1010,7 +1020,7 @@ test('55. v7 preview report exposes extended audit fields', async ({ page }) => 
   expect(Object.prototype.hasOwnProperty.call(row, 'rollbackHint')).toBeTruthy();
 });
 
-test('56. v7 public MatrixCleaner alias and route doctor API are available', async ({ page }) => {
+test('56. v8 public MatrixCleaner alias and route doctor API are available', async ({ page }) => {
   await page.goto(pathToFileURL(MATRIX_HTML).href);
   await loadUserscript(page);
   const result = await page.evaluate(() => {
@@ -1079,4 +1089,83 @@ test('59. v7 running-sheet detector API is exposed', async ({ page }) => {
   expect(state).toHaveProperty('known', true);
   expect(state).toHaveProperty('hasRunningSheets');
   expect(state).toHaveProperty('evidence');
+});
+
+test('60. v8 preview returns planId and honest create-row draft labels', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  await page.click('#mc-open-btn');
+  const result = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.preview([{
+    type: 'add_signer_bundle',
+    payload: { newSigner: 'Synthetic Signer', limit: '1000', amount: '500', affiliation: 'Группа Черкизово' },
+  }]));
+  expect(result.planId).toMatch(/^v8-/);
+  expect(result.report.filter(row => row.actionType === 'add-row')).toHaveLength(4);
+  const previewText = await page.textContent('[data-role="v8-create-preview"]');
+  expect(String(previewText)).toContain('только preview');
+});
+
+test('61. v8 signer apply creates model rows through OpenText matrix state', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const result = await page.evaluate(async () => {
+    const api = window.__OT_MATRIX_CLEANER__;
+    const before = window.sc_ApprovalMatrix.items.length;
+    const preview = await api.preview([{
+      type: 'add_signer_bundle',
+      payload: { newSigner: 'Synthetic Signer', limit: '1000', amount: '500', affiliation: 'Группа Черкизово' },
+    }]);
+    const applied = await api.apply(preview.planId, { skipDraftCheck: true });
+    return {
+      before,
+      after: window.sc_ApprovalMatrix.items.length,
+      ok: applied.summary.ok,
+      generated: window.sc_ApprovalMatrix.items.slice(-4).map(item => item.__mcV8Generated && item.__mcV8Generated.rowKey),
+    };
+  });
+  expect(result.after).toBe(result.before + 4);
+  expect(result.ok).toBeGreaterThan(0);
+  expect(result.generated).toContain('main_limit_edo');
+  expect(result.generated).toContain('supp_amount_non_edo');
+});
+
+test('62. v8 doc type patch updates matrix model with maxRows guard', async ({ page }) => {
+  await page.goto(pathToFileURL(MATRIX_HTML).href);
+  await loadUserscript(page);
+  const result = await page.evaluate(async () => {
+    const api = window.__OT_MATRIX_CLEANER__;
+    const docIdx = window.sc_ApprovalMatrix.cols.findIndex(col => col && col.alias === 'document_type');
+    const before = window.sc_ApprovalMatrix.items[0][docIdx].slice();
+    const preview = await api.preview([{
+      type: 'add_doc_type_to_matching_rows',
+      payload: { rowGroup: 'all', requiredDocTypes: [], matchMode: 'all', newDocType: 'V8_TEST_DOC', maxRows: 1, affiliation: 'Группа Черкизово' },
+    }]);
+    const applied = await api.apply(preview.planId, { skipDraftCheck: true });
+    return {
+      before,
+      after: window.sc_ApprovalMatrix.items[0][docIdx],
+      actionable: preview.summary.actionable,
+      ok: applied.summary.ok,
+    };
+  });
+  expect(result.actionable).toBe(1);
+  expect(result.ok).toBe(1);
+  expect(result.after).toContain('V8_TEST_DOC');
+  expect(result.before).not.toContain('V8_TEST_DOC');
+});
+
+test('63. v8 catalog search scans catalog entries instead of only current DOM', async ({ page }) => {
+  await page.goto(pathToFileURL(LIST_HTML).href);
+  await loadUserscript(page);
+  const result = await page.evaluate(() => window.__OT_MATRIX_CLEANER__.searchAcrossMatrices('Договор', {
+    mode: 'counterparty',
+    matchMode: 'partial',
+    limit: 3,
+    fetchTimeoutMs: 250,
+  }));
+  expect(result).toBeTruthy();
+  expect(result.scanMode).toBe('catalog_fetch');
+  expect(result.progress.total).toBeGreaterThan(1);
+  expect(result.progress.scanned).toBeGreaterThan(1);
+  expect(Array.isArray(result.failures)).toBeTruthy();
 });

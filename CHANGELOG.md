@@ -155,3 +155,10 @@
   - runnable examples
 - Added Playwright test harness and scenario coverage for core workflows.
 - Added Playwright coverage for report summary API, batch approver-alias mapping, batch unknown-type manual hints, ambiguous-report API, log-filter API, clipboard export APIs (`ambiguous/skipped/errors` paths), triage counters API, triage severity highlighting, stats-header severity class, header risk-badge severity class, risk-badge log-toggle behavior, risk-badge double-click clipboard copy, Shift+Click errors-copy path, risk-badge tooltip hints, risk-help popover API, popover close via `Esc`, popover initial focus on `Close`, panel open/close focus flow, `Escape` panel close behavior, and `isPanelOpen()` API.
+# 2026-04-28 - Matrix Cleaner v8 operator rebuild
+
+- Added v8 runtime over the legacy userscript with Russian 4-mode operator UI.
+- Added plan-based honest preview/apply API: `preview()`, `apply(planId)`, `getDictionaries()`, `parseRequestText()`, `runSyntheticContour()`.
+- Added native/model apply for document-type patches and signer 4-row generated rows; unsupported writers return manual review.
+- Replaced current-DOM-only global search with catalog-entry scanning via same-origin fetch and fallback reporting.
+- Added v8 DSL sample, schema acceptance for `8.0.0`, v8 unit tests, and Playwright coverage for planId preview, model row creation, patch apply, and catalog scan progress.

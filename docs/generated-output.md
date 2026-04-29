@@ -1,6 +1,6 @@
 # Generated Output
 
-The repository keeps raw OpenText/ITCM exports in place during the v7 cleanup. Derived files are written under `generated/`, which is ignored by git.
+The repository keeps raw OpenText/ITCM exports in place during the v8 cleanup. Derived files are written under `generated/`, which is ignored by git.
 
 Current generated outputs:
 

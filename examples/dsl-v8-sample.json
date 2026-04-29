@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "8.0.0",
+  "sourceMetadata": {
+    "requestId": "V8-SAMPLE-001",
+    "author": "Matrix Cleaner v8",
+    "createdAt": "2026-04-28",
+    "description": "Operator-first preview/apply sample with explicit selection and reporting."
+  },
+  "matrixQuery": {
+    "mode": "current_matrix"
+  },
+  "selection": {
+    "rowGroup": "supplemental_rows",
+    "requiredDocTypes": ["ДС"],
+    "matchMode": "all"
+  },
+  "operations": [
+    {
+      "type": "add_doc_type_to_matching_rows",
+      "selection": {
+        "rowGroup": "supplemental_rows",
+        "requiredDocTypes": ["ДС"],
+        "matchMode": "all"
+      },
+      "payload": {
+        "newDocType": "Дополнительное соглашение v8",
+        "affiliation": "Группа Черкизово"
+      },
+      "preview": {
+        "requirePlanId": true
+      },
+      "apply": {
+        "mode": "native_only",
+        "requirePreviewFingerprint": true
+      },
+      "report": {
+        "formats": ["json", "csv", "html"]
+      }
+    }
+  ],
+  "preview": {
+    "honestCreateRows": true
+  },
+  "apply": {
+    "livePolicy": "native_only"
+  },
+  "reporting": {
+    "includeBeforeAfter": true,
+    "includeWhyMatched": true
+  },
+  "rollbackHint": {
+    "text": "Restore row values from the exported v8 apply report."
+  }
+}
