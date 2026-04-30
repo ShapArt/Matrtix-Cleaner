@@ -330,18 +330,28 @@
 
   function signerPresetRows(op) {
     const payload = op.payload || {};
-    const limit = String(payload.limit || payload.limits || '').trim();
-    const amount = String(payload.amount || payload.amounts || '').trim();
-    const newSigner = String(payload.newSigner || payload.signer || payload.newApprover || '').trim();
-    if (!limit || !amount || !newSigner) {
+    const ranges = Array.isArray(payload.ranges) && payload.ranges.length
+      ? payload.ranges.map(range => ({
+        from: String(range.from || '0').trim(),
+        limit: String(range.limit || range.to || payload.limit || payload.limits || '').trim(),
+        amount: String(range.amount || range.to || payload.amount || payload.amounts || payload.limit || payload.limits || '').trim(),
+        newSigner: String(range.signer || range.newSigner || payload.newSigner || payload.signer || payload.newApprover || '').trim(),
+      }))
+      : [{
+        from: String(payload.from || '0').trim(),
+        limit: String(payload.limit || payload.limits || '').trim(),
+        amount: String(payload.amount || payload.amounts || payload.limit || payload.limits || '').trim(),
+        newSigner: String(payload.newSigner || payload.signer || payload.newApprover || '').trim(),
+      }];
+    const invalid = ranges.find(range => !range.limit || !range.amount || !range.newSigner);
+    if (invalid || !ranges.length) {
       return {
-        error: 'Для 4-строчного пакета нужны новый подписант, лимит и сумма.',
+        error: 'Для пакета подписания нужны подписант и диапазон: от/до для лимита и суммы.',
         rows: [],
       };
     }
-    const common = {
+    const commonBase = {
       currentSigner: payload.currentSigner || payload.currentApprover || '',
-      newSigner,
       docTypes: parseList(payload.docTypes || payload.docType || ''),
       legalEntities: parseList(payload.legalEntities || payload.legalEntity || ''),
       sites: parseList(payload.sites || payload.site || ''),
@@ -351,33 +361,42 @@
       affiliation: payload.affiliation || REQUIRED_AFFILIATION,
     };
     return {
-      rows: [
-        Object.assign({}, common, { rowKey: 'main_limit_edo', rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'edo', valueMode: 'limit', value: limit }),
-        Object.assign({}, common, { rowKey: 'main_limit_non_edo', rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'non_edo', valueMode: 'limit', value: limit }),
-        Object.assign({}, common, { rowKey: 'supp_amount_edo', rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'edo', valueMode: 'amount', value: amount }),
-        Object.assign({}, common, { rowKey: 'supp_amount_non_edo', rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'non_edo', valueMode: 'amount', value: amount }),
-      ],
+      rows: ranges.flatMap((range, rangeIndex) => {
+        const suffix = ranges.length === 1 ? '' : `_r${rangeIndex + 1}`;
+        const common = Object.assign({}, commonBase, {
+          newSigner: range.newSigner,
+          signer: range.newSigner,
+          from: range.from || '0',
+          to: range.limit,
+        });
+        return [
+          Object.assign({}, common, { rowKey: `main_limit_edo${suffix}`, rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'edo', valueMode: 'limit', value: range.limit }),
+          Object.assign({}, common, { rowKey: `main_limit_non_edo${suffix}`, rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'non_edo', valueMode: 'limit', value: range.limit }),
+          Object.assign({}, common, { rowKey: `supp_amount_edo${suffix}`, rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'edo', valueMode: 'amount', value: range.amount }),
+          Object.assign({}, common, { rowKey: `supp_amount_non_edo${suffix}`, rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'non_edo', valueMode: 'amount', value: range.amount }),
+        ];
+      }),
     };
   }
 
   function planSignerBundle(op) {
     const preset = signerPresetRows(op);
-    if (preset.error || preset.rows.length !== 4) {
+    if (preset.error || preset.rows.length < 4 || preset.rows.length % 4 !== 0) {
       return [Object.assign(reportBase(op, null), {
         actionType: ACTION.MANUAL,
         status: STATUS.MANUAL,
-        reason: preset.error || 'Signer preset invalid: ожидается ровно 4 строки.',
+        reason: preset.error || 'Signer preset invalid: ожидается по 4 строки на каждый диапазон.',
         whyMatched: 'v8 signer preset validation failed',
         after: {},
         applyMode: 'manual_review',
-        rollbackHint: 'Не применять, пока пакет не содержит ровно 4 строки.',
+        rollbackHint: 'Не применять, пока каждый диапазон подписания не даёт 4 формы.',
       })];
     }
     return preset.rows.map((row, idx) => Object.assign(reportBase(op, null), {
       actionType: ACTION.ADD_ROW,
       status: STATUS.OK,
       rowNo: `new-${idx + 1}`,
-      reason: `Будет создана строка ${idx + 1}/4: ${row.rowGroup}, ${row.edoMode}, ${row.valueMode}=${row.value}.`,
+      reason: `Будет создана строка ${idx + 1}/${preset.rows.length}: ${row.rowGroup}, ${row.edoMode}, ${row.valueMode}=${row.value}.`,
       whyMatched: 'validated signer 4-row preset',
       after: row,
       generatedRow: row,

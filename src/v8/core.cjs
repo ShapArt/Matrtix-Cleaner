@@ -42,20 +42,39 @@ function matchRowGroup(facts, group = 'all') {
 }
 
 function signerPresetRows(payload = {}) {
-  const limit = String(payload.limit || '').trim();
-  const amount = String(payload.amount || '').trim();
-  const newSigner = String(payload.newSigner || payload.signer || '').trim();
-  if (!limit || !amount || !newSigner) return [];
-  const common = {
-    newSigner,
+  const ranges = Array.isArray(payload.ranges) && payload.ranges.length
+    ? payload.ranges.map(range => ({
+      from: String(range.from || '0').trim(),
+      limit: String(range.limit || range.to || payload.limit || '').trim(),
+      amount: String(range.amount || range.to || payload.amount || payload.limit || '').trim(),
+      newSigner: String(range.signer || range.newSigner || payload.newSigner || payload.signer || '').trim(),
+    }))
+    : [{
+      from: String(payload.from || '0').trim(),
+      limit: String(payload.limit || '').trim(),
+      amount: String(payload.amount || payload.limit || '').trim(),
+      newSigner: String(payload.newSigner || payload.signer || '').trim(),
+    }];
+  const validRanges = ranges.filter(range => range.limit && range.amount && range.newSigner);
+  if (!validRanges.length) return [];
+  const commonBase = {
     affiliation: payload.affiliation || REQUIRED_AFFILIATION,
   };
-  return [
-    Object.assign({}, common, { rowKey: 'main_limit_edo', rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'edo', valueMode: 'limit', value: limit }),
-    Object.assign({}, common, { rowKey: 'main_limit_non_edo', rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'non_edo', valueMode: 'limit', value: limit }),
-    Object.assign({}, common, { rowKey: 'supp_amount_edo', rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'edo', valueMode: 'amount', value: amount }),
-    Object.assign({}, common, { rowKey: 'supp_amount_non_edo', rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'non_edo', valueMode: 'amount', value: amount }),
-  ];
+  return validRanges.flatMap((range, rangeIndex) => {
+    const suffix = validRanges.length === 1 ? '' : `_r${rangeIndex + 1}`;
+    const common = Object.assign({}, commonBase, {
+      newSigner: range.newSigner,
+      signer: range.newSigner,
+      from: range.from || '0',
+      to: range.limit,
+    });
+    return [
+      Object.assign({}, common, { rowKey: `main_limit_edo${suffix}`, rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'edo', valueMode: 'limit', value: range.limit }),
+      Object.assign({}, common, { rowKey: `main_limit_non_edo${suffix}`, rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'non_edo', valueMode: 'limit', value: range.limit }),
+      Object.assign({}, common, { rowKey: `supp_amount_edo${suffix}`, rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'edo', valueMode: 'amount', value: range.amount }),
+      Object.assign({}, common, { rowKey: `supp_amount_non_edo${suffix}`, rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'non_edo', valueMode: 'amount', value: range.amount }),
+    ];
+  });
 }
 
 function classifyRequestText(text) {

@@ -83,6 +83,8 @@
     return String(value == null ? '' : value)
       .replace(/[«»"]/g, '')
       .replace(/[\u00A0\u2007]/g, ' ')
+      .replace(/ё/g, 'е')
+      .replace(/Ё/g, 'Е')
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
@@ -140,12 +142,94 @@
   function extractUsersFromText(text) {
     const out = [];
     const source = String(text || '');
-    for (const match of source.matchAll(/\b[А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+(?:\s+[А-ЯЁ][а-яё-]+)?\b/gu)) {
+    for (const match of source.matchAll(/[А-ЯЁ][а-яё-]+\s+[А-ЯЁ][а-яё-]+(?:\s+[А-ЯЁ][а-яё-]+)?/gu)) {
       const value = compact(match[0]);
       if (!/Группа Черкизово|Куриное Царство|Основной договор/i.test(value)) out.push(value);
     }
-    for (const match of source.matchAll(/\b[А-ЯЁ][а-яё-]+\s+[А-ЯЁ]\.[А-ЯЁ]\./gu)) out.push(compact(match[0]));
+    for (const match of source.matchAll(/[А-ЯЁ][а-яё-]+\s+[А-ЯЁ]\.[А-ЯЁ]\./gu)) out.push(compact(match[0]));
     return unique(out).slice(0, 20);
+  }
+
+  function userSearchCandidates(input, dictionaries, limit = 8) {
+    const dict = dictionaries || DictionaryBuilder.build();
+    const query = normalize(input);
+    if (!query) return [];
+    const tokens = query.split(/\s+/).filter(Boolean);
+    return (dict.users || []).map(user => {
+      if (user.technical || isLikelyTechnicalUser(user)) return null;
+      const fio = normalize(user.fio || '');
+      const display = normalize(user.display || '');
+      const login = normalize(user.login || '');
+      if (!tokens.every(token => userTokenMatches(token, user, fio, login))) return null;
+      const surname = fio.split(/\s+/)[0] || '';
+      let score = 0;
+      if (fio === query || display === query) score += 120;
+      if (surname === query) score += 110;
+      if (surname.startsWith(query)) score += 95;
+      if (fio.startsWith(query)) score += 80;
+      if (fio.includes(` ${query}`)) score += 45;
+      if (display.includes(query)) score += 30;
+      if (login && login.includes(query)) score += 10;
+      if (user.position) score += 3;
+      if (user.unresolved) score -= 200;
+      return { user, score };
+    }).filter(Boolean).sort((a, b) => b.score - a.score || String(a.user.fio).localeCompare(String(b.user.fio), 'ru')).slice(0, limit).map(item => item.user);
+  }
+
+  function extractKnownUsersFromText(text, dictionaries) {
+    const source = normalize(text);
+    const dict = dictionaries || DictionaryBuilder.build();
+    return unique((dict.users || []).filter(user => {
+      const fio = normalize(user.fio || '');
+      if (!fio || user.unresolved) return false;
+      const parts = fio.split(/\s+/).filter(Boolean);
+      const surname = parts[0] || '';
+      if (surname.length < 3 || !source.includes(surname)) return false;
+      if (source.includes(fio)) return true;
+      const initials = parts.slice(1).map(part => part[0]).filter(Boolean).join('');
+      return Boolean(initials && source.includes(`${surname} ${initials[0] || ''}`));
+    }).map(user => user.fio)).slice(0, 30);
+  }
+
+  function extractRoleUsersFromText(text, rolePattern, dictionaries) {
+    const source = String(text || '');
+    const dict = dictionaries || DictionaryBuilder.build();
+    const matches = [];
+    source.split(/\n|;/).forEach(line => {
+      if (!rolePattern.test(line)) return;
+      matches.push(...extractKnownUsersFromText(line, dict), ...extractUsersFromText(line));
+    });
+    const inline = source.match(new RegExp(`${rolePattern.source}[^\\n:：-]*[:：-]?([^\\n]{0,180})`, 'i'));
+    if (inline && inline[1]) matches.push(...extractKnownUsersFromText(inline[1], dict), ...extractUsersFromText(inline[1]));
+    return unique(matches).slice(0, 12);
+  }
+
+  function extractLabeledValue(text, labels) {
+    const source = String(text || '');
+    const labelPattern = Array.isArray(labels) ? labels.join('|') : String(labels || '');
+    const match = source.match(new RegExp(`(?:${labelPattern})\\s*[:：-]\\s*([^\\n;,.]{2,100})`, 'i'));
+    return match ? compact(match[1]) : '';
+  }
+
+  function extractSignerRanges(text, dictionaries) {
+    const source = String(text || '');
+    const dict = dictionaries || DictionaryBuilder.build();
+    const ranges = [];
+    source.split(/\n|;/).forEach(line => {
+      const normalized = normalize(line);
+      if (!/(подпис|лимит|сумм|диапазон|до\s*\d|от\s*\d)/i.test(normalized)) return;
+      const users = unique([].concat(extractKnownUsersFromText(line, dict)).concat(extractUsersFromText(line)));
+      const amountMatches = Array.from(line.matchAll(/(?:от\s*)?(\d[\d\s.,]{2,})\s*(?:→|->|-|—|до)\s*(\d[\d\s.,]{2,})|до\s*(\d[\d\s.,]{2,})/giu));
+      if (!users.length || !amountMatches.length) return;
+      amountMatches.slice(0, users.length).forEach((match, index) => {
+        ranges.push({
+          from: compact(match[1] || '0'),
+          to: compact(match[2] || match[3] || ''),
+          signer: users[index] || users[0],
+        });
+      });
+    });
+    return ranges.filter(range => range.to && range.signer).slice(0, 12);
   }
 
   function extractLegalEntitiesFromText(text) {
@@ -153,6 +237,9 @@
     const out = [];
     for (const match of source.matchAll(/\b(?:ООО|АО|ОАО|ПАО|ЗАО|ТОО)\s+[«"]?[^,;:\n\r()]{2,80}/giu)) out.push(match[0]);
     for (const match of source.matchAll(/[«"]?(?:Черкизово|Куриное Царство|ПКХП|Тамбовская Индейка)[^,;:\n\r()]{0,80}/giu)) out.push(match[0]);
+    COMPANY_ALIASES.forEach(item => {
+      if (item.aliases.some(alias => normalize(source).includes(normalize(alias)))) out.push(item.target);
+    });
     return unique(out).slice(0, 30);
   }
 
@@ -252,6 +339,44 @@
     return /^-?\d{3,}$/.test(compact(value));
   }
 
+  function looksLikePersonName(value) {
+    const words = stripId(value).split(/\s+/).filter(Boolean);
+    if (words.length < 2 || words.length > 3) return false;
+    return words.every(word => /^[A-ZА-ЯЁ][a-zа-яё-]+$/u.test(word));
+  }
+
+  function normalizedWords(value) {
+    return normalize(value).replace(/[^a-zа-яё0-9_-]+/gi, ' ').split(/\s+/).filter(Boolean);
+  }
+
+  function userTokenMatches(token, user, fio, login) {
+    if ((normalizedWords(fio) || []).some(word => word === token || word.startsWith(token))) return true;
+    if (login && login.includes(token)) return true;
+    const id = normalize(user.id || '');
+    return Boolean(id && id === token);
+  }
+
+  function isLikelyTechnicalUser(value) {
+    const raw = value && typeof value === 'object'
+      ? (value.fio || value.display || value.title || value.name || value.login || value.id || '')
+      : value;
+    const text = compact(raw);
+    if (!text || looksLikePersonName(text)) return false;
+    const key = normalize(text);
+    const hasLowercase = /[a-zа-яё]/u.test(text);
+    const hasLegalSuffix = /(^|\s)(ооо|ао|зао|оао|пао|ип|нко)(\s|$)/i.test(key);
+    const looksLikeRoleCode = /^[A-ZА-ЯЁ0-9\s()./-]+$/u.test(text) && !hasLowercase && text.split(/\s+/).filter(Boolean).length > 1;
+    if (hasLegalSuffix || looksLikeRoleCode || key.includes('орелсельпром')) return true;
+    return text.includes('_')
+      || /^(contracts?|contract)_/i.test(text)
+      || key.includes('архив')
+      || key.includes('обособленное подразделение')
+      || key.includes('акты сверки')
+      || key.includes('больничные листы')
+      || key.includes('contracts edit')
+      || key.includes('contracts see');
+  }
+
   function userObject(value, role, source) {
     const rawObject = value && typeof value === 'object' ? value : null;
     const raw = compact(rawObject ? (rawObject.title || rawObject.display || rawObject.fio || rawObject.name || rawObject.id || '') : value);
@@ -271,6 +396,7 @@
       role: role || '',
       source: source || 'matrix',
       unresolved: numeric,
+      technical: isLikelyTechnicalUser(rawObject || raw),
       display,
     };
   }
@@ -403,10 +529,14 @@
   };
 
   const UserResolver = {
+    search(input, dictionaries, limit) {
+      return userSearchCandidates(input, dictionaries, limit || 8);
+    },
     resolve(input, dictionaries) {
       const dict = dictionaries || DictionaryBuilder.build();
       const key = normalize(input);
       return (dict.users || []).find(user => normalize(user.fio) === key || normalize(user.display) === key || normalize(user.id) === key)
+        || userSearchCandidates(input, dict, 1)[0]
         || userObject(input, '', 'manual');
     },
   };
@@ -464,35 +594,59 @@
 
   const SignerFormsEngine = {
     build(payload = {}) {
-      const signer = compact(payload.newSigner || payload.signer || '');
-      const limit = compact(payload.limit || payload.rangeTo || '');
-      const amount = compact(payload.amount || (payload.unifiedRanges !== false ? limit : ''));
-      if (!signer || !limit || !amount) return [];
+      const ranges = Array.isArray(payload.ranges) && payload.ranges.length
+        ? payload.ranges.map(range => ({
+          from: compact(range.from || '0'),
+          to: compact(range.to || range.limit || payload.limit || payload.rangeTo || ''),
+          signer: compact(range.signer || range.newSigner || payload.newSigner || payload.signer || ''),
+          amount: compact(range.amount || payload.amount || range.to || payload.limit || payload.rangeTo || ''),
+        }))
+        : [{
+          from: compact(payload.from || '0'),
+          to: compact(payload.limit || payload.rangeTo || payload.to || ''),
+          signer: compact(payload.newSigner || payload.signer || ''),
+          amount: compact(payload.amount || payload.limit || payload.rangeTo || payload.to || ''),
+        }];
+      const validRanges = ranges.filter(range => range.signer && range.to && range.amount);
+      if (!validRanges.length) return [];
       const common = {
-        newSigner: signer,
         currentSigner: compact(payload.currentSigner || ''),
         legalEntities: parseList(payload.legalEntities || payload.legalEntity || ''),
         sites: parseList(payload.sites || payload.site || ''),
         conditions: payload.conditions || CONDITIONS_STANDARD,
         affiliation: REQUIRED_AFFILIATION,
+        direction: compact(payload.direction || ''),
+        functionName: compact(payload.functionName || payload.functions || ''),
+        category: compact(payload.category || ''),
       };
-      return [
-        Object.assign({}, common, { rowKey: 'main_limit_edo', rowGroup: 'main_contract_rows', documentTypes: DOC_GROUP_A.slice(), edoMode: 'edo', valueMode: 'limit', value: limit }),
-        Object.assign({}, common, { rowKey: 'main_limit_non_edo', rowGroup: 'main_contract_rows', documentTypes: DOC_GROUP_A.slice(), edoMode: 'non_edo', valueMode: 'limit', value: limit }),
-        Object.assign({}, common, { rowKey: 'supp_amount_edo', rowGroup: 'supplemental_rows', documentTypes: DOC_GROUP_B.slice(), edoMode: 'edo', valueMode: 'amount', value: amount }),
-        Object.assign({}, common, { rowKey: 'supp_amount_non_edo', rowGroup: 'supplemental_rows', documentTypes: DOC_GROUP_B.slice(), edoMode: 'non_edo', valueMode: 'amount', value: amount }),
-      ];
+      return validRanges.flatMap((range, rangeIndex) => {
+        const rangeCommon = Object.assign({}, common, {
+          newSigner: range.signer,
+          signer: range.signer,
+          from: range.from || '0',
+          to: range.to,
+        });
+        const suffix = validRanges.length === 1 ? '' : `_r${rangeIndex + 1}`;
+        return [
+          Object.assign({}, rangeCommon, { rowKey: `main_limit_edo${suffix}`, rowGroup: 'main_contract_rows', documentTypes: DOC_GROUP_A.slice(), edoMode: 'edo', valueMode: 'limit', value: range.to }),
+          Object.assign({}, rangeCommon, { rowKey: `main_limit_non_edo${suffix}`, rowGroup: 'main_contract_rows', documentTypes: DOC_GROUP_A.slice(), edoMode: 'non_edo', valueMode: 'limit', value: range.to }),
+          Object.assign({}, rangeCommon, { rowKey: `supp_amount_edo${suffix}`, rowGroup: 'supplemental_rows', documentTypes: DOC_GROUP_B.slice(), edoMode: 'edo', valueMode: 'amount', value: range.amount || range.to }),
+          Object.assign({}, rangeCommon, { rowKey: `supp_amount_non_edo${suffix}`, rowGroup: 'supplemental_rows', documentTypes: DOC_GROUP_B.slice(), edoMode: 'non_edo', valueMode: 'amount', value: range.amount || range.to }),
+        ];
+      });
     },
     toLegacyBundle(payload = {}) {
       const forms = SignerFormsEngine.build(payload);
+      const firstForm = forms[0] || {};
       return {
         type: 'add_signer_bundle',
         payload: Object.assign({}, payload, {
-          newSigner: compact(payload.newSigner || payload.signer || ''),
-          limit: compact(payload.limit || payload.rangeTo || ''),
-          amount: compact(payload.amount || payload.limit || payload.rangeTo || ''),
+          newSigner: compact(payload.newSigner || payload.signer || firstForm.newSigner || ''),
+          limit: compact(payload.limit || payload.rangeTo || firstForm.to || firstForm.value || ''),
+          amount: compact(payload.amount || payload.limit || payload.rangeTo || firstForm.to || firstForm.value || ''),
           affiliation: REQUIRED_AFFILIATION,
           signerForms: forms,
+          ranges: Array.isArray(payload.ranges) ? payload.ranges : [],
           documentTypeGroups: DocumentTypePresetEngine.groups(),
           conditions: payload.conditions || CONDITIONS_STANDARD,
         }),
@@ -516,36 +670,56 @@
     parse(text = '') {
       const target = api();
       const raw = String(text || '');
+      const dict = DictionaryBuilder.build();
       const parsed = target && state.original.parseRequestText ? state.original.parseRequestText(raw) : {};
       const classification = classifyRequestText(raw);
       const links = extractLinks(raw);
       const incident = raw.match(/\b(?:INC|#)?(\d{6,})\b/i);
-      const users = unique([].concat(parsed.extracted ? parsed.extracted.users || [] : []).concat(extractUsersFromText(raw)));
+      const knownUsers = extractKnownUsersFromText(raw, dict);
+      const users = unique([].concat(parsed.extracted ? parsed.extracted.users || [] : []).concat(knownUsers).concat(extractUsersFromText(raw)));
+      const roleUsers = {
+        signers: extractRoleUsersFromText(raw, /подписант|подписание/i, dict),
+        specialExperts: extractRoleUsersFromText(raw, /спец.?эксперт|эксперт/i, dict),
+        managers: extractRoleUsersFromText(raw, /руководител|директор/i, dict),
+        performers: extractRoleUsersFromText(raw, /исполнител|ответственн/i, dict),
+      };
+      const signerRanges = extractSignerRanges(raw, dict);
       const legalEntities = unique([].concat(parsed.extracted ? parsed.extracted.legalEntities || [] : []).concat(extractLegalEntitiesFromText(raw)));
       const docTypes = unique([].concat(parsed.extracted ? parsed.extracted.docTypes || [] : []).concat(extractDocTypesFromText(raw)));
       const amounts = unique([].concat(parsed.extracted ? parsed.extracted.amounts || [] : []).concat(extractAmounts(raw)));
       const limits = unique([].concat(parsed.extracted ? parsed.extracted.limits || [] : []).concat(amounts));
+      const direction = extractLabeledValue(raw, ['дирекция', 'направление']);
+      const functionName = extractLabeledValue(raw, ['функция', 'дф', 'дфк']);
+      const category = extractLabeledValue(raw, ['категория']);
+      const isDevelopmentProject = /дирекц\w*\s+развит|проект/i.test(raw);
       const missing = [];
-      if (/signer|подпис/i.test(classification.id) || classification.id === 'add_signer_forms') {
-        if (!users.length) missing.push('ФИО подписанта');
+      if (/signer|подпис/i.test(classification.id) || classification.id === 'add_signer_forms' || signerRanges.length || roleUsers.signers.length) {
+        if (!users.length && !roleUsers.signers.length && !signerRanges.length) missing.push('ФИО подписанта');
         if (!amounts.length) missing.push('диапазон суммы/лимита');
       }
       if (classification.id === 'add_doc_type' && !docTypes.length) missing.push('тип документа');
       if (classification.id === 'add_legal_entity' && !legalEntities.length) missing.push('ЮЛ / внутренняя компания');
       if (classification.id === 'route_diagnostics' && !links.length) missing.push('ссылка на карточку или лист согласования');
       const proposedOperations = [];
-      if (classification.id === 'add_signer_forms') {
+      if (classification.id === 'add_signer_forms' || signerRanges.length || roleUsers.signers.length) {
         proposedOperations.push({
           type: 'add_signer_forms',
           payload: {
-            newSigner: users[0] || '',
-            limit: amounts[0] || '',
-            amount: amounts[0] || '',
+            newSigner: (signerRanges[0] && signerRanges[0].signer) || roleUsers.signers[0] || users[0] || '',
+            signer: (signerRanges[0] && signerRanges[0].signer) || roleUsers.signers[0] || users[0] || '',
+            limit: (signerRanges[0] && signerRanges[0].to) || amounts[0] || '',
+            amount: (signerRanges[0] && signerRanges[0].amount) || amounts[0] || '',
+            ranges: signerRanges.length ? signerRanges : roleUsers.signers.map((signer, index) => ({ from: index === 0 ? '0' : '', to: amounts[index] || amounts[0] || '', amount: amounts[index] || amounts[0] || '', signer })),
             legalEntities,
+            direction,
+            functionName,
+            category,
             conditions: CONDITIONS_STANDARD,
             affiliation: REQUIRED_AFFILIATION,
           },
         });
+        roleUsers.specialExperts.forEach(user => proposedOperations.push({ type: 'replace_special_expert', payload: { newApprover: user, role: 'Спецэксперт', legalEntities, direction, functionName, category } }));
+        roleUsers.managers.forEach(user => proposedOperations.push({ type: 'replace_manager', payload: { newApprover: user, role: 'Руководитель', legalEntities, direction, functionName, category } }));
       } else if (classification.id === 'add_doc_type') {
         proposedOperations.push({ type: 'add_doc_type_to_matching_rows', payload: { newDocType: docTypes[0] || '', requiredDocTypes: docTypes, matchMode: 'all', affiliation: REQUIRED_AFFILIATION } });
       } else if (classification.id === 'add_legal_entity') {
@@ -555,9 +729,22 @@
       } else if (classification.id === 'create_category') {
         proposedOperations.push({ type: 'create_category_from_template', payload: { rawText: raw, legalEntities, docTypes, affiliation: REQUIRED_AFFILIATION } });
       }
+      if (isDevelopmentProject) {
+        proposedOperations.push({
+          type: 'create_development_project',
+          payload: {
+            project: extractLabeledValue(raw, ['проект']) || '',
+            categories: DEVELOPMENT_CATEGORIES.slice(),
+            legalEntities,
+            direction: direction || 'Дирекция развития',
+            functionName,
+            affiliation: REQUIRED_AFFILIATION,
+          },
+        });
+      }
       return Object.assign({}, parsed, {
-        caseType: parsed.caseType || classification.id,
-        confidence: Math.max(Number(parsed.confidence) || 0, classification.score || 0),
+        caseType: parsed.caseType || (isDevelopmentProject ? 'development_project' : classification.id),
+        confidence: Math.min(0.98, Math.max(Number(parsed.confidence) || 0, classification.score || 0) + (signerRanges.length ? 0.12 : 0) + (roleUsers.specialExperts.length || roleUsers.managers.length ? 0.08 : 0)),
         links,
         incidentId: incident ? incident[1] : '',
         missing,
@@ -569,12 +756,22 @@
         understood: {
           requestType: parsed.caseType || classification.label,
           users,
+          signers: roleUsers.signers,
+          specialExperts: roleUsers.specialExperts,
+          managers: roleUsers.managers,
+          signerRanges,
           legalEntities,
           docTypes,
           limits,
           amounts,
           links,
           incidentId: incident ? incident[1] : '',
+          direction,
+          functionName,
+          category,
+          defaultConditions: CONDITIONS_STANDARD.slice(),
+          documentTypeGroups: DocumentTypePresetEngine.groups(),
+          developmentProjectCategories: isDevelopmentProject ? DEVELOPMENT_CATEGORIES.slice() : [],
         },
       });
     },
@@ -743,32 +940,34 @@
     const style = document.createElement('style');
     style.id = 'otk-style';
     style.textContent = `
-      #mc-panel.otk-shell-active{width:min(720px,calc(100vw - 28px));border:1px solid #d7dce2;box-shadow:0 18px 48px rgba(15,23,42,.24);background:#f6f7f9;color:#17202a}
-      #mc-panel.otk-shell-active .mc-head,#mc-panel.otk-shell-active #mc-stats{display:none!important}
-      #mc-panel.otk-shell-active .otk-close{display:block!important;position:static!important;width:34px;height:32px;border:1px solid #c6ccd4!important;background:#fff!important;color:#17202a!important;border-radius:6px!important;font-size:20px!important;line-height:28px!important;box-shadow:none!important;margin:0!important;padding:0!important}
-      #mc-panel.otk-shell-active .mc-body{padding:0;max-height:calc(100vh - 90px);background:#f6f7f9}
+      #mc-panel.otk-shell-active{width:min(920px,calc(100vw - 28px));border:0;box-shadow:0 24px 70px rgba(15,23,42,.30);background:#eef3f8;color:#17202a;border-radius:8px;overflow:hidden}
+      #mc-panel.otk-shell-active .mc-head,#mc-panel.otk-shell-active #mc-stats,#mc-panel.otk-shell-active .mc-logtools,#mc-panel.otk-shell-active #mc-log,#mc-panel.otk-shell-active .mc-logbox{display:none!important}
+      #mc-panel.otk-shell-active .otk-close{display:block!important;position:static!important;width:34px;height:32px;border:1px solid rgba(255,255,255,.22)!important;background:rgba(255,255,255,.10)!important;color:#fff!important;border-radius:8px!important;font-size:20px!important;line-height:28px!important;box-shadow:none!important;margin:0!important;padding:0!important}
+      #mc-panel.otk-shell-active .mc-body{padding:0;max-height:calc(100vh - 90px);background:#eef3f8}
       #mc-root.otk-clean > :not([data-role="otk-root"]) { display:none !important; }
-      [data-role="otk-root"]{font-family:Arial,sans-serif;color:#17202a;background:#f6f7f9;margin:0;padding:0;max-width:none}
-      .otk-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:16px 18px 12px;border-bottom:1px solid #e3e7ec;background:#fff}
-      .otk-title{font-size:20px;font-weight:800;line-height:1.15}.otk-sub{font-size:12px;color:#667085;margin-top:4px}.otk-menu-wrap{position:relative}
-      .otk-icon-btn{border:1px solid #c6ccd4;background:#fff;color:#17202a;width:34px;height:32px;cursor:pointer;font-weight:800;border-radius:6px}
-      .otk-menu{position:absolute;right:0;top:38px;background:#fff;border:1px solid #d7dce2;box-shadow:0 12px 32px rgba(15,23,42,.16);z-index:3;min-width:210px;padding:6px;display:grid;gap:4px;border-radius:6px}
+      [data-role="otk-root"]{font-family:Inter,Segoe UI,Arial,sans-serif;color:#17202a;background:#eef3f8;margin:0;padding:0;max-width:none}
+      .otk-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:18px 20px 16px;border-bottom:1px solid rgba(255,255,255,.14);background:#111827;color:#fff}
+      .otk-title{font-size:22px;font-weight:800;line-height:1.12;letter-spacing:0}.otk-sub{font-size:12px;color:#cbd5e1;margin-top:5px}.otk-menu-wrap{position:relative;margin-left:auto}
+      .otk-icon-btn{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.10);color:#fff;width:34px;height:32px;cursor:pointer;font-weight:800;border-radius:8px}
+      .otk-menu{position:absolute;right:0;top:38px;background:#fff;border:1px solid #d7dce2;box-shadow:0 18px 44px rgba(15,23,42,.22);z-index:10;min-width:230px;padding:8px;display:grid;gap:4px;border-radius:8px;color:#17202a}
       .otk-menu[hidden]{display:none}.otk-menu button{border:0;background:#fff;text-align:left;padding:8px;font-size:12px;cursor:pointer;border-radius:4px}.otk-menu button:hover{background:#f1f4f8}
-      .otk-status{padding:10px 18px;border-bottom:1px solid #e3e7ec;font-size:12px;display:flex;gap:8px;flex-wrap:wrap;background:#fff}.otk-pill{border:1px solid #d7dce2;background:#f9fafb;padding:3px 8px;border-radius:999px;color:#344054}
-      .otk-scenario{padding:14px 18px;border-bottom:1px solid #e3e7ec;display:grid;gap:6px;background:#fff}.otk-scenario label{font-size:12px;font-weight:800}.otk-select,.otk-input,.otk-textarea{box-sizing:border-box;width:100%;border:1px solid #c6ccd4;background:#fff;color:#17202a;padding:8px 9px;font-size:13px;border-radius:6px}
-      .otk-textarea{resize:vertical;min-height:72px}.otk-help{font-size:11px;color:#667085;line-height:1.35}.otk-span-2{grid-column:1/-1}
-      .otk-body{display:grid;grid-template-columns:1fr;gap:12px;padding:14px 18px}.otk-left{min-width:0}.otk-right{position:static;display:grid;gap:10px}
-      .otk-card{border:1px solid #e1e6ec;background:#fff;padding:14px;display:grid;gap:12px;border-radius:8px}.otk-card h3{font-size:15px;margin:0}.otk-screen{display:grid;gap:12px}.otk-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.otk-form label{display:grid;gap:4px;font-size:12px;color:#344054;font-weight:700}
-      .otk-subsection{border:1px solid #edf0f3;background:#fbfcfd;padding:12px;display:grid;gap:10px;border-radius:8px}.otk-subsection h4{font-size:13px;margin:0}.otk-form-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.otk-form-tile{border:1px solid #dfe5eb;background:#fff;padding:9px;border-radius:8px;font-size:12px;display:grid;gap:5px}.otk-form-tile b{font-size:12px}.otk-form-tile small{color:#667085;line-height:1.35}
-      .otk-screen[hidden]{display:none}.otk-actions{display:flex;flex-wrap:wrap;gap:8px}.otk-actions button{border:1px solid #111827;background:#111827;color:#fff;padding:9px 12px;font-size:13px;cursor:pointer;border-radius:6px;font-weight:800}.otk-actions button.secondary{background:#fff;color:#17202a;border-color:#c6ccd4}
-      .otk-chips{display:flex;flex-wrap:wrap;gap:5px;min-height:24px}.otk-chip{border:1px solid #d0d6de;background:#f9fafb;padding:4px 7px;border-radius:999px;font-size:11px;max-width:100%;overflow-wrap:anywhere}.otk-chip.warn{border-color:#f1b8b8;background:#fff4f4;color:#8a1f1f}.otk-chip.ok{border-color:#b7dfc2;background:#f0fff4;color:#166534}
+      .otk-status{padding:12px 20px 0;font-size:12px;display:flex;gap:8px;flex-wrap:wrap;background:#eef3f8}.otk-pill{border:1px solid #d7dfe8;background:#fff;padding:5px 10px;border-radius:999px;color:#344054;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+      .otk-scenario{padding:14px 20px 8px;display:grid;gap:8px;background:#eef3f8}.otk-scenario label{font-size:12px;font-weight:800;color:#334155}.otk-select,.otk-input,.otk-textarea{box-sizing:border-box;width:100%;border:1px solid #c8d2df;background:#fff;color:#17202a;padding:10px 11px;font-size:13px;border-radius:8px;outline:none}.otk-select:focus,.otk-input:focus,.otk-textarea:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.13)}
+      .otk-textarea{resize:vertical;min-height:76px}.otk-help{font-size:11px;color:#64748b;line-height:1.35}.otk-span-2{grid-column:1/-1}
+      .otk-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;padding:12px 20px 18px}.otk-left{min-width:0}.otk-right{position:sticky;top:12px;align-self:start;display:grid;gap:12px}
+      .otk-card{border:1px solid #dce4ee;background:#fff;padding:16px;display:grid;gap:14px;border-radius:8px;box-shadow:0 10px 30px rgba(15,23,42,.08)}.otk-card h3{font-size:16px;margin:0;color:#0f172a}.otk-screen{display:grid;gap:14px}.otk-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.otk-form label{display:grid;gap:5px;font-size:12px;color:#334155;font-weight:700}
+      .otk-subsection{border:1px solid #e3eaf2;background:#f8fafc;padding:13px;display:grid;gap:11px;border-radius:8px}.otk-subsection h4{font-size:13px;margin:0;color:#0f172a}.otk-form-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.otk-form-tile{border:1px solid #dbe5f0;background:#fff;padding:10px;border-radius:8px;font-size:12px;display:grid;gap:6px;box-shadow:0 1px 2px rgba(15,23,42,.04)}.otk-form-tile b{font-size:12px}.otk-form-tile small{color:#64748b;line-height:1.35}
+      .otk-screen[hidden]{display:none}.otk-actions{display:flex;flex-wrap:wrap;gap:9px}.otk-actions button{border:1px solid #0f172a;background:#0f172a;color:#fff;padding:10px 13px;font-size:13px;cursor:pointer;border-radius:8px;font-weight:800}.otk-actions button:hover{background:#1e293b}.otk-actions button.secondary{background:#fff;color:#17202a;border-color:#c8d2df}.otk-actions button.secondary:hover{background:#f8fafc}
+      .otk-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:25px}.otk-chip{border:1px solid #d0dae6;background:#fff;padding:5px 8px;border-radius:999px;font-size:11px;max-width:100%;overflow-wrap:anywhere;box-shadow:0 1px 2px rgba(15,23,42,.03)}.otk-chip.warn{border-color:#f1b8b8;background:#fff4f4;color:#8a1f1f}.otk-chip.ok{border-color:#9fd8bd;background:#effcf5;color:#166534}
       .otk-kv{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #eee;padding-bottom:4px}.otk-kv span{color:#555}.otk-kv strong{text-align:right}
-      .otk-preview-list{display:grid;gap:6px;max-height:260px;overflow:auto}.otk-preview-row{border:1px solid #e1e6ec;padding:8px;font-size:12px;border-radius:6px;background:#fff}.otk-preview-row.ok{border-left:4px solid #1f7a1f}.otk-preview-row.warn{border-left:4px solid #9a6a00}.otk-preview-row.skip{border-left:4px solid #777}
-      .otk-log-drawer{border-top:1px solid #e3e7ec;padding:10px 18px;background:#fff}.otk-log-body{border:1px solid #e1e6ec;background:#fbfcfd;max-height:220px;overflow:auto;padding:8px;font-size:11px;margin-top:6px;border-radius:8px}.otk-log-line{padding:2px 0;border-bottom:1px solid #eee}
-      .otk-range{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:6px}.otk-table{width:100%;border-collapse:collapse;font-size:11px}.otk-table th,.otk-table td{border:1px solid #ddd;padding:4px;text-align:left}
+      .otk-preview-list{display:grid;gap:7px;max-height:300px;overflow:auto}.otk-preview-row{border:1px solid #dce4ee;padding:9px;font-size:12px;border-radius:8px;background:#fff}.otk-preview-row.ok{border-left:4px solid #159447}.otk-preview-row.warn{border-left:4px solid #b7791f}.otk-preview-row.skip{border-left:4px solid #64748b}
+      .otk-log-drawer{border-top:1px solid #dce4ee;padding:11px 20px;background:#fff}.otk-log-drawer .otk-icon-btn{background:#fff;color:#17202a;border-color:#c8d2df}.otk-log-body{border:1px solid #dce4ee;background:#f8fafc;max-height:230px;overflow:auto;padding:9px;font-size:11px;margin-top:7px;border-radius:8px}.otk-log-line{padding:2px 0;border-bottom:1px solid #eee}
+      .otk-range{display:grid;grid-template-columns:1fr 1fr 1.35fr;gap:8px}.otk-table{width:100%;border-collapse:collapse;font-size:11px}.otk-table th,.otk-table td{border:1px solid #ddd;padding:4px;text-align:left}
+      .otk-ac-wrap{position:relative}.otk-ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:#fff;border:1px solid #c8d2df;border-radius:8px;box-shadow:0 16px 34px rgba(15,23,42,.18);max-height:260px;overflow:auto;padding:5px}.otk-ac-list[hidden]{display:none}.otk-ac-item{width:100%;border:0;background:#fff;text-align:left;padding:8px;border-radius:6px;cursor:pointer;display:grid;gap:2px;color:#17202a}.otk-ac-item:hover,.otk-ac-item.active{background:#eff6ff}.otk-ac-item b{font-size:12px}.otk-ac-item small{font-size:11px;color:#64748b}.otk-ac-empty{padding:9px;color:#8a1f1f;font-size:12px}
       .mc-v8-create-preview{margin-top:6px}
       .otk-tech{font-size:11px;color:#98a2b3}
-      @media(max-width:620px){#mc-panel.otk-shell-active{width:calc(100vw - 16px);right:8px;bottom:58px}.otk-form,.otk-form-tiles,.otk-range{grid-template-columns:1fr}.otk-head{display:block}.otk-menu-wrap{margin-top:8px}.otk-body,.otk-head,.otk-status,.otk-scenario,.otk-log-drawer{padding-left:12px;padding-right:12px}}
+      @media(max-width:860px){.otk-body{grid-template-columns:1fr}.otk-right{position:static}.otk-form,.otk-form-tiles,.otk-range{grid-template-columns:1fr}}
+      @media(max-width:620px){#mc-panel.otk-shell-active{width:calc(100vw - 16px);right:8px;bottom:58px}.otk-head{display:flex}.otk-body,.otk-head,.otk-status,.otk-scenario,.otk-log-drawer{padding-left:12px;padding-right:12px}}
     `;
     document.head.appendChild(style);
   }
@@ -781,6 +980,105 @@
       option.value = typeof value === 'string' ? value : (value.display || value.fio || value.name || '');
       list.appendChild(option);
     });
+  }
+
+  function labelForAutocompleteItem(item) {
+    if (!item) return '';
+    if (typeof item === 'string') return item;
+    return item.fio || item.display || item.name || item.title || item.id || '';
+  }
+
+  function detailForAutocompleteItem(item) {
+    if (!item || typeof item === 'string') return '';
+    return [item.position, item.login || item.id, item.role, item.source].filter(Boolean).join(' · ');
+  }
+
+  function attachAutocomplete(input, getItems, onSelect) {
+    if (!input) return;
+    input._otkAutocompleteItems = getItems;
+    if (input.dataset.otkAcReady === '1') return;
+    input.dataset.otkAcReady = '1';
+    const wrap = document.createElement('div');
+    wrap.className = 'otk-ac-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const list = document.createElement('div');
+    list.className = 'otk-ac-list';
+    list.hidden = true;
+    wrap.appendChild(list);
+    const hide = () => { list.hidden = true; };
+    const render = () => {
+      const query = input.value;
+      const items = (input._otkAutocompleteItems ? input._otkAutocompleteItems(query) : []).slice(0, 8);
+      list.innerHTML = '';
+      if (!query || query.length < 2) {
+        hide();
+        return;
+      }
+      if (!items.length) {
+        list.innerHTML = '<div class="otk-ac-empty">Ничего не найдено</div>';
+        list.hidden = false;
+        return;
+      }
+      items.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'otk-ac-item';
+        button.innerHTML = `<b>${escapeHtml(labelForAutocompleteItem(item))}</b><small>${escapeHtml(detailForAutocompleteItem(item))}</small>`;
+        button.addEventListener('mousedown', event => {
+          event.preventDefault();
+          onSelect(item, input);
+          hide();
+        });
+        list.appendChild(button);
+      });
+      list.hidden = false;
+    };
+    input.addEventListener('input', render);
+    input.addEventListener('focus', render);
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Escape') hide();
+      if (event.key === 'Enter' && !list.hidden) {
+        const first = list.querySelector('.otk-ac-item');
+        if (first) {
+          event.preventDefault();
+          first.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        }
+      }
+    });
+    document.addEventListener('mousedown', event => {
+      if (!wrap.contains(event.target)) hide();
+    });
+  }
+
+  function setupAutocomplete(shell, dict) {
+    shell.querySelectorAll('[data-user-autocomplete]').forEach(input => {
+      attachAutocomplete(input, query => UserResolver.search(query, dict, 8), (user, target) => {
+        target.value = user.fio || user.display || '';
+        target.dataset.userId = user.id || '';
+        target.dataset.userDisplay = user.display || user.fio || '';
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+    const appendLegal = (textareaRole, chipRenderer) => (item, target) => {
+      const textarea = shell.querySelector(`[data-role="${textareaRole}"]`);
+      const current = parseList(textarea.value);
+      const value = labelForAutocompleteItem(item);
+      textarea.value = unique(current.concat(value)).join(', ');
+      target.value = '';
+      const resolved = LegalEntityResolver.resolve(textarea.value, DictionaryBuilder.build());
+      chipRenderer(resolved);
+    };
+    attachAutocomplete(shell.querySelector('[data-role="otk-signer-legal-search"]'), query => {
+      const q = normalize(query);
+      if (!q) return [];
+      return (dict.legalEntities || []).filter(item => normalize(item).includes(q)).slice(0, 10);
+    }, appendLegal('otk-legal-input', resolved => renderSignerLegalResolution(shell, resolved)));
+    attachAutocomplete(shell.querySelector('[data-role="otk-legal-search"]'), query => {
+      const q = normalize(query);
+      if (!q) return [];
+      return (dict.legalEntities || []).filter(item => normalize(item).includes(q)).slice(0, 10);
+    }, appendLegal('otk-legal-paste', resolved => renderLegalResolution(shell, resolved)));
   }
 
   function contextLabel(context) {
@@ -864,6 +1162,28 @@
     return root.querySelector('[data-role="otk-scenario"]').value;
   }
 
+  function resolveUserInput(input, dict) {
+    if (!input) return '';
+    const resolved = UserResolver.resolve(input.value, dict);
+    return resolved && !resolved.unresolved ? resolved.fio : compact(input.value);
+  }
+
+  function collectSignerRanges(root, dict) {
+    const amountFallback = root.querySelector('[data-role="otk-amount-to"]');
+    return Array.from(root.querySelectorAll('[data-role="otk-range-line"]')).map(line => {
+      const fromInput = line.querySelector('[data-range-field="from"], [data-role="otk-range-from"]');
+      const toInput = line.querySelector('[data-range-field="to"], [data-role="otk-range-to"]');
+      const signerInput = line.querySelector('[data-range-field="signer"], [data-role="otk-range-signer"]');
+      const to = compact(toInput && toInput.value);
+      return {
+        from: compact(fromInput && fromInput.value) || '0',
+        to,
+        amount: root.querySelector('[data-role="otk-unified-range"]').checked ? to : compact(amountFallback && amountFallback.value),
+        signer: resolveUserInput(signerInput, dict),
+      };
+    }).filter(range => range.to || range.signer);
+  }
+
   function buildOperation(root) {
     const scenario = activeScreen(root);
     const dict = DictionaryBuilder.build();
@@ -877,20 +1197,21 @@
       const resolvedLegal = LegalEntityResolver.resolve(field('otk-legal-input').value, dict);
       renderSignerLegalResolution(root, resolvedLegal);
       const manualSites = parseList(field('otk-site-input').value);
-      const signerName = field('otk-range-signer').value || field('otk-new-signer').value;
-      const rangeTo = field('otk-range-to').value;
-      const amountTo = field('otk-unified-range').checked ? rangeTo : field('otk-amount-to').value;
+      const ranges = collectSignerRanges(root, dict);
+      const signerName = resolveUserInput(field('otk-new-signer'), dict) || (ranges[0] && ranges[0].signer) || resolveUserInput(field('otk-range-signer'), dict);
+      const rangeTo = (ranges[0] && ranges[0].to) || field('otk-range-to').value;
+      const amountTo = (ranges[0] && ranges[0].amount) || (field('otk-unified-range').checked ? rangeTo : field('otk-amount-to').value);
       return {
         type: 'add_signer_forms',
         payload: Object.assign({}, common, {
-          currentSigner: field('otk-current-signer').value,
-          newSigner: field('otk-new-signer').value,
+          currentSigner: resolveUserInput(field('otk-current-signer'), dict),
+          newSigner: signerName,
           signer: signerName,
           limit: rangeTo,
           amount: amountTo,
           from: field('otk-range-from').value,
           to: rangeTo,
-          ranges: [{ from: field('otk-range-from').value, to: rangeTo, signer: signerName }],
+          ranges: ranges.length ? ranges : [{ from: field('otk-range-from').value, to: rangeTo, amount: amountTo, signer: signerName }],
           legalEntities: resolvedLegal.legalEntities,
           sites: unique([].concat(resolvedLegal.sites || []).concat(manualSites)),
           direction: field('otk-direction').value,
@@ -905,8 +1226,8 @@
       return {
         type: field('otk-approver-mode').value,
         payload: Object.assign({}, common, {
-          currentApprover: field('otk-current-user').value,
-          newApprover: field('otk-new-user').value,
+          currentApprover: resolveUserInput(field('otk-current-user'), dict),
+          newApprover: resolveUserInput(field('otk-new-user'), dict),
           role: field('otk-approver-role').value,
           legalEntity: field('otk-approver-legal').value,
         }),
@@ -1004,9 +1325,10 @@
           <div class="otk-card"><h3 data-role="otk-active-title">Подписанты</h3>
             <div data-screen="signers" class="otk-screen">
               <div class="otk-form">
-                <label>Новый подписант<input class="otk-input" data-role="otk-new-signer" list="otk-users"></label>
-                <label>Текущий подписант<input class="otk-input" data-role="otk-current-signer" list="otk-users"></label>
+                <label>Новый подписант<input class="otk-input" data-role="otk-new-signer" data-user-autocomplete="signer" placeholder="Начните вводить фамилию"></label>
+                <label>Текущий подписант<input class="otk-input" data-role="otk-current-signer" data-user-autocomplete="signer" placeholder="Опционально для замены"></label>
                 <label class="otk-span-2">Компании Черкизово
+                  <input class="otk-input" data-role="otk-signer-legal-search" placeholder="Найти компанию в словаре и добавить в список">
                   <textarea class="otk-textarea" data-role="otk-legal-input" rows="3" placeholder="Черкизово-Масла, Черкизово-Свиноводство, Куриное Царство, ПКХП..."></textarea>
                   <small class="otk-help">Можно вставить списком через запятую. Филиалы не попадут в ЮЛ: они будут предложены как площадки/ОП.</small>
                 </label>
@@ -1023,7 +1345,10 @@
                 <label>Условия применения<input class="otk-input" value="${escapeHtml(CONDITIONS_STANDARD.join('; '))}" readonly></label>
               </div>
               <div class="otk-subsection"><h4>Диапазоны подписания</h4>
-                <div class="otk-range"><input class="otk-input" data-role="otk-range-from" value="0"><input class="otk-input" data-role="otk-range-to" placeholder="До"><input class="otk-input" data-role="otk-range-signer" list="otk-users" placeholder="Подписант"></div>
+                <div data-role="otk-range-list">
+                  <div class="otk-range otk-range-line" data-role="otk-range-line"><input class="otk-input" data-role="otk-range-from" data-range-field="from" value="0"><input class="otk-input" data-role="otk-range-to" data-range-field="to" placeholder="До"><input class="otk-input" data-role="otk-range-signer" data-range-field="signer" data-user-autocomplete="signer" placeholder="Подписант"></div>
+                </div>
+                <div class="otk-actions"><button type="button" class="secondary" data-role="otk-add-range">Добавить диапазон</button></div>
                 <label><input type="checkbox" data-role="otk-unified-range" checked> Применять эти диапазоны и как лимит, и как сумму</label>
                 <div data-role="otk-split-ranges" hidden><input class="otk-input" data-role="otk-amount-to" placeholder="Сумма до"></div>
                 <div class="otk-chips"><span class="otk-chip">4 формы стандарт</span><span class="otk-chip">Основной пакет</span><span class="otk-chip">Подчинённый пакет</span></div>
@@ -1042,8 +1367,8 @@
               <div class="otk-form">
                 <label>Режим<select class="otk-select" data-role="otk-approver-mode"><option value="replace_approver">Замена согласующего</option><option value="replace_special_expert">Замена спецэксперта</option><option value="replace_manager">Замена руководителя</option><option value="remove_approver">Удаление согласующего</option></select></label>
                 <label>Роль<input class="otk-input" data-role="otk-approver-role"></label>
-                <label>Текущий пользователь<input class="otk-input" data-role="otk-current-user" list="otk-users"></label>
-                <label>Новый пользователь<input class="otk-input" data-role="otk-new-user" list="otk-users"></label>
+                <label>Текущий пользователь<input class="otk-input" data-role="otk-current-user" data-user-autocomplete="approver"></label>
+                <label>Новый пользователь<input class="otk-input" data-role="otk-new-user" data-user-autocomplete="approver"></label>
                 <label>ЮЛ<input class="otk-input" data-role="otk-approver-legal" list="otk-legal"></label>
               </div>
             </div>
@@ -1058,7 +1383,7 @@
             </div>
             <div data-screen="legal" class="otk-screen" hidden>
               <div class="otk-form">
-                <label>ЮЛ списком<textarea class="otk-textarea" data-role="otk-legal-paste" rows="4" placeholder="Черкизово-Масла, Куриное Царство, ПКХП..."></textarea></label>
+                <label>ЮЛ списком<input class="otk-input" data-role="otk-legal-search" placeholder="Найти ЮЛ в словаре и добавить"><textarea class="otk-textarea" data-role="otk-legal-paste" rows="4" placeholder="Черкизово-Масла, Куриное Царство, ПКХП..."></textarea></label>
                 <label>Куда добавить<select class="otk-select" data-role="otk-legal-row-group"><option value="all">Все найденные строки</option><option value="main_contract_rows">Основной пакет</option><option value="supplemental_rows">Подчинённый пакет</option></select></label>
                 <label>Фильтр по типам документов<input class="otk-input" data-role="otk-legal-required-docs" list="otk-docs"></label>
               </div>
@@ -1129,6 +1454,7 @@
     fillOptions(shell.querySelector('#otk-directions'), dict.directions);
     fillOptions(shell.querySelector('#otk-functions'), dict.functions);
     fillOptions(shell.querySelector('#otk-categories'), dict.categories);
+    setupAutocomplete(shell, dict);
 
     const scenario = shell.querySelector('[data-role="otk-scenario"]');
     scenario.value = defaultScenario(context);
@@ -1154,6 +1480,7 @@
       fillOptions(shell.querySelector('#otk-legal'), fresh.legalEntities);
       fillOptions(shell.querySelector('#otk-sites'), fresh.sites);
       fillOptions(shell.querySelector('#otk-docs'), fresh.docTypes);
+      setupAutocomplete(shell, fresh);
       log(`Словари обновлены: ЮЛ ${fresh.legalEntities.length}, пользователи ${fresh.users.length}.`, 'info');
     });
     shell.querySelector('[data-role="otk-unified-range"]').addEventListener('change', event => {
@@ -1168,6 +1495,16 @@
       const resolved = LegalEntityResolver.resolve(shell.querySelector('[data-role="otk-legal-input"]').value, DictionaryBuilder.build());
       renderSignerLegalResolution(shell, resolved);
       log(`Для подписантов распознано ЮЛ ${resolved.legalEntities.length}, ОП ${resolved.sites.length}, конфликтов ${resolved.conflicts.length}.`, resolved.conflicts.length ? 'warn' : 'info');
+    });
+    shell.querySelector('[data-role="otk-add-range"]').addEventListener('click', () => {
+      const list = shell.querySelector('[data-role="otk-range-list"]');
+      const line = document.createElement('div');
+      line.className = 'otk-range otk-range-line';
+      line.setAttribute('data-role', 'otk-range-line');
+      line.innerHTML = '<input class="otk-input" data-range-field="from" placeholder="От"><input class="otk-input" data-range-field="to" placeholder="До"><input class="otk-input" data-range-field="signer" data-user-autocomplete="signer" placeholder="Подписант">';
+      list.appendChild(line);
+      setupAutocomplete(shell, DictionaryBuilder.build());
+      line.querySelector('[data-range-field="from"]').focus();
     });
     shell.querySelector('[data-role="otk-build"]').addEventListener('click', () => {
       state.lastOperation = buildOperation(shell);
@@ -1209,9 +1546,14 @@
             <div class="otk-kv"><span>Тип запроса</span><strong>${escapeHtml(understood.requestType || parsed.caseType || 'manual_review')}</strong></div>
             <div class="otk-kv"><span>Уверенность</span><strong>${escapeHtml(Math.round((parsed.confidence || 0) * 100))}%</strong></div>
             <div><small>Пользователи</small><div class="otk-chips">${line(understood.users)}</div></div>
+            <div><small>Подписанты</small><div class="otk-chips">${line(understood.signers)}</div></div>
+            <div><small>Спецэксперты</small><div class="otk-chips">${line(understood.specialExperts)}</div></div>
+            <div><small>Руководители</small><div class="otk-chips">${line(understood.managers)}</div></div>
             <div><small>ЮЛ / компании</small><div class="otk-chips">${line(understood.legalEntities)}</div></div>
             <div><small>Типы документов</small><div class="otk-chips">${line(understood.docTypes)}</div></div>
             <div><small>Суммы / лимиты</small><div class="otk-chips">${line((understood.amounts || []).concat(understood.limits || []))}</div></div>
+            <div><small>Диапазоны</small><div class="otk-chips">${line((understood.signerRanges || []).map(range => `${range.from || '0'} → ${range.to}: ${range.signer}`))}</div></div>
+            <div><small>Дирекция / функция / категория</small><div class="otk-chips">${line([understood.direction, understood.functionName, understood.category].filter(Boolean))}</div></div>
             <div><small>Ссылки</small><div class="otk-chips">${line(understood.links)}</div></div>
           </div>
           <div class="otk-card">

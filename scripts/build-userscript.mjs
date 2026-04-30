@@ -31,6 +31,22 @@ async function main() {
   }
   const toolkitBlock = toolkitSource.trimEnd();
   const toolkitBanner = '/* ===== OpenText Toolkit human-first runtime (generated) ===== */';
+  const v8Block = v8Source.trimEnd();
+  const v8Banner = '/* ===== Matrix Cleaner v8 runtime (generated) ===== */';
+  const legacyV8BannerMatch = legacySource.match(/\/\* ===== Matrix Cleaner v8 runtime[^\n]*===== \*\//);
+  if (v8Block && legacyV8BannerMatch) {
+    const v8Start = legacyV8BannerMatch.index;
+    const before = legacySource.slice(0, v8Start).trimEnd();
+    const afterStart = legacySource.indexOf(toolkitBanner);
+    const after = afterStart >= 0 ? legacySource.slice(afterStart).trimStart() : '';
+    legacySource = `${before}\n\n${v8Banner}\n${v8Block}\n${after ? `\n\n${after}` : ''}\n`;
+    await fs.writeFile(legacyPath, legacySource, 'utf8');
+    process.stdout.write(`Updated v8 source: ${legacyPath}\n`);
+  } else if (v8Block && !legacySource.includes('__OT_MATRIX_CLEANER_V8_RUNTIME__')) {
+    legacySource = `${legacySource.trimEnd()}\n\n${v8Banner}\n${v8Block}\n`;
+    await fs.writeFile(legacyPath, legacySource, 'utf8');
+    process.stdout.write(`Added v8 source: ${legacyPath}\n`);
+  }
   if (toolkitBlock && legacySource.includes(toolkitBanner)) {
     legacySource = `${legacySource.slice(0, legacySource.indexOf(toolkitBanner)).trimEnd()}\n\n${toolkitBanner}\n${toolkitBlock}\n`;
     await fs.writeFile(legacyPath, legacySource, 'utf8');
@@ -43,8 +59,8 @@ async function main() {
   let merged = extensionSource
     ? `${legacySource}\n\n/* ===== Matrix Cleaner compatibility extension (generated) ===== */\n${extensionSource}\n`
     : legacySource;
-  if (v8Source && !merged.includes('__OT_MATRIX_CLEANER_V8_RUNTIME__')) {
-    merged = `${merged}\n\n/* ===== Matrix Cleaner v8 runtime (generated) ===== */\n${v8Source}\n`;
+  if (v8Block && !merged.includes('__OT_MATRIX_CLEANER_V8_RUNTIME__')) {
+    merged = `${merged}\n\n${v8Banner}\n${v8Block}\n`;
   }
   if (toolkitBlock && !merged.includes('__OPENTEXT_TOOLKIT_RUNTIME__')) {
     merged = `${merged.trimEnd()}\n\n/* ===== OpenText Toolkit human-first runtime (generated) ===== */\n${toolkitBlock}\n`;

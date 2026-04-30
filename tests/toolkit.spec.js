@@ -32,9 +32,11 @@ test('toolkit hides legacy Matrix Cleaner chrome in operator mode', async ({ pag
   await loadToolkit(page, MATRIX_HTML);
   await expect(page.locator('#mc-panel .mc-head-left')).toBeHidden();
   await expect(page.locator('#mc-stats')).toBeHidden();
+  await expect(page.locator('#mc-panel .mc-logtools')).toBeHidden();
+  await expect(page.locator('#mc-log')).toBeHidden();
   await expect(page.locator('#mc-panel [data-role="close"]')).toBeVisible();
   const panelText = await page.locator('#mc-panel').innerText();
-  expect(panelText).not.toMatch(/Matrix Cleaner 8\.0\.0|RISK:\s*OK/i);
+  expect(panelText).not.toMatch(/Matrix Cleaner 8\.0\.0|RISK:\s*OK|Log:\s*all|Log:\s*ambiguous/i);
 });
 
 test('toolkit dictionaries expose object users and inferred legal entities', async ({ page }) => {
@@ -71,6 +73,60 @@ test('toolkit signer preview creates four human forms', async ({ page }) => {
   await expect(page.locator('[data-role="otk-preview-summary"]')).toContainText('Создаст: 4');
   const planId = await page.locator('[data-role="otk-plan-id"]').textContent();
   expect(planId).toMatch(/^v8-/);
+});
+
+test('toolkit signer preview creates four forms per range', async ({ page }) => {
+  await loadToolkit(page, MATRIX_HTML);
+  await page.fill('[data-role="otk-new-signer"]', 'Первый Подписант');
+  await page.fill('[data-role="otk-range-to"]', '1000000');
+  await page.click('[data-role="otk-add-range"]');
+  await page.locator('[data-role="otk-range-line"]').nth(1).locator('[data-range-field="from"]').fill('1000000');
+  await page.locator('[data-role="otk-range-line"]').nth(1).locator('[data-range-field="to"]').fill('3000000');
+  await page.locator('[data-role="otk-range-line"]').nth(1).locator('[data-range-field="signer"]').fill('Второй Подписант');
+  await page.click('[data-role="otk-preview-button"]');
+  await expect(page.locator('[data-role="otk-preview-summary"]')).toContainText('Создаст: 8');
+});
+
+test('toolkit user resolver prioritizes surname search over random ids', async ({ page }) => {
+  await loadToolkit(page, MATRIX_HTML);
+  const result = await page.evaluate(() => window.__OPENTEXT_TOOLKIT__.UserResolver.search('Орел', {
+    users: [
+      { id: '10', fio: 'Петров Петр Петрович', display: 'Петров Петр Петрович — бухгалтер' },
+      { id: '11', fio: 'Орел Иван Сергеевич', display: 'Орел Иван Сергеевич — руководитель' },
+      { id: '12', fio: 'Сидоров Орлович Андрей', display: 'Сидоров Орлович Андрей — эксперт' },
+      { id: '13', fio: 'АКТЫ_СВЕРКИ ОРЕЛСЕЛЬПРОМ ЗАО', display: 'АКТЫ_СВЕРКИ ОРЕЛСЕЛЬПРОМ ЗАО', technical: true },
+      { id: '14', fio: 'ВУР ОРЕЛСЕЛЬПРОМ ЗАО', display: 'ВУР ОРЕЛСЕЛЬПРОМ ЗАО' },
+      { id: '15', fio: 'Александр Горелов', display: 'Александр Горелов — начальник цеха' },
+      { id: '16', fio: 'Обособленное подразделение "Орел-1"', display: 'Обособленное подразделение "Орел-1"' },
+      { id: '999999', fio: 'Не найдено имя (ID 999999)', display: 'Не найдено имя (ID 999999)', unresolved: true },
+    ],
+  }, 3).map(user => user.fio));
+  expect(result[0]).toBe('Орел Иван Сергеевич');
+  expect(result).not.toContain('Не найдено имя (ID 999999)');
+  expect(result).not.toContain('АКТЫ_СВЕРКИ ОРЕЛСЕЛЬПРОМ ЗАО');
+  expect(result).not.toContain('ВУР ОРЕЛСЕЛЬПРОМ ЗАО');
+  expect(result).not.toContain('Александр Горелов');
+  expect(result).not.toContain('Обособленное подразделение "Орел-1"');
+});
+
+test('toolkit request parser understands signer ranges and approval roles', async ({ page }) => {
+  await loadToolkit(page, MATRIX_HTML);
+  const parsed = await page.evaluate(() => window.__OPENTEXT_TOOLKIT__.parseITSMIntake([
+    'Прошу добавить подписантов:',
+    '0 до 100 000 000 Орел Иван Сергеевич',
+    '100 000 000 до 300 000 000 Пантюхов Сергей Михайлович',
+    'Спецэксперт: Сидоров Петр Иванович',
+    'Руководитель: Иванов Иван Иванович',
+    'ЮЛ: Черкизово-Масла, ПКХП',
+    'Дирекция: Дирекция развития',
+    'Проект: Новый склад',
+  ].join('\n')));
+  expect(parsed.understood.signerRanges.length).toBeGreaterThanOrEqual(2);
+  expect(parsed.understood.specialExperts.join(' ')).toMatch(/Сидоров/);
+  expect(parsed.understood.managers.join(' ')).toMatch(/Иванов/);
+  expect(parsed.understood.defaultConditions).toContain('Тип = Расходная, ВН = Нет');
+  expect(parsed.understood.developmentProjectCategories).toEqual(['СМР', 'ПИР', 'Оборудование и запчасти']);
+  expect(parsed.proposedOperations.some(operation => operation.type === 'add_signer_forms')).toBeTruthy();
 });
 
 test('toolkit signer legal picker accepts free Cherkizovo list', async ({ page }) => {

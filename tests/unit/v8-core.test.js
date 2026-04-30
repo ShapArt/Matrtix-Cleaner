@@ -26,6 +26,20 @@ test('v8 signer preset produces exactly four validated rows', () => {
   assert.equal(rows[3].docTypes.includes('ДС на пролонгацию'), true);
 });
 
+test('v8 signer preset produces four rows for every signing range', () => {
+  const rows = signerPresetRows({
+    ranges: [
+      { from: '0', to: '1000', signer: 'Иванов И.И.' },
+      { from: '1000', to: '3000', signer: 'Петров П.П.' },
+    ],
+  });
+  assert.equal(rows.length, 8);
+  assert.equal(rows.filter(row => row.newSigner === 'Иванов И.И.').length, 4);
+  assert.equal(rows.filter(row => row.newSigner === 'Петров П.П.').length, 4);
+  assert.equal(rows[4].from, '1000');
+  assert.equal(rows[4].to, '3000');
+});
+
 test('v8 doc type matching distinguishes ALL and ANY', () => {
   const existing = ['ДС', 'Основной договор'];
   assert.equal(hasTypesByMode(existing, ['ДС', 'Основной договор'], 'all'), true);
