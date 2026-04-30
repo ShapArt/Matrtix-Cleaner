@@ -25,6 +25,9 @@ const requiredSnippets = [
   'apply-snapshot',
   'route-doctor',
   'catalog-fetch-search',
+  '__OPENTEXT_TOOLKIT_RUNTIME__',
+  'OpenText Toolkit',
+  '__OPENTEXT_TOOLKIT__',
 ];
 
 const missing = requiredSnippets.filter(snippet => !dist.includes(snippet));

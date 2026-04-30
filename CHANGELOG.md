@@ -1,5 +1,41 @@
 # Changelog
 
+## 6.0.0
+
+- Rebuilt the default operator experience as **OpenText Toolkit**:
+  - minimal header with context/status and `...` menu;
+  - single `Что делаем?` scenario selector;
+  - scenario form on the left and sticky context/preview/actions on the right;
+  - logs/debug/raw plan moved into a drawer/menu instead of the main flow.
+- Quarantined legacy/dev UI:
+  - old Matrix Cleaner/v8/compact/debug sections remain available from `... -> Debug / Legacy`;
+  - default UI no longer exposes raw JSON, debug, legacy/native labels, or button walls.
+- Added Toolkit runtime/API:
+  - `window.__OPENTEXT_TOOLKIT__` alias;
+  - `ContextDetector`, `DictionaryBuilder`, `UserResolver`, `LegalEntityResolver`, `SignerFormsEngine`, `CardDoctor`, `ITSMIntakeEngine`, `MatrixNavigator`, and `ClosestMatchSearch`;
+  - `add_signer_forms` translates into guarded v8 preview/apply.
+- Added business presets:
+  - 4 signing forms;
+  - document group A/B packages;
+  - default signing conditions `Расходная/Иное, ВН = Нет`;
+  - unified limit/sum ranges by default;
+  - Дирекция развития project categories: `СМР`, `ПИР`, `Оборудование и запчасти`.
+- Improved dictionaries/resolvers:
+  - object-based users with `fio`, `id`, `role`, `source`, `display`;
+  - unresolved numeric users become warning labels;
+  - inferred legal entities from partner cache;
+  - sites/OP are separated from ЮЛ and reported as warnings.
+- Improved request and incident intake:
+  - ITSM parser now extracts links, incident IDs, users, ЮЛ, document types, sums/limits, missing fields, and proposed operations;
+  - request UI shows "Я понял", "Нужно уточнить", and "Предлагаемое действие" cards instead of raw diagnostics.
+- Added corpus pattern analyzer:
+  - `npm run analyze:corpus` scans local matrix exports, своды, request registries, HTML fixtures, and incident mail filenames;
+  - generated local-only indexes list ЮЛ/IDs, sites/OP, users, document types, request classes, and incident subjects.
+- Fixed local verification:
+  - package scripts use repo-local `.bootstrap/node`;
+  - Playwright matrix fixture path now falls back to `Страница Матрицы/...`;
+  - added Toolkit unit/e2e tests for all operator scenarios, logs drawer, mobile/desktop layout, and smoke cannot pass solely because all matrix tests were skipped.
+
 ## 5.1.0
 
 - Added human-first operator UI shell (Russian by default):

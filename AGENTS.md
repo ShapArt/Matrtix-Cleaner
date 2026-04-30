@@ -13,17 +13,32 @@ This file is intentionally practical. Prefer short, accurate instructions over g
 
 ## Current product baseline
 
-The active target is **Matrix Cleaner v8**:
-- Russian operator-first UI with 4 first-screen modes:
-  - `Операции по матрице`;
-  - `Проверка карточки / маршрута`;
-  - `Поиск по всем матрицам`;
-  - `Разбор заявки / инцидента`.
-- JSON/DSL, debug, raw reports, and legacy controls are advanced-only.
-- Preview must return a `planId` and must be applied by consuming that preview plan.
-- Live apply is **native/model writer only**. DOM-only live patches are not considered implemented.
+The active target is **OpenText Toolkit**.
+
+Default UX is human-first, not developer-first:
+- the first visible screen is `OpenText Toolkit`, not `Matrix Cleaner`;
+- the user chooses one scenario from `Что делаем?`;
+- raw JSON, DSL, debug, legacy/native labels, source/rule/request ids, and compact/dev blocks are hidden behind `... -> Debug / Legacy` or logs/export;
+- context is detected automatically as matrix, catalog, card, approval list, or ITSM request;
+- users are displayed as `ФИО — должность` when available; unresolved IDs are warning labels, never the primary UX;
+- legal entities, sites/OP, and external counterparties are separate concepts in UI and reports.
+
+Load-bearing product rules:
+- Preview must return a stable `planId`; apply must consume that exact preview plan.
+- Live apply is **native/model writer only**. Unsupported writers return `manual_review`.
+- The signer default is **4 forms**, not an opaque "4 rows":
+  - main package + unified EDO + range;
+  - main package + non-unified EDO + range;
+  - supplemental package + unified EDO + range;
+  - supplemental package + non-unified EDO + range.
+- Default signing conditions are `Тип = Расходная, ВН = Нет` and `Тип = Иное, ВН = Нет`.
+- Limits and amounts share one range table by default; split ranges are advanced.
+- Document group A is `Основной договор`, `Перемена лица в обязательстве`, `ДС на пролонгацию`.
+- Document group B is `ДС`, `Спецификация`, `Спецификация по качеству`, `Соглашение о бонусах`, `Перемена лица в обязательстве`, `Соглашение о зачете`, `Соглашение по ЭДО`, `ДС к спецификации`, `Заверение об обстоятельствах`, `Соглашение о расторжении`, `ДС на пролонгацию`, `Соглашение о штрафах`, `Уведомление о факторинге`.
 - Global matrix search must scan catalog entries, not only the current matrix DOM.
-- Synthetic contour must prove preview/checklist/search/report behavior even when live rows are insufficient.
+- ITSM -> card -> approval list -> matrix is a first-class workflow.
+- Corpus analysis is local-first: `npm run analyze:corpus` may scan private exports and write generated indexes under `generated/indexes/`; do not commit raw generated dictionaries with company IDs, users, incident numbers, or local paths.
+- Synthetic contour must prove preview/checklist/search/report behavior even when live rows are insufficient; no fake-pass tests.
 
 ---
 
@@ -33,9 +48,15 @@ Top-level files and folders you should know first:
 
 - `matrix-cleaner.user.js`
   - Main Tampermonkey userscript entrypoint.
-  - Must include the v8 runtime block or be generated from `src/runtime/v8-core.js`.
+  - Must include the v8 runtime block and OpenText Toolkit runtime, or be generated from `src/runtime/v8-core.js` + `src/runtime/toolkit-core.js`.
 - `src/runtime/v8-core.js`
   - Current v8 operator runtime: matrix adapter, honest preview/apply API, 4-mode UI, catalog search, request parser, route/card doctor.
+- `src/runtime/toolkit-core.js`
+  - OpenText Toolkit human-first shell, context detector, object dictionaries, resolvers, scenario screens, logs drawer, and compatibility API wrappers.
+- `src/corpus/patterns.cjs`
+  - Local corpus analyzer for matrix exports, своды, request registries, saved HTML, and incident mail filenames.
+- `scripts/analyze-open-text-patterns.mjs`
+  - Writes local-only pattern dictionaries/reports to `generated/indexes/`.
 - `prompt_for_ot_matrix_automation.txt`
   - Historical task context and earlier scope for the userscript.
   - Useful as background, but **not** as the final source of truth.

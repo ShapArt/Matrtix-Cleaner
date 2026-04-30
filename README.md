@@ -1,23 +1,27 @@
-# Matrix Cleaner
+# OpenText Toolkit
 
-Tampermonkey-based operator tool for **previewing, auditing, and applying guarded bulk changes** in OpenText approval matrices.
+Tampermonkey-based operator tool for daily work with **OpenText approval matrices, cards, approval lists, ITSM incidents, request intake, preview, guarded apply, and reports**.
 
 ## Executive summary
 
-`Matrtix-Cleaner` is a browser-side automation tool built for a workflow that is both repetitive and dangerous: changing approval matrices inside a real enterprise interface where one incorrect mass edit can create routing failures, hidden policy drift, or operational cleanup work later.
+`OpenText Toolkit` is a browser-side automation tool built for a workflow that is both repetitive and dangerous: changing approval matrices inside a real enterprise interface where one incorrect mass edit can create routing failures, hidden policy drift, or operational cleanup work later.
 
 The repository is not interesting because it “edits rows in a table.” It is interesting because it treats matrix editing as an **operator workflow with risk**, then builds previewing, ambiguity handling, and scoped execution around that reality.
 
-## v8 Status
+## Current Status
 
-The active runtime is **Matrix Cleaner v8**. It keeps legacy API compatibility where useful, but the daily UI is now Russian-first and centered on four operator modes:
+The active operator experience is **OpenText Toolkit**. It keeps Matrix Cleaner/v8 APIs internally for compatibility, but the daily UI is human-first and centered on one scenario selector:
 
-- `Операции по матрице`
-- `Проверка карточки / маршрута`
-- `Поиск по всем матрицам`
-- `Разбор заявки / инцидента`
+- `Подписанты`
+- `Согласующие`
+- `Типы документов`
+- `ЮЛ и площадки`
+- `Поиск по матрицам`
+- `Проверка карточки`
+- `Разобрать заявку`
+- `Тестовый контур`
 
-Reports, raw JSON/DSL, debug, and legacy controls are advanced-only. Preview returns a `planId`; apply consumes that exact plan and re-checks row fingerprints before writing.
+Reports, raw JSON/DSL, debug, and legacy controls are hidden behind the `...` menu, logs drawer, or export paths. Preview returns a `planId`; apply consumes that exact plan and re-checks row fingerprints before writing.
 
 ## Download / Install
 
@@ -40,7 +44,7 @@ This project exists to compress that manual burden without pretending that risky
 
 ## What the tool does
 
-`Matrtix-Cleaner` is implemented as a userscript that augments OpenText matrix pages with an operator panel.
+`OpenText Toolkit` is implemented as a userscript that augments OpenText pages with an operator panel.
 
 It works directly against the host page DOM and OpenText client-side objects, then wraps common matrix operations in a more controlled workflow:
 
@@ -78,9 +82,21 @@ This is **not** a backend service. It is a browser-side operator tool.
 - **Distribution format:** Tampermonkey userscript
 - **Main file:** `matrix-cleaner.user.js`
 - **v8 runtime module:** `src/runtime/v8-core.js`
+- **Toolkit runtime module:** `src/runtime/toolkit-core.js`
 - **Execution model:** injected into OpenText pages after document load
 - **Host integration:** `unsafeWindow` / existing page context
 - **UI model:** custom operator panel rendered on top of the existing interface
+
+### Daily Workflow
+
+1. Open a matrix, card, approval list, catalog, or ITSM page.
+2. Click the floating launcher.
+3. Pick `Что делаем?`.
+4. Fill human fields: ФИО, ЮЛ, ОП, category, document type, ranges.
+5. Click `Показать превью`.
+6. Review the right sticky preview and visual table highlights.
+7. Apply only when the preview is correct.
+8. Export report from the right column or `...` menu.
 
 ### Load-bearing integrations
 
@@ -128,7 +144,38 @@ A mass-edit tool is only useful if the user can understand what it is about to d
 
 Many automation tools fail because they force a binary success/failure model on messy operational data. This project explicitly leaves room for manual review, which is a sign of maturity rather than incompleteness.
 
-v8 live apply policy is strict: only confirmed OpenText native/model writers may mutate live data. Unsupported writers return `manual_review`.
+Live apply policy is strict: only confirmed OpenText native/model writers may mutate live data. Unsupported writers return `manual_review`.
+
+## Local Verification
+
+Use the repo-local Node runtime on Windows:
+
+```powershell
+.\.bootstrap\node\npm.cmd run build
+.\.bootstrap\node\npm.cmd run test:unit
+.\.bootstrap\node\npm.cmd run test:e2e
+.\.bootstrap\node\npm.cmd run smoke
+.\.bootstrap\node\npm.cmd run analyze:corpus
+.\.bootstrap\node\npm.cmd run lint
+.\.bootstrap\node\npm.cmd run typecheck
+```
+
+The Playwright fixture path now checks `Страница Матрицы/Матрица согласования_ Договор Правовая дирекция.html`; tests must not pass by skipping all local fixtures.
+
+## Corpus Pattern Analysis
+
+Local corpus analysis is part of the operator workflow now:
+
+```powershell
+.\.bootstrap\node\npm.cmd run analyze:corpus
+```
+
+The command scans saved matrix exports, authority summaries, request registries, OpenText HTML fixtures, and incident mail filenames. It writes local-only reports under `generated/indexes/`:
+
+- `open-text-corpus-patterns.json`
+- `open-text-corpus-patterns.md`
+
+These generated files are intentionally ignored by git because they can contain private company names, IDs, users, incident numbers, and local file paths. The committed code contains the analyzer and tests; the raw derived index stays on the operator machine.
 
 ## Technical highlights
 
@@ -143,7 +190,10 @@ v8 live apply policy is strict: only confirmed OpenText native/model writers may
 ```text
 Matrix-Cleaner/
   matrix-cleaner.user.js
+  src/corpus/patterns.cjs
   src/runtime/v8-core.js
+  src/runtime/toolkit-core.js
+  scripts/analyze-open-text-patterns.mjs
   tests/
   README.md
 ```

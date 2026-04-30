@@ -6,7 +6,10 @@ const { test, expect } = require('@playwright/test');
 
 const ROOT = path.resolve(__dirname, '..');
 const SCRIPT_PATH = path.join(ROOT, 'matrix-cleaner.user.js');
-const MATRIX_HTML = path.join(ROOT, 'Матрица согласования_ Договор Правовая дирекция.html');
+const MATRIX_HTML = [
+  path.join(ROOT, 'Матрица согласования_ Договор Правовая дирекция.html'),
+  path.join(ROOT, 'Страница Матрицы', 'Матрица согласования_ Договор Правовая дирекция.html'),
+].find(file => fsSync.existsSync(file)) || path.join(ROOT, 'Матрица согласования_ Договор Правовая дирекция.html');
 const LIST_HTML = path.join(ROOT, 'Список Матриц', 'cs.htm');
 const HAS_PRIVATE_FIXTURES = fsSync.existsSync(MATRIX_HTML) && fsSync.existsSync(LIST_HTML);
 
@@ -23,6 +26,10 @@ async function openCleanerPanel(page) {
     const advancedTab = document.querySelector('[data-tab="advanced"]');
     if (advancedTab) {
       advancedTab.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
+    const showToolkitLegacy = document.querySelector('[data-role="otk-show-legacy"]');
+    if (showToolkitLegacy) {
+      showToolkitLegacy.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     }
     const showLegacy = document.querySelector('[data-role="hf-show-legacy"]');
     if (showLegacy) {
@@ -799,33 +806,34 @@ test('43. human-first shell is default and russian-first', async ({ page }) => {
   await loadUserscript(page);
   await page.click('#mc-open-btn');
   const ui = await page.evaluate(() => {
-    const root = document.querySelector('[data-role="v8-root"]');
-    const workTab = document.querySelector('[data-v8-tab="ops"]');
-    const panel = document.querySelector('[data-v8-panel="ops"]');
-    const author = root ? root.textContent || '' : '';
+    const root = document.querySelector('[data-role="otk-root"]');
+    const selector = document.querySelector('[data-role="otk-scenario"]');
+    const visibleText = root ? root.innerText || '' : '';
     const oldHuman = document.querySelector('[data-role="hf-root"]');
-    const visibleTabs = root ? Array.from(root.querySelectorAll('[data-v8-tab]')).map(btn => btn.textContent.trim()) : [];
+    const legacyVisible = oldHuman && oldHuman.offsetParent;
     return {
       hasRoot: Boolean(root),
-      workActive: Boolean(workTab && workTab.classList.contains('is-active')),
-      workPanelVisible: Boolean(panel && !panel.hidden),
-      hasRussianTitle: author.includes('Matrix Cleaner v8'),
-      hasAuthor: author.includes('Артём Шаповалов'),
-      oldHumanHidden: !oldHuman || oldHuman.hidden,
-      visibleTabs,
+      defaultScenario: selector ? selector.value : '',
+      hasRussianTitle: visibleText.includes('OpenText Toolkit'),
+      noRawJsonDefault: !/raw json|debug|legacy|Matrix Cleaner v8/i.test(visibleText),
+      oldHumanHidden: !legacyVisible,
+      visibleOptions: selector ? Array.from(selector.options).map(item => item.textContent.trim()) : [],
     };
   });
   expect(ui.hasRoot).toBeTruthy();
-  expect(ui.workActive).toBeTruthy();
-  expect(ui.workPanelVisible).toBeTruthy();
+  expect(ui.defaultScenario).toBe('signers');
   expect(ui.hasRussianTitle).toBeTruthy();
-  expect(ui.hasAuthor).toBeTruthy();
+  expect(ui.noRawJsonDefault).toBeTruthy();
   expect(ui.oldHumanHidden).toBeTruthy();
-  expect(ui.visibleTabs).toEqual([
-    'Операции по матрице',
-    'Проверка карточки / маршрута',
-    'Поиск по всем матрицам',
-    'Разбор заявки / инцидента',
+  expect(ui.visibleOptions).toEqual([
+    'Подписанты',
+    'Согласующие',
+    'Типы документов',
+    'ЮЛ и площадки',
+    'Поиск по матрицам',
+    'Проверка карточки',
+    'Разобрать заявку',
+    'Тестовый контур',
   ]);
 });
 
@@ -920,11 +928,11 @@ test('49. human checklist panel renders pass/warn/fail cards', async ({ page }) 
   await page.goto(pathToFileURL(MATRIX_HTML).href);
   await loadUserscript(page);
   await page.click('#mc-open-btn');
-  await page.click('[data-v8-tab="doctor"]');
-  await page.fill('[data-role="v8-doctor-text"]', 'маршрут карточка контрагент сумма лимит ЭДО тип документа юрлицо');
-  await page.click('[data-role="v8-doctor-run"]');
-  const content = await page.textContent('[data-role="v8-doctor-result"]');
-  expect(String(content)).toContain('pass=');
+  await page.selectOption('[data-role="otk-scenario"]', 'doctor');
+  await page.fill('[data-role="otk-doctor-text"]', 'маршрут карточка контрагент сумма лимит ЭДО тип документа юрлицо');
+  await page.click('[data-role="otk-preview-button"]');
+  const content = await page.textContent('[data-role="otk-doctor-result"]');
+  expect(String(content)).toContain('Что нашли');
 });
 
 test('50. legacy operation type select uses Russian option labels', async ({ page }) => {

@@ -1,4 +1,24 @@
-# Known Limitations (v5.1.0)
+# Known Limitations (OpenText Toolkit)
+
+1. **Legacy backend is still present**
+   The default UI is OpenText Toolkit, but Matrix Cleaner/v8/legacy APIs still exist underneath and can be shown from `... -> Debug / Legacy`. This is intentional compatibility, not the daily operator path.
+
+2. **User names depend on OpenText caches**
+   Toolkit exposes object-based users and no longer treats raw IDs as good UX. If the saved/live page only exposes numeric performer IDs, they are displayed as unresolved warning labels until the page cache or a future directory source resolves ФИО/position/login.
+
+3. **Legal entity inference is best-effort on snapshots**
+   Some saved matrix pages do not expose a dedicated legal-entity alias. Toolkit infers internal companies from partner cache names and keeps sites/OP separate. Native apply still requires confirmed aliases; otherwise the operation returns `manual_review`.
+
+4. **ITSM/card automation is fixture-first**
+   Toolkit detects ITSM/card/approval-list contexts and can parse/check saved pages, but live navigation/open-next actions remain preview/assistive unless a safe same-origin action is confirmed.
+
+5. **Full Playwright regression is heavy**
+   The private matrix fixture is large. Unit tests and targeted Toolkit/v8 smoke are fast; the full legacy regression may take several minutes.
+
+6. **Corpus-derived dictionaries stay local**
+   `npm run analyze:corpus` can extract useful ЮЛ IDs, sites, users, request classes, and incident subjects from the local folders, but the generated `generated/indexes/*` outputs are intentionally git-ignored because they can contain private operational data.
+
+# Known Limitations (v5.1.0 / v8 compatibility)
 
 1. **Cross-matrix deep scan**  
    Полноценный обход всех матриц в live-режиме зависит от доступа к каталогу/URL и политики браузера для запросов/окон. Локальный fixture-режим поддержан полностью.
