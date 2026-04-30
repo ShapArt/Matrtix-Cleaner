@@ -1,6 +1,22 @@
 'use strict';
 
 const REQUIRED_AFFILIATION = 'Группа Черкизово';
+const DOC_GROUP_A = ['Основной договор', 'Перемена лица в обязательстве', 'ДС на пролонгацию'];
+const DOC_GROUP_B = [
+  'ДС',
+  'Спецификация',
+  'Спецификация по качеству',
+  'Соглашение о бонусах',
+  'Перемена лица в обязательстве',
+  'Соглашение о зачете',
+  'Соглашение по ЭДО',
+  'ДС к спецификации',
+  'Заверение об обстоятельствах',
+  'Соглашение о расторжении',
+  'ДС на пролонгацию',
+  'Соглашение о штрафах',
+  'Уведомление о факторинге',
+];
 
 function normalize(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim().toLowerCase();
@@ -35,10 +51,10 @@ function signerPresetRows(payload = {}) {
     affiliation: payload.affiliation || REQUIRED_AFFILIATION,
   };
   return [
-    Object.assign({}, common, { rowKey: 'main_limit_edo', rowGroup: 'main_contract_rows', edoMode: 'edo', valueMode: 'limit', value: limit }),
-    Object.assign({}, common, { rowKey: 'main_limit_non_edo', rowGroup: 'main_contract_rows', edoMode: 'non_edo', valueMode: 'limit', value: limit }),
-    Object.assign({}, common, { rowKey: 'supp_amount_edo', rowGroup: 'supplemental_rows', edoMode: 'edo', valueMode: 'amount', value: amount }),
-    Object.assign({}, common, { rowKey: 'supp_amount_non_edo', rowGroup: 'supplemental_rows', edoMode: 'non_edo', valueMode: 'amount', value: amount }),
+    Object.assign({}, common, { rowKey: 'main_limit_edo', rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'edo', valueMode: 'limit', value: limit }),
+    Object.assign({}, common, { rowKey: 'main_limit_non_edo', rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'non_edo', valueMode: 'limit', value: limit }),
+    Object.assign({}, common, { rowKey: 'supp_amount_edo', rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'edo', valueMode: 'amount', value: amount }),
+    Object.assign({}, common, { rowKey: 'supp_amount_non_edo', rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'non_edo', valueMode: 'amount', value: amount }),
   ];
 }
 
@@ -54,6 +70,8 @@ function classifyRequestText(text) {
 
 module.exports = {
   REQUIRED_AFFILIATION,
+  DOC_GROUP_A,
+  DOC_GROUP_B,
   classifyRequestText,
   hasTypesByMode,
   matchRowGroup,

@@ -8,6 +8,26 @@
 
   const REQUIRED_AFFILIATION = 'Группа Черкизово';
   const VERSION = '8.0.0';
+  const DOC_GROUP_A = [
+    'Основной договор',
+    'Перемена лица в обязательстве',
+    'ДС на пролонгацию',
+  ];
+  const DOC_GROUP_B = [
+    'ДС',
+    'Спецификация',
+    'Спецификация по качеству',
+    'Соглашение о бонусах',
+    'Перемена лица в обязательстве',
+    'Соглашение о зачете',
+    'Соглашение по ЭДО',
+    'ДС к спецификации',
+    'Заверение об обстоятельствах',
+    'Соглашение о расторжении',
+    'ДС на пролонгацию',
+    'Соглашение о штрафах',
+    'Уведомление о факторинге',
+  ];
   const ACTION = {
     ADD_ROW: 'add-row',
     PATCH_ROW: 'patch-row',
@@ -332,10 +352,10 @@
     };
     return {
       rows: [
-        Object.assign({}, common, { rowKey: 'main_limit_edo', rowGroup: 'main_contract_rows', edoMode: 'edo', valueMode: 'limit', value: limit }),
-        Object.assign({}, common, { rowKey: 'main_limit_non_edo', rowGroup: 'main_contract_rows', edoMode: 'non_edo', valueMode: 'limit', value: limit }),
-        Object.assign({}, common, { rowKey: 'supp_amount_edo', rowGroup: 'supplemental_rows', edoMode: 'edo', valueMode: 'amount', value: amount }),
-        Object.assign({}, common, { rowKey: 'supp_amount_non_edo', rowGroup: 'supplemental_rows', edoMode: 'non_edo', valueMode: 'amount', value: amount }),
+        Object.assign({}, common, { rowKey: 'main_limit_edo', rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'edo', valueMode: 'limit', value: limit }),
+        Object.assign({}, common, { rowKey: 'main_limit_non_edo', rowGroup: 'main_contract_rows', docTypes: DOC_GROUP_A.slice(), edoMode: 'non_edo', valueMode: 'limit', value: limit }),
+        Object.assign({}, common, { rowKey: 'supp_amount_edo', rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'edo', valueMode: 'amount', value: amount }),
+        Object.assign({}, common, { rowKey: 'supp_amount_non_edo', rowGroup: 'supplemental_rows', docTypes: DOC_GROUP_B.slice(), edoMode: 'non_edo', valueMode: 'amount', value: amount }),
       ],
     };
   }
@@ -634,11 +654,13 @@
     };
     const amountNumber = Number(String(row.value || '').replace(/\s/g, '').replace(',', '.'));
     const value = Number.isFinite(amountNumber) ? amountNumber : row.value;
-    set(['document_type', 'Тип документа'], row.rowGroup === 'main_contract_rows' ? ['Основной договор'] : ['ДС']);
+    set(['document_type', 'Тип документа'], row.docTypes && row.docTypes.length
+      ? row.docTypes
+      : (row.rowGroup === 'main_contract_rows' ? DOC_GROUP_A : DOC_GROUP_B));
     set(['direction', 'Дирекция'], row.direction ? [row.direction] : []);
     set(['functions', 'Функция'], row.functionName ? parseList(row.functionName) : []);
     set(['category', 'Категория'], row.category ? parseList(row.category) : []);
-    set(['affiliation', 'Аффилированность'], [row.affiliation || REQUIRED_AFFILIATION]);
+    if (row.applyAffiliation === true) set(['affiliation', 'Аффилированность'], [row.affiliation || REQUIRED_AFFILIATION]);
     set(['eds', 'ЭЦП', 'ЭДО'], [row.edoMode === 'edo' ? 'ЭДО на внешней площадке' : 'Нет']);
     set(['limit_contract', 'Лимит по договору в рублях (без НДС)'], row.valueMode === 'limit' ? [null, value] : [null, null]);
     set(['sum_rub', 'Сумма документа в рублях (включая налоги)'], row.valueMode === 'amount' ? [null, value] : [null, null]);

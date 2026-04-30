@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 
 const {
   REQUIRED_AFFILIATION,
+  DOC_GROUP_A,
+  DOC_GROUP_B,
   classifyRequestText,
   hasTypesByMode,
   matchRowGroup,
@@ -16,6 +18,12 @@ test('v8 signer preset produces exactly four validated rows', () => {
   assert.equal(rows.filter(row => row.rowGroup === 'supplemental_rows' && row.valueMode === 'amount').length, 2);
   assert.deepEqual(new Set(rows.map(row => row.edoMode)), new Set(['edo', 'non_edo']));
   assert.equal(rows.every(row => row.affiliation === REQUIRED_AFFILIATION), true);
+  assert.deepEqual(rows[0].docTypes, DOC_GROUP_A);
+  assert.deepEqual(rows[1].docTypes, DOC_GROUP_A);
+  assert.deepEqual(rows[2].docTypes, DOC_GROUP_B);
+  assert.deepEqual(rows[3].docTypes, DOC_GROUP_B);
+  assert.equal(rows[2].docTypes.includes('Перемена лица в обязательстве'), true);
+  assert.equal(rows[3].docTypes.includes('ДС на пролонгацию'), true);
 });
 
 test('v8 doc type matching distinguishes ALL and ANY', () => {

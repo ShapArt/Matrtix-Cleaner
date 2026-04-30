@@ -28,6 +28,15 @@ test('toolkit default UI has no raw JSON/debug wall', async ({ page }) => {
   expect(text).not.toMatch(/raw json|debug|legacy|Matrix Cleaner v8/i);
 });
 
+test('toolkit hides legacy Matrix Cleaner chrome in operator mode', async ({ page }) => {
+  await loadToolkit(page, MATRIX_HTML);
+  await expect(page.locator('#mc-panel .mc-head-left')).toBeHidden();
+  await expect(page.locator('#mc-stats')).toBeHidden();
+  await expect(page.locator('#mc-panel [data-role="close"]')).toBeVisible();
+  const panelText = await page.locator('#mc-panel').innerText();
+  expect(panelText).not.toMatch(/Matrix Cleaner 8\.0\.0|RISK:\s*OK/i);
+});
+
 test('toolkit dictionaries expose object users and inferred legal entities', async ({ page }) => {
   await loadToolkit(page, MATRIX_HTML);
   const dict = await page.evaluate(() => window.__OPENTEXT_TOOLKIT__.getHumanDictionaries());
@@ -59,8 +68,23 @@ test('toolkit signer preview creates four human forms', async ({ page }) => {
   await page.fill('[data-role="otk-new-signer"]', 'Тестовый Подписант');
   await page.fill('[data-role="otk-range-to"]', '1000000');
   await page.click('[data-role="otk-preview-button"]');
-  await expect(page.locator('[data-role="otk-preview-summary"]')).toContainText('создать: 4');
-  await expect(page.locator('[data-role="otk-plan-id"]')).toContainText('v8-');
+  await expect(page.locator('[data-role="otk-preview-summary"]')).toContainText('Создаст: 4');
+  const planId = await page.locator('[data-role="otk-plan-id"]').textContent();
+  expect(planId).toMatch(/^v8-/);
+});
+
+test('toolkit signer legal picker accepts free Cherkizovo list', async ({ page }) => {
+  await loadToolkit(page, MATRIX_HTML);
+  await page.fill(
+    '[data-role="otk-legal-input"]',
+    'Черкизово-Масла, Черкизово-Свиноводство, Куриное Царство, ПКХП, Тамбовская индейка, Васильевская ПФ',
+  );
+  await page.click('[data-role="otk-recognize-signer-legal"]');
+  const chips = await page.locator('[data-role="otk-signer-legal-chips"]').innerText();
+  expect(chips).toMatch(/ЧЕРКИЗОВО-МАСЛА|Черкизово-Масла/i);
+  expect(chips).toMatch(/КУРИНОЕ ЦАРСТВО|Куриное Царство/i);
+  expect(chips).toMatch(/ПКХП/i);
+  await expect(page.locator('[data-role="otk-signer-site-chips"]')).not.toContainText('Васильевская ПФ');
 });
 
 test('toolkit legal picker keeps sites out of legal entities', async ({ page }) => {
@@ -107,7 +131,7 @@ test('toolkit buttons and scenario previews do not throw on fixture flow', async
   await page.fill('[data-role="otk-range-to"]', '1000000');
   await page.click('[data-role="otk-build"]');
   await page.click('[data-role="otk-preview-button"]');
-  await expect(page.locator('[data-role="otk-preview-summary"]')).toContainText('создать: 4');
+  await expect(page.locator('[data-role="otk-preview-summary"]')).toContainText('Создаст: 4');
 
   await page.selectOption('[data-role="otk-scenario"]', 'doctypes');
   await page.fill('[data-role="otk-required-doc-types"]', 'Основной договор');
@@ -164,6 +188,12 @@ test('toolkit layout does not overflow on desktop or mobile panel widths', async
   }));
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 4);
   expect(metrics.right).toBeLessThanOrEqual(metrics.viewport + 4);
+  const overlap = await page.evaluate(() => {
+    const left = document.querySelector('.otk-left').getBoundingClientRect();
+    const right = document.querySelector('.otk-right').getBoundingClientRect();
+    return !(right.top >= left.bottom || right.bottom <= left.top || right.left >= left.right || right.right <= left.left);
+  });
+  expect(overlap).toBe(false);
 
   await page.setViewportSize({ width: 390, height: 800 });
   metrics = await page.locator('[data-role="otk-root"]').evaluate(node => ({

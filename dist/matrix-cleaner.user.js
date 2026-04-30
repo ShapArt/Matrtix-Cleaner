@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenText Matrix Cleaner Compact Safe
 // @namespace    https://chat.openai.com/
-// @version      2026.4.29.11
+// @version      2026.4.30.12
 // @description  Эволюционная автоматизация матриц OpenText: catalog, dry-run, rule engine, batch import, signer wizard
 // @match        *://*/otcs/cs.exe*
 // @homepageURL  https://github.com/ShapArt/Matrtix-Cleaner
@@ -6443,6 +6443,24 @@ function __otMatrixCleanerHost() {
 
   const DEVELOPMENT_CATEGORIES = ['СМР', 'ПИР', 'Оборудование и запчасти'];
   const CONDITIONS_STANDARD = ['Тип = Расходная, ВН = Нет', 'Тип = Иное, ВН = Нет'];
+  const COMPANY_ALIASES = [
+    { aliases: ['черкизово-масла', 'масла'], target: 'ЧЕРКИЗОВО-МАСЛА ООО' },
+    { aliases: ['черкизово-свиноводство', 'свиноводство'], target: 'ЧЕРКИЗОВО-СВИНОВОДСТВО ООО' },
+    { aliases: ['куриное царство'], target: 'КУРИНОЕ ЦАРСТВО АО' },
+    { aliases: ['пкхп', 'пензенский комбинат хлебопродуктов'], target: 'ПКХП ОАО' },
+    { aliases: ['тамбовская индейка'], target: 'ТАМБОВСКАЯ ИНДЕЙКА ООО' },
+    { aliases: ['сгц вишневский'], target: 'СГЦ ВИШНЕВСКИЙ ООО' },
+    { aliases: ['вента-ойл', 'вента ойл'], target: 'ВЕНТА-ОЙЛ ООО' },
+    { aliases: ['уральская мясная компания'], target: 'УРАЛЬСКАЯ МЯСНАЯ КОМПАНИЯ ООО' },
+    { aliases: ['уралбройлер', 'урал бройлер'], target: 'УРАЛБРОЙЛЕР АО' },
+    { aliases: ['турбаслинские бройлеры'], target: 'ТУРБАСЛИНСКИЕ БРОЙЛЕРЫ АО' },
+    { aliases: ['гк здоровая ферма'], target: 'ГК ЗДОРОВАЯ ФЕРМА ООО' },
+    { aliases: ['здоровая ферма'], target: 'ТД ЗДОРОВАЯ ФЕРМА ООО' },
+    { aliases: ['черкизово-растениеводство', 'растениеводство'], target: 'ЧЕРКИЗОВО-РАСТЕНИЕВОДСТВО ООО' },
+    { aliases: ['черкизово-мп'], target: 'ЧЕРКИЗОВО-МП ООО' },
+    { aliases: ['чмпз'], target: 'ЧМПЗ АО' },
+    { aliases: ['васильевская пф', 'васильевская птицефабрика'], target: 'ВАСИЛЬЕВСКАЯ ПТИЦЕФАБРИКА АО' },
+  ];
   const REQUEST_CLASSES = [
     { id: 'replace_people', label: 'Замена людей', score: 0.72, tests: [/замен|поменя|вместо|уволен|заблок|делегирован/i, /подписант|согласующ|спец.?эксперт|руководител|исполнител|пользовател/i] },
     { id: 'add_signer_forms', label: 'Добавить / изменить подписантов', score: 0.7, tests: [/подписант|подписание/i, /лимит|сумм|диапазон|до\s+\d|от\s+\d/i] },
@@ -6645,19 +6663,25 @@ function __otMatrixCleanerHost() {
   }
 
   function userObject(value, role, source) {
-    const raw = compact(value);
+    const rawObject = value && typeof value === 'object' ? value : null;
+    const raw = compact(rawObject ? (rawObject.title || rawObject.display || rawObject.fio || rawObject.name || rawObject.id || '') : value);
     const numeric = isNumericUser(raw);
-    const id = numeric ? raw.replace(/^-/, '') : '';
-    const fio = numeric ? `Не найдено имя (ID ${id})` : raw;
+    const objectId = rawObject && rawObject.id ? String(rawObject.id).replace(/^-/, '') : '';
+    const id = objectId || (numeric ? raw.replace(/^-/, '') : '');
+    const titleMatch = raw.match(/^(.*?)\s*\(([^()]+)\)\s*$/);
+    const fioText = titleMatch ? compact(titleMatch[1]) : raw;
+    const position = rawObject && rawObject.position ? compact(rawObject.position) : (titleMatch ? compact(titleMatch[2]) : '');
+    const fio = numeric ? `Не найдено имя (ID ${id})` : fioText;
+    const display = position && !numeric ? `${fio} — ${position}` : fio;
     return {
       id,
       fio,
-      position: '',
-      login: '',
+      position,
+      login: rawObject && rawObject.login ? compact(rawObject.login) : '',
       role: role || '',
       source: source || 'matrix',
       unresolved: numeric,
-      display: fio,
+      display,
     };
   }
 
@@ -6669,6 +6693,13 @@ function __otMatrixCleanerHost() {
       seen.add(key);
       return true;
     });
+  }
+
+  function collectOpenTextModelUsers() {
+    const stores = [host.sc_ModelUser, host.sc_ModelUser2, window.sc_ModelUser, window.sc_ModelUser2].filter(Boolean);
+    return stores.flatMap(store => Array.isArray(store.items) ? store.items : [])
+      .map(item => ({ id: item.id, title: item.title || item.name || '', source: 'opentext_model' }))
+      .filter(item => item.title || item.id);
   }
 
   function isSite(value, sites) {
@@ -6744,6 +6775,7 @@ function __otMatrixCleanerHost() {
       if (m && m.userCacheObject) {
         Object.keys(m.userCacheObject).forEach(id => usersRaw.push(m.userCacheObject[id] || id));
       }
+      collectOpenTextModelUsers().forEach(user => usersRaw.push(user));
       const users = uniqueUsers(usersRaw, 'matrix_user', 'matrix');
       const signers = uniqueUsers(legacy.signers || [], 'signer', 'matrix');
       const approvers = uniqueUsers(legacy.approvers || [], 'approver', 'matrix');
@@ -6805,10 +6837,16 @@ function __otMatrixCleanerHost() {
           warnings.push(`"${text}" распознано как площадка/ОП и не будет добавлено в ЮЛ.`);
           return;
         }
-        const exact = (dict.legalEntities || []).filter(item => normalize(item) === normalize(text));
+        const aliasTarget = COMPANY_ALIASES.find(item => item.aliases.some(alias => normalize(alias) === normalize(text)));
+        const wanted = aliasTarget ? aliasTarget.target : text;
+        const exact = (dict.legalEntities || []).filter(item => normalize(item) === normalize(wanted));
         if (exact.length === 1) legalEntities.push(exact[0]);
         else if (exact.length > 1) conflicts.push({ input: text, candidates: exact });
-        else if (isLegalEntity(text)) legalEntities.push(text);
+        else if (aliasTarget) {
+          const nearAlias = (dict.legalEntities || []).filter(item => normalize(item).includes(normalize(aliasTarget.target.replace(/\b(ООО|АО|ОАО|ПАО|ЗАО)\b/ig, '').trim()))).slice(0, 5);
+          if (nearAlias.length === 1) legalEntities.push(nearAlias[0]);
+          else legalEntities.push(aliasTarget.target);
+        } else if (isLegalEntity(text)) legalEntities.push(text);
         else {
           const near = (dict.legalEntities || []).filter(item => normalize(item).includes(normalize(text))).slice(0, 5);
           if (near.length === 1) legalEntities.push(near[0]);
@@ -7115,25 +7153,32 @@ function __otMatrixCleanerHost() {
     const style = document.createElement('style');
     style.id = 'otk-style';
     style.textContent = `
+      #mc-panel.otk-shell-active{width:min(720px,calc(100vw - 28px));border:1px solid #d7dce2;box-shadow:0 18px 48px rgba(15,23,42,.24);background:#f6f7f9;color:#17202a}
+      #mc-panel.otk-shell-active .mc-head,#mc-panel.otk-shell-active #mc-stats{display:none!important}
+      #mc-panel.otk-shell-active .otk-close{display:block!important;position:static!important;width:34px;height:32px;border:1px solid #c6ccd4!important;background:#fff!important;color:#17202a!important;border-radius:6px!important;font-size:20px!important;line-height:28px!important;box-shadow:none!important;margin:0!important;padding:0!important}
+      #mc-panel.otk-shell-active .mc-body{padding:0;max-height:calc(100vh - 90px);background:#f6f7f9}
       #mc-root.otk-clean > :not([data-role="otk-root"]) { display:none !important; }
-      [data-role="otk-root"]{font-family:Arial,sans-serif;color:#111;background:#fff;border:1px solid #111;margin:0 0 10px;padding:0;max-width:960px}
-      .otk-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid #ddd;background:#fff}
-      .otk-title{font-size:15px;font-weight:700;line-height:1.2}.otk-sub{font-size:11px;color:#555;margin-top:2px}.otk-menu-wrap{position:relative}
-      .otk-icon-btn{border:1px solid #aaa;background:#fff;color:#111;width:30px;height:28px;cursor:pointer;font-weight:700}
-      .otk-menu{position:absolute;right:0;top:32px;background:#fff;border:1px solid #111;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:3;min-width:190px;padding:6px;display:grid;gap:4px}
-      .otk-menu[hidden]{display:none}.otk-menu button{border:1px solid #ddd;background:#fff;text-align:left;padding:6px;font-size:12px;cursor:pointer}
-      .otk-status{padding:8px 12px;border-bottom:1px solid #eee;font-size:12px;display:flex;gap:8px;flex-wrap:wrap}.otk-pill{border:1px solid #ccc;background:#fafafa;padding:2px 6px;border-radius:8px}
-      .otk-scenario{padding:10px 12px;border-bottom:1px solid #ddd;display:grid;gap:5px}.otk-scenario label{font-size:12px;font-weight:700}.otk-select,.otk-input,.otk-textarea{box-sizing:border-box;width:100%;border:1px solid #aaa;background:#fff;color:#111;padding:6px;font-size:12px}
-      .otk-body{display:grid;grid-template-columns:minmax(0,1fr) 286px;gap:12px;padding:12px}.otk-left{min-width:0}.otk-right{position:sticky;top:12px;align-self:start;display:grid;gap:10px}
-      .otk-card{border:1px solid #ddd;background:#fff;padding:10px;display:grid;gap:8px}.otk-card h3{font-size:13px;margin:0}.otk-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.otk-form label{display:grid;gap:3px;font-size:11px;color:#333}
-      .otk-screen[hidden]{display:none}.otk-actions{display:flex;flex-wrap:wrap;gap:6px}.otk-actions button{border:1px solid #111;background:#111;color:#fff;padding:7px 9px;font-size:12px;cursor:pointer}.otk-actions button.secondary{background:#fff;color:#111}
-      .otk-chips{display:flex;flex-wrap:wrap;gap:4px;min-height:24px}.otk-chip{border:1px solid #bbb;background:#f7f7f7;padding:3px 6px;border-radius:8px;font-size:11px;max-width:100%;overflow-wrap:anywhere}.otk-chip.warn{border-color:#a66;background:#fff1f1}
+      [data-role="otk-root"]{font-family:Arial,sans-serif;color:#17202a;background:#f6f7f9;margin:0;padding:0;max-width:none}
+      .otk-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:16px 18px 12px;border-bottom:1px solid #e3e7ec;background:#fff}
+      .otk-title{font-size:20px;font-weight:800;line-height:1.15}.otk-sub{font-size:12px;color:#667085;margin-top:4px}.otk-menu-wrap{position:relative}
+      .otk-icon-btn{border:1px solid #c6ccd4;background:#fff;color:#17202a;width:34px;height:32px;cursor:pointer;font-weight:800;border-radius:6px}
+      .otk-menu{position:absolute;right:0;top:38px;background:#fff;border:1px solid #d7dce2;box-shadow:0 12px 32px rgba(15,23,42,.16);z-index:3;min-width:210px;padding:6px;display:grid;gap:4px;border-radius:6px}
+      .otk-menu[hidden]{display:none}.otk-menu button{border:0;background:#fff;text-align:left;padding:8px;font-size:12px;cursor:pointer;border-radius:4px}.otk-menu button:hover{background:#f1f4f8}
+      .otk-status{padding:10px 18px;border-bottom:1px solid #e3e7ec;font-size:12px;display:flex;gap:8px;flex-wrap:wrap;background:#fff}.otk-pill{border:1px solid #d7dce2;background:#f9fafb;padding:3px 8px;border-radius:999px;color:#344054}
+      .otk-scenario{padding:14px 18px;border-bottom:1px solid #e3e7ec;display:grid;gap:6px;background:#fff}.otk-scenario label{font-size:12px;font-weight:800}.otk-select,.otk-input,.otk-textarea{box-sizing:border-box;width:100%;border:1px solid #c6ccd4;background:#fff;color:#17202a;padding:8px 9px;font-size:13px;border-radius:6px}
+      .otk-textarea{resize:vertical;min-height:72px}.otk-help{font-size:11px;color:#667085;line-height:1.35}.otk-span-2{grid-column:1/-1}
+      .otk-body{display:grid;grid-template-columns:1fr;gap:12px;padding:14px 18px}.otk-left{min-width:0}.otk-right{position:static;display:grid;gap:10px}
+      .otk-card{border:1px solid #e1e6ec;background:#fff;padding:14px;display:grid;gap:12px;border-radius:8px}.otk-card h3{font-size:15px;margin:0}.otk-screen{display:grid;gap:12px}.otk-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.otk-form label{display:grid;gap:4px;font-size:12px;color:#344054;font-weight:700}
+      .otk-subsection{border:1px solid #edf0f3;background:#fbfcfd;padding:12px;display:grid;gap:10px;border-radius:8px}.otk-subsection h4{font-size:13px;margin:0}.otk-form-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.otk-form-tile{border:1px solid #dfe5eb;background:#fff;padding:9px;border-radius:8px;font-size:12px;display:grid;gap:5px}.otk-form-tile b{font-size:12px}.otk-form-tile small{color:#667085;line-height:1.35}
+      .otk-screen[hidden]{display:none}.otk-actions{display:flex;flex-wrap:wrap;gap:8px}.otk-actions button{border:1px solid #111827;background:#111827;color:#fff;padding:9px 12px;font-size:13px;cursor:pointer;border-radius:6px;font-weight:800}.otk-actions button.secondary{background:#fff;color:#17202a;border-color:#c6ccd4}
+      .otk-chips{display:flex;flex-wrap:wrap;gap:5px;min-height:24px}.otk-chip{border:1px solid #d0d6de;background:#f9fafb;padding:4px 7px;border-radius:999px;font-size:11px;max-width:100%;overflow-wrap:anywhere}.otk-chip.warn{border-color:#f1b8b8;background:#fff4f4;color:#8a1f1f}.otk-chip.ok{border-color:#b7dfc2;background:#f0fff4;color:#166534}
       .otk-kv{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #eee;padding-bottom:4px}.otk-kv span{color:#555}.otk-kv strong{text-align:right}
-      .otk-preview-list{display:grid;gap:6px;max-height:260px;overflow:auto}.otk-preview-row{border:1px solid #ddd;padding:6px;font-size:11px}.otk-preview-row.ok{border-left:4px solid #1f7a1f}.otk-preview-row.warn{border-left:4px solid #9a6a00}.otk-preview-row.skip{border-left:4px solid #777}
-      .otk-log-drawer{border-top:1px solid #ddd;padding:8px 12px}.otk-log-body{border:1px solid #ddd;background:#fafafa;max-height:220px;overflow:auto;padding:6px;font-size:11px;margin-top:6px}.otk-log-line{padding:2px 0;border-bottom:1px solid #eee}
+      .otk-preview-list{display:grid;gap:6px;max-height:260px;overflow:auto}.otk-preview-row{border:1px solid #e1e6ec;padding:8px;font-size:12px;border-radius:6px;background:#fff}.otk-preview-row.ok{border-left:4px solid #1f7a1f}.otk-preview-row.warn{border-left:4px solid #9a6a00}.otk-preview-row.skip{border-left:4px solid #777}
+      .otk-log-drawer{border-top:1px solid #e3e7ec;padding:10px 18px;background:#fff}.otk-log-body{border:1px solid #e1e6ec;background:#fbfcfd;max-height:220px;overflow:auto;padding:8px;font-size:11px;margin-top:6px;border-radius:8px}.otk-log-line{padding:2px 0;border-bottom:1px solid #eee}
       .otk-range{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:6px}.otk-table{width:100%;border-collapse:collapse;font-size:11px}.otk-table th,.otk-table td{border:1px solid #ddd;padding:4px;text-align:left}
       .mc-v8-create-preview{margin-top:6px}
-      @media(max-width:760px){.otk-body{grid-template-columns:1fr}.otk-right{position:static}.otk-form{grid-template-columns:1fr}.otk-head{display:block}.otk-menu-wrap{margin-top:6px}}
+      .otk-tech{font-size:11px;color:#98a2b3}
+      @media(max-width:620px){#mc-panel.otk-shell-active{width:calc(100vw - 16px);right:8px;bottom:58px}.otk-form,.otk-form-tiles,.otk-range{grid-template-columns:1fr}.otk-head{display:block}.otk-menu-wrap{margin-top:8px}.otk-body,.otk-head,.otk-status,.otk-scenario,.otk-log-drawer{padding-left:12px;padding-right:12px}}
     `;
     document.head.appendChild(style);
   }
@@ -7186,7 +7231,7 @@ function __otMatrixCleanerHost() {
     const actions = root.querySelector('[data-role="otk-preview-actions"]');
     root.querySelector('[data-role="otk-plan-id"]').textContent = preview.planId || 'нет preview';
     root.querySelector('[data-role="otk-preview-summary"]').textContent =
-      `создать: ${count('created') || (preview.entries || []).filter(row => row.actionType === 'add-row').length}; изменить: ${count('updated') || (preview.entries || []).filter(row => row.actionType === 'patch-row').length}; пропустить: ${count('skipped')}; warnings: ${(preview.warnings || []).length}`;
+      `Создаст: ${count('created') || (preview.entries || []).filter(row => row.actionType === 'add-row').length}; изменит: ${count('updated') || (preview.entries || []).filter(row => row.actionType === 'patch-row').length}; пропустит: ${count('skipped')}; предупреждений: ${(preview.warnings || []).length}`;
     box.innerHTML = (preview.entries || preview.report || []).slice(0, 18).map(row => {
       const cls = row.status === 'ok' ? 'ok' : row.status === 'skipped' || row.actionType === 'skip' ? 'skip' : 'warn';
       return `<div class="otk-preview-row ${cls}"><b>${escapeHtml(row.actionType || row.operationType || 'preview')}</b><div>${escapeHtml(row.reason || row.message || '')}</div><small>${escapeHtml(row.rowNo || row.itemId || '')}</small></div>`;
@@ -7214,6 +7259,17 @@ function __otMatrixCleanerHost() {
     (resolved.conflicts || []).forEach(item => addChip(conflictBox, `${item.input}: уточнить`, true));
   }
 
+  function renderSignerLegalResolution(root, resolved) {
+    const legalBox = root.querySelector('[data-role="otk-signer-legal-chips"]');
+    const siteBox = root.querySelector('[data-role="otk-signer-site-chips"]');
+    const conflictBox = root.querySelector('[data-role="otk-signer-conflict-chips"]');
+    [legalBox, siteBox, conflictBox].forEach(box => { if (box) box.innerHTML = ''; });
+    (resolved.legalEntities || []).forEach(item => addChip(legalBox, item));
+    (resolved.sites || []).forEach(item => addChip(siteBox, item, true));
+    (resolved.warnings || []).forEach(item => addChip(conflictBox, item, true));
+    (resolved.conflicts || []).forEach(item => addChip(conflictBox, `${item.input}: уточнить`, true));
+  }
+
   function activeScreen(root) {
     return root.querySelector('[data-role="otk-scenario"]').value;
   }
@@ -7228,15 +7284,28 @@ function __otMatrixCleanerHost() {
       affiliation: REQUIRED_AFFILIATION,
     };
     if (scenario === 'signers') {
+      const resolvedLegal = LegalEntityResolver.resolve(field('otk-legal-input').value, dict);
+      renderSignerLegalResolution(root, resolvedLegal);
+      const manualSites = parseList(field('otk-site-input').value);
+      const signerName = field('otk-range-signer').value || field('otk-new-signer').value;
+      const rangeTo = field('otk-range-to').value;
+      const amountTo = field('otk-unified-range').checked ? rangeTo : field('otk-amount-to').value;
       return {
         type: 'add_signer_forms',
         payload: Object.assign({}, common, {
           currentSigner: field('otk-current-signer').value,
           newSigner: field('otk-new-signer').value,
-          limit: field('otk-range-to').value,
-          amount: field('otk-unified-range').checked ? field('otk-range-to').value : field('otk-amount-to').value,
-          legalEntities: field('otk-legal-input').value,
-          sites: field('otk-site-input').value,
+          signer: signerName,
+          limit: rangeTo,
+          amount: amountTo,
+          from: field('otk-range-from').value,
+          to: rangeTo,
+          ranges: [{ from: field('otk-range-from').value, to: rangeTo, signer: signerName }],
+          legalEntities: resolvedLegal.legalEntities,
+          sites: unique([].concat(resolvedLegal.sites || []).concat(manualSites)),
+          direction: field('otk-direction').value,
+          functionName: field('otk-function').value,
+          category: field('otk-category').value,
           conditions: CONDITIONS_STANDARD,
           documentTypeGroups: DocumentTypePresetEngine.groups(),
         }),
@@ -7302,6 +7371,8 @@ function __otMatrixCleanerHost() {
     const dict = DictionaryBuilder.build();
     const context = ContextDetector.detect();
     root.classList.add('otk-clean');
+    const panel = root.closest('#mc-panel');
+    if (panel) panel.classList.add('otk-shell-active');
     const shell = document.createElement('section');
     shell.setAttribute('data-role', 'otk-root');
     shell.innerHTML = `
@@ -7345,18 +7416,36 @@ function __otMatrixCleanerHost() {
               <div class="otk-form">
                 <label>Новый подписант<input class="otk-input" data-role="otk-new-signer" list="otk-users"></label>
                 <label>Текущий подписант<input class="otk-input" data-role="otk-current-signer" list="otk-users"></label>
-                <label>ЮЛ / внутренняя компания<input class="otk-input" data-role="otk-legal-input" list="otk-legal"></label>
-                <label>Площадка / ОП<input class="otk-input" data-role="otk-site-input" list="otk-sites"></label>
+                <label class="otk-span-2">Компании Черкизово
+                  <textarea class="otk-textarea" data-role="otk-legal-input" rows="3" placeholder="Черкизово-Масла, Черкизово-Свиноводство, Куриное Царство, ПКХП..."></textarea>
+                  <small class="otk-help">Можно вставить списком через запятую. Филиалы не попадут в ЮЛ: они будут предложены как площадки/ОП.</small>
+                </label>
+                <label class="otk-span-2">Площадки / ОП, если нужны<input class="otk-input" data-role="otk-site-input" list="otk-sites" placeholder="Например: Москва-2, ОП Пенза"></label>
+                <div class="otk-span-2 otk-subsection">
+                  <div class="otk-actions"><button type="button" class="secondary" data-role="otk-recognize-signer-legal">Распознать компании</button></div>
+                  <div><b>Будут добавлены как ЮЛ</b><div class="otk-chips" data-role="otk-signer-legal-chips"></div></div>
+                  <div><b>Распознаны как площадки/ОП</b><div class="otk-chips" data-role="otk-signer-site-chips"></div></div>
+                  <div><b>Нужно уточнить</b><div class="otk-chips" data-role="otk-signer-conflict-chips"></div></div>
+                </div>
                 <label>Дирекция<input class="otk-input" data-role="otk-direction" list="otk-directions"></label>
                 <label>Функция<input class="otk-input" data-role="otk-function" list="otk-functions"></label>
                 <label>Категория<input class="otk-input" data-role="otk-category" list="otk-categories"></label>
                 <label>Условия применения<input class="otk-input" value="${escapeHtml(CONDITIONS_STANDARD.join('; '))}" readonly></label>
               </div>
-              <div class="otk-card"><h3>Диапазоны подписания</h3>
+              <div class="otk-subsection"><h4>Диапазоны подписания</h4>
                 <div class="otk-range"><input class="otk-input" data-role="otk-range-from" value="0"><input class="otk-input" data-role="otk-range-to" placeholder="До"><input class="otk-input" data-role="otk-range-signer" list="otk-users" placeholder="Подписант"></div>
                 <label><input type="checkbox" data-role="otk-unified-range" checked> Применять эти диапазоны и как лимит, и как сумму</label>
                 <div data-role="otk-split-ranges" hidden><input class="otk-input" data-role="otk-amount-to" placeholder="Сумма до"></div>
                 <div class="otk-chips"><span class="otk-chip">4 формы стандарт</span><span class="otk-chip">Основной пакет</span><span class="otk-chip">Подчинённый пакет</span></div>
+              </div>
+              <div class="otk-subsection">
+                <h4>4 формы, которые будут собраны</h4>
+                <div class="otk-form-tiles">
+                  <div class="otk-form-tile"><b>1. Основной пакет + Единый ЭДО</b><small>${escapeHtml(DOC_GROUP_A.join('; '))}</small></div>
+                  <div class="otk-form-tile"><b>2. Основной пакет + Не единый ЭДО</b><small>${escapeHtml(DOC_GROUP_A.join('; '))}</small></div>
+                  <div class="otk-form-tile"><b>3. Подчинённый пакет + Единый ЭДО</b><small>${escapeHtml(DOC_GROUP_B.join('; '))}</small></div>
+                  <div class="otk-form-tile"><b>4. Подчинённый пакет + Не единый ЭДО</b><small>${escapeHtml(DOC_GROUP_B.join('; '))}</small></div>
+                </div>
               </div>
             </div>
             <div data-screen="approvers" class="otk-screen" hidden>
@@ -7420,7 +7509,7 @@ function __otMatrixCleanerHost() {
         </div>
         <aside class="otk-right">
           <div class="otk-card"><h3>Контекст</h3><div>${escapeHtml(contextLabel(context))}</div><div>${escapeHtml(context.status || '')}</div><div>Найдено: ЮЛ ${dict.legalEntities.length}, ОП ${dict.sites.length}, пользователей ${dict.users.length}</div></div>
-          <div class="otk-card"><h3>Превью</h3><div>planId: <span data-role="otk-plan-id">нет preview</span></div><div data-role="otk-preview-summary">будет создано: 0; будет изменено: 0; будет пропущено: 0</div><div class="otk-preview-list" data-role="otk-preview"></div></div>
+          <div class="otk-card"><h3>Что изменится</h3><div data-role="otk-preview-summary">Пока нет preview. Заполни форму и нажми «Показать превью».</div><div class="otk-tech" hidden>planId: <span data-role="otk-plan-id">нет preview</span></div><div class="otk-preview-list" data-role="otk-preview"></div></div>
           <div class="otk-card" data-role="otk-preview-actions" hidden><h3>Действия</h3><div class="otk-actions"><button type="button" data-role="otk-apply-side">Применить</button><button type="button" class="secondary" data-role="otk-export-side">Экспорт отчёта</button></div></div>
         </aside>
       </div>
@@ -7434,6 +7523,14 @@ function __otMatrixCleanerHost() {
       </div>
     `;
     root.prepend(shell);
+    if (panel) {
+      const nativeClose = panel.querySelector('.mc-head [data-role="close"]');
+      const menuWrap = shell.querySelector('.otk-menu-wrap');
+      if (nativeClose && menuWrap) {
+        nativeClose.classList.add('otk-close');
+        menuWrap.insertAdjacentElement('afterend', nativeClose);
+      }
+    }
 
     fillOptions(shell.querySelector('#otk-users'), dict.users);
     fillOptions(shell.querySelector('#otk-legal'), dict.legalEntities);
@@ -7454,6 +7551,8 @@ function __otMatrixCleanerHost() {
     });
     shell.querySelector('[data-role="otk-show-legacy"]').addEventListener('click', () => {
       root.classList.remove('otk-clean');
+      const panel = root.closest('#mc-panel');
+      if (panel) panel.classList.remove('otk-shell-active');
       log('Legacy/debug panels shown from menu.', 'warn');
     });
     shell.querySelector('[data-role="otk-about"]').addEventListener('click', () => {
@@ -7474,6 +7573,11 @@ function __otMatrixCleanerHost() {
       const resolved = LegalEntityResolver.resolve(shell.querySelector('[data-role="otk-legal-paste"]').value, DictionaryBuilder.build());
       renderLegalResolution(shell, resolved);
       log(`Распознано ЮЛ ${resolved.legalEntities.length}, ОП ${resolved.sites.length}, конфликтов ${resolved.conflicts.length}.`, resolved.conflicts.length ? 'warn' : 'info');
+    });
+    shell.querySelector('[data-role="otk-recognize-signer-legal"]').addEventListener('click', () => {
+      const resolved = LegalEntityResolver.resolve(shell.querySelector('[data-role="otk-legal-input"]').value, DictionaryBuilder.build());
+      renderSignerLegalResolution(shell, resolved);
+      log(`Для подписантов распознано ЮЛ ${resolved.legalEntities.length}, ОП ${resolved.sites.length}, конфликтов ${resolved.conflicts.length}.`, resolved.conflicts.length ? 'warn' : 'info');
     });
     shell.querySelector('[data-role="otk-build"]').addEventListener('click', () => {
       state.lastOperation = buildOperation(shell);
